@@ -504,6 +504,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/txs/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aggregate stats over the last N transactions */
+        get: {
+            parameters: {
+                query?: {
+                    window?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** TxsAggregate */
+                            data: {
+                                window: number;
+                                txInWindow: number;
+                                fromHeight: string | null;
+                                toHeight: string | null;
+                                successCount: number;
+                                failedCount: number;
+                                otherCount: number;
+                                successRate: number | null;
+                                avgMessagesPerTx: number | null;
+                                totalMessages: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/txs/{hash}": {
         parameters: {
             query?: never;
@@ -653,6 +722,52 @@ export interface paths {
                                 details?: {
                                     [key: string]: unknown;
                                 };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounts/aggregate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Global account registry counts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** AccountsAggregate */
+                            data: {
+                                /** @description All observed accounts (addresses seen). */
+                                totalAccounts: number;
+                                moduleAccounts: number;
+                                /** @description Accounts carrying a non-null kind. */
+                                labelledAccounts: number;
+                                avgTxCount: number | null;
                             };
                         };
                     };

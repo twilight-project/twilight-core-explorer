@@ -49,6 +49,39 @@ export const AccountDetailQuery = Type.Object(
   { additionalProperties: false },
 );
 
+// ----- accounts aggregate (global registry counts) -----
+
+export const AccountsAggregate = Type.Object(
+  {
+    totalAccounts: Type.Integer({ description: 'All observed accounts (addresses seen).' }),
+    moduleAccounts: Type.Integer(),
+    labelledAccounts: Type.Integer({ description: 'Accounts carrying a non-null kind.' }),
+    avgTxCount: Nullable(Type.Number({ description: 'Mean observed tx count; null when no accounts.' })),
+  },
+  { $id: 'AccountsAggregate' },
+);
+
+export const AccountsAggregateResponse = Type.Object(
+  { data: AccountsAggregate },
+  { $id: 'AccountsAggregateResponse' },
+);
+
+export interface AccountsAggregateInput {
+  total: number;
+  moduleCount: number;
+  labelledCount: number;
+  avgTxCount: number | null;
+}
+
+export function toAccountsAggregate(a: AccountsAggregateInput): Static<typeof AccountsAggregate> {
+  return {
+    totalAccounts: a.total,
+    moduleAccounts: a.moduleCount,
+    labelledAccounts: a.labelledCount,
+    avgTxCount: a.avgTxCount !== null ? Math.round(a.avgTxCount * 100) / 100 : null,
+  };
+}
+
 export interface AccountRow {
   address: string;
   accountKind: string | null;

@@ -34,6 +34,16 @@ export async function getTx(prisma: PrismaClient, hash: string) {
   return prisma.explorerTransaction.findUnique({ where: { hash } });
 }
 
+// The last `limit` transactions (newest-first), thinned to just what the aggregate needs. Windowed
+// stats are computed in the mapper — a live read, not a projection.
+export async function listTxsForAggregate(prisma: PrismaClient, limit: number) {
+  return prisma.explorerTransaction.findMany({
+    orderBy: [{ height: 'desc' }, { index: 'desc' }],
+    take: limit,
+    select: { height: true, status: true, messageTypesJson: true },
+  });
+}
+
 export async function getMessages(prisma: PrismaClient, txHash: string) {
   return prisma.message.findMany({ where: { txHash }, orderBy: { msgIndex: 'asc' } });
 }

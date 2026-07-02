@@ -1289,6 +1289,159 @@
         }
       }
     },
+    "/api/v1/txs/aggregate": {
+      "get": {
+        "summary": "Aggregate stats over the last N transactions",
+        "tags": [
+          "transactions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 5000,
+              "default": 1000,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "window",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "window",
+                        "txInWindow",
+                        "fromHeight",
+                        "toHeight",
+                        "successCount",
+                        "failedCount",
+                        "otherCount",
+                        "successRate",
+                        "avgMessagesPerTx",
+                        "totalMessages"
+                      ],
+                      "properties": {
+                        "window": {
+                          "type": "integer"
+                        },
+                        "txInWindow": {
+                          "type": "integer"
+                        },
+                        "fromHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "toHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "successCount": {
+                          "type": "integer"
+                        },
+                        "failedCount": {
+                          "type": "integer"
+                        },
+                        "otherCount": {
+                          "type": "integer"
+                        },
+                        "successRate": {
+                          "anyOf": [
+                            {
+                              "description": "Percent of the window that succeeded; null if empty.",
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "avgMessagesPerTx": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "totalMessages": {
+                          "type": "integer"
+                        }
+                      },
+                      "title": "TxsAggregate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/txs/{hash}": {
       "get": {
         "summary": "Get a transaction by hash",
@@ -1747,6 +1900,65 @@
                           "additionalProperties": {}
                         }
                       }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/aggregate": {
+      "get": {
+        "summary": "Global account registry counts",
+        "tags": [
+          "accounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "totalAccounts",
+                        "moduleAccounts",
+                        "labelledAccounts",
+                        "avgTxCount"
+                      ],
+                      "properties": {
+                        "totalAccounts": {
+                          "description": "All observed accounts (addresses seen).",
+                          "type": "integer"
+                        },
+                        "moduleAccounts": {
+                          "type": "integer"
+                        },
+                        "labelledAccounts": {
+                          "description": "Accounts carrying a non-null kind.",
+                          "type": "integer"
+                        },
+                        "avgTxCount": {
+                          "anyOf": [
+                            {
+                              "description": "Mean observed tx count; null when no accounts.",
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "title": "AccountsAggregate"
                     }
                   }
                 }

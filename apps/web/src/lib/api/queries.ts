@@ -67,6 +67,28 @@ export function useBlocksAggregate(window?: number) {
   });
 }
 
+export type TxsAggregateResponse = JsonOf<'/api/v1/txs/aggregate'>;
+export type AccountsAggregateResponse = JsonOf<'/api/v1/accounts/aggregate'>;
+
+// Windowed tx aggregate (success/failed/rate, avg messages/tx). Window is a TRANSACTION count
+// (last N txs), server default 1000 — same param shape as the block window, different unit.
+export function useTxsAggregate(window?: number) {
+  return useQuery({
+    queryKey: ['txs', 'aggregate', window ?? null],
+    queryFn: () => apiGet('/api/v1/txs/aggregate', { window }),
+    refetchInterval: LIST_REFETCH_MS,
+  });
+}
+
+// Global account registry counts (no window).
+export function useAccountsAggregate() {
+  return useQuery({
+    queryKey: ['accounts', 'aggregate'],
+    queryFn: () => apiGet('/api/v1/accounts/aggregate'),
+    refetchInterval: LIST_REFETCH_MS,
+  });
+}
+
 export function useRecentTxs(limit = 8) {
   return useQuery({
     queryKey: ['txs', { limit }],

@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/ui/PageHeader';
-import { KpiCard } from '@/components/ui/KpiCard';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { AccountsAggregateStrip } from '@/components/accounts/AccountsAggregateStrip';
 import { AccountsList } from '@/components/accounts/AccountsList';
 
 export const metadata = { title: 'Accounts' };
@@ -9,9 +9,9 @@ export const metadata = { title: 'Accounts' };
 // list is ordered by observation, never by balance, and balances are per-address samples (on the
 // detail page), not a global holdings ranking.
 //
-// Stat strip cards are all derivable from indexed account rows (counts, first/last-seen recency) →
-// `preview` until aggregate endpoints land. No median-balance / holdings card — that would imply a
-// complete global balance index we don't have.
+// The strip is real (GET /accounts/aggregate): global registry counts only. No "24h" cards
+// (firstSeen/lastSeen are heights, not timestamps) and no median-balance/holdings card (that would
+// imply a complete global balance index we don't have).
 export default function AccountsPage() {
   return (
     <div className="space-y-section">
@@ -21,12 +21,7 @@ export default function AccountsPage() {
         sub="Addresses seen by the indexer — first/last activity, transaction count, and kind. This is an observation log, not a holdings ranking; balances are per-address samples on each account's page."
       />
 
-      <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
-        <KpiCard preview label="Observed accounts" value="8,412" />
-        <KpiCard preview label="Active (24h)" value="612" />
-        <KpiCard preview label="New (24h)" value="47" />
-        <KpiCard preview label="Module accounts" value="6" />
-      </div>
+      <AccountsAggregateStrip />
 
       <Card>
         <CardHeader

@@ -1,28 +1,69 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/PageHeader';
+import { KpiCard } from '@/components/ui/KpiCard';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
 import { EmptyState } from '@/components/states/States';
-import { useDecodeFailures, useProjections } from '@/lib/api/queries';
+import { useDecodeFailures, useProjections, useStatus } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
 import { formatRelativeTime } from '@/lib/format/time';
 import { statusTone } from '@/lib/format/status';
 
 // Operational diagnostics surface: indexer projection health and freshness. Read-only.
-export default function ApiDiagnosticsPage() {
+// (Renamed from the old "/api" route — this was never a public API reference; that lives at the
+// Scalar /docs page.) Airy redesign — summary-first cards over the existing projection + decode tables.
+export default function DiagnosticsPage() {
   const query = useProjections();
   const decodeFailures = useDecodeFailures();
+  const status = useStatus();
+
+  // Summary is derived from the same real queries — no extra fetch. Sums are over bounded integers.
+  const projList = query.data?.data;
+  const projCount = projList ? projList.length : undefined;
+  const projFailures = projList
+    ? projList.reduce((sum, p) => sum + p.unresolvedFailures.count, 0)
+    : undefined;
+  const decodeCount = decodeFailures.data ? decodeFailures.data.data.length : undefined;
+  const indexerStatus = status.data?.data.indexer?.status;
+  const dash = (pending: boolean) => (pending ? '…' : '—');
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl text-text">API &amp; indexer diagnostics</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Projection cursors, status, unresolved projection failures, and decode failures from the
-          public API.
-        </p>
+    <div className="space-y-section">
+      <PageHeader
+        eyebrow="Diagnostics"
+        title="Indexer & projection diagnostics"
+        sub="Projection cursors, status, unresolved projection failures, and decode failures — the operational health of the pipeline behind this explorer. Read-only."
+      />
+
+      <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
+        <KpiCard
+          label="Indexer status"
+          value={indexerStatus ?? dash(status.isPending)}
+          mono={false}
+          deltaTone={statusTone(indexerStatus)}
+        />
+        <KpiCard
+          label="Projections tracked"
+          value={projCount === undefined ? dash(query.isPending) : projCount}
+        />
+        <KpiCard
+          label="Projection failures"
+          value={projFailures === undefined ? dash(query.isPending) : projFailures}
+          deltaTone={projFailures ? 'danger' : 'success'}
+          delta={projFailures === undefined ? undefined : projFailures ? 'unresolved' : 'clean'}
+          sub="unresolved"
+        />
+        <KpiCard
+          label="Decode failures"
+          value={decodeCount === undefined ? dash(decodeFailures.isPending) : decodeCount}
+          deltaTone={decodeCount ? 'warning' : 'success'}
+          sub="latest unresolved"
+        />
       </div>
+
       <Card>
         <CardHeader title="Projections" />
         <CardBody>

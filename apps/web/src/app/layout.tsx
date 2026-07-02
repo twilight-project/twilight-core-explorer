@@ -3,6 +3,7 @@ import { Inter, Instrument_Serif, Roboto_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -36,9 +37,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       data-theme={theme}
+      data-density="compact"
       className={`${inter.variable} ${instrumentSerif.variable} ${robotoMono.variable}`}
     >
       <body className="bg-background text-text">
+        {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('tw-theme');if(t){document.documentElement.dataset.theme=t;}var d=localStorage.getItem('tw-density');if(d){document.documentElement.dataset.density=d;}}catch(e){}})();",
+          }}
+        />
         {/* WCAG 2.4.1 — first focusable element: bypass the header/nav straight to content. */}
         <a
           href="#main"
@@ -61,6 +70,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Footer />
           </Providers>
         </div>
+        <ThemeToggle />
       </body>
     </html>
   );

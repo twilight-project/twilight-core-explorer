@@ -1,17 +1,21 @@
+import { PageHeader } from '@/components/ui/PageHeader';
+import { RewardsSummaryStrip } from '@/components/rewards/RewardsSummaryStrip';
 import { RewardsView } from '@/components/rewards/RewardsView';
 
-export const metadata = { title: "Rewards" };
+export const metadata = { title: 'Rewards' };
 
+// Airy redesign — keeps our accurate read-only rewards semantics (observed projections + historical
+// events, no claim action), improves only the layout: a real summary strip over the existing epochs /
+// claims / balances / treasury / params panels + the non-actionable claiming caveat.
 export default function RewardsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl text-text">Rewards</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Epochs, claim history, module balances, treasury payments, and params changes — read-only
-          observed projections and historical events. Claiming is not available here.
-        </p>
-      </div>
+    <div className="space-y-section">
+      <PageHeader
+        eyebrow="Rewards"
+        title="CoreSlot rewards & emissions"
+        sub="Epochs, claim history, module balances, treasury payments, and params changes — read-only observed projections and historical events. Claiming is not available here."
+      />
+      <RewardsSummaryStrip />
       <RewardsView />
     </div>
   );

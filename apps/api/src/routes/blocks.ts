@@ -5,9 +5,12 @@ import {
   BlockDetailResponse,
   BlockListResponse,
   BlockParams,
+  BlocksAggregateQuery,
+  BlocksAggregateResponse,
   BlocksQuery,
   toBlockDetail,
   toBlockListItem,
+  toBlocksAggregate,
 } from '../dto/blocks.js';
 import { ErrorResponse } from '../dto/common.js';
 import { DEFAULT_LIMIT, decodeCursor, encodeCursor, parseUint64 } from '../lib/pagination.js';
@@ -17,6 +20,7 @@ import {
   getProposerByHeight,
   getProposersByHeights,
   listBlocks,
+  listBlocksForAggregate,
 } from '../repositories/blocks-repository.js';
 
 export async function blocksRoutes(fastify: FastifyInstance): Promise<void> {
@@ -57,6 +61,30 @@ export async function blocksRoutes(fastify: FastifyInstance): Promise<void> {
       const nextCursor = hasMore && last ? encodeCursor(last.height) : null;
 
       return { data, page: { limit, nextCursor } };
+    },
+  );
+
+  // GET /blocks/aggregate — windowed stats over the last N blocks. Static route, so it matches ahead
+  // of /blocks/:height (and "aggregate" is not a valid uint64 anyway). A live read, not a projection.
+  app.get(
+    '/blocks/aggregate',
+    {
+      schema: {
+        tags: ['blocks'],
+        summary: 'Aggregate stats over the last N blocks',
+        querystring: BlocksAggregateQuery,
+        response: { 200: BlocksAggregateResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const window = request.query.window ?? 1000;
+      const blocks = await listBlocksForAggregate(app.prisma, window);
+      const attributions = await getProposersByHeights(
+        app.prisma,
+        blocks.map((b) => b.height),
+      );
+      return { data: toBlocksAggregate(window, blocks, attributions) };
     },
   );
 

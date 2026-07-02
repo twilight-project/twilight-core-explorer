@@ -101,6 +101,113 @@ describe('blocks list', () => {
   });
 });
 
+describe('blocks aggregate', () => {
+  const T = (s) => new Date(`2026-06-26T00:00:0${s}.000Z`);
+
+  it('computes windowed stats and counts distinct attributed CoreSlots (+2-correct)', async () => {
+    const app = await build({
+      blocks: [
+        block(1, { time: T(0), txCount: 2 }),
+        block(2, { time: T(2), txCount: 4 }),
+        block(3, { time: T(4), txCount: 6 }),
+      ],
+      attributions: [
+        { height: 1n, slotId: 3n, proposerAddress: 'a', rawProposerAddress: 'A', operatorAddress: 'op3', attributionStatus: 'attributed' },
+        // height 2 rotated the consensus key but it's the SAME CoreSlot (slot 3) -> counts once
+        { height: 2n, slotId: 3n, proposerAddress: 'a2', rawProposerAddress: 'A2', operatorAddress: 'op3', attributionStatus: 'attributed' },
+        { height: 3n, slotId: 5n, proposerAddress: 'b', rawProposerAddress: 'B', operatorAddress: 'op5', attributionStatus: 'attributed' },
+      ],
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.window, 1000);
+    assert.equal(d.blocksInWindow, 3);
+    assert.equal(d.fromHeight, '1');
+    assert.equal(d.toHeight, '3');
+    assert.equal(d.avgBlockTimeSeconds, 2);
+    assert.equal(d.avgTxsPerBlock, 4);
+    assert.equal(d.totalTxs, 12);
+    assert.equal(d.blocksPerDay, 43200);
+    assert.equal(d.spanSeconds, 4);
+    assert.equal(d.uniqueProposers, 2); // slots {3,5}; the rotation on height 2 collapses to slot 3
+    await app.close();
+  });
+
+  it('returns 200 with nulls on an empty chain (never 404, never a guessed 0)', async () => {
+    const app = await build({ blocks: [] });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.blocksInWindow, 0);
+    assert.equal(d.fromHeight, null);
+    assert.equal(d.avgBlockTimeSeconds, null);
+    assert.equal(d.blocksPerDay, null);
+    assert.equal(d.uniqueProposers, 0);
+    assert.equal(d.totalTxs, 0);
+    await app.close();
+  });
+
+  it('rejects an out-of-range window with 400 invalid_query', async () => {
+    const app = await build({ blocks: [] });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate?window=99999' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error.code, 'invalid_query');
+    await app.close();
+  });
+
+  it('serializes heights as strings, never numbers', async () => {
+    const app = await build({ blocks: [block(42, { time: T(0), txCount: 1 })] });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate' });
+    assert.equal(typeof res.json().data.toHeight, 'string');
+    assert.match(res.payload, /"toHeight":"42"/);
+    await app.close();
+  });
+
+  // Interval-math edge cases (the highest-risk paths — a null-time block must NOT bridge a gap).
+  const utc = (s) => new Date(Date.UTC(2026, 5, 26, 0, 0, s));
+
+  it('does not bridge a null-time block — breaks the interval chain, yields null avg', async () => {
+    const app = await build({
+      blocks: [
+        block(1, { time: utc(0), txCount: 1 }),
+        block(2, { time: null, txCount: 1 }),
+        block(3, { time: utc(10), txCount: 1 }),
+      ],
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate' });
+    const d = res.json().data;
+    assert.equal(d.blocksInWindow, 3);
+    // Blocks 1 and 3 are timed but NOT consecutive (2 is null between) → 0 intervals → null, not 5.
+    assert.equal(d.avgBlockTimeSeconds, null);
+    assert.equal(d.blocksPerDay, null);
+    await app.close();
+  });
+
+  it('excludes non-positive intervals (clock skew / reorg)', async () => {
+    const app = await build({
+      blocks: [
+        block(1, { time: utc(10), txCount: 1 }),
+        block(2, { time: utc(8), txCount: 1 }), // time goes backwards
+        block(3, { time: utc(12), txCount: 1 }),
+      ],
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate' });
+    // Only the positive 2→3 delta (4s) counts; the negative 1→2 delta is dropped.
+    assert.equal(res.json().data.avgBlockTimeSeconds, 4);
+    await app.close();
+  });
+
+  it('reports an average from a single interval (2 consecutive timed blocks, not null)', async () => {
+    const app = await build({
+      blocks: [block(1, { time: utc(0), txCount: 1 }), block(2, { time: utc(3), txCount: 1 })],
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/blocks/aggregate' });
+    assert.equal(res.json().data.avgBlockTimeSeconds, 3); // one interval is a valid mean
+    await app.close();
+  });
+});
+
 describe('block detail', () => {
   it('returns a block by height', async () => {
     const app = await build({ blocks: [block(7)] });

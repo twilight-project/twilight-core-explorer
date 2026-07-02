@@ -627,6 +627,177 @@
         }
       }
     },
+    "/api/v1/blocks/aggregate": {
+      "get": {
+        "summary": "Aggregate stats over the last N blocks",
+        "tags": [
+          "blocks"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 5000,
+              "default": 1000,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "window",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "window",
+                        "blocksInWindow",
+                        "fromHeight",
+                        "toHeight",
+                        "spanSeconds",
+                        "avgBlockTimeSeconds",
+                        "avgTxsPerBlock",
+                        "blocksPerDay",
+                        "uniqueProposers",
+                        "totalTxs"
+                      ],
+                      "properties": {
+                        "window": {
+                          "description": "Effective block-count window requested.",
+                          "type": "integer"
+                        },
+                        "blocksInWindow": {
+                          "description": "Actual blocks counted (< window on a young chain).",
+                          "type": "integer"
+                        },
+                        "fromHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "toHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "spanSeconds": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "avgBlockTimeSeconds": {
+                          "anyOf": [
+                            {
+                              "description": "Null when < 2 timed blocks.",
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "avgTxsPerBlock": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "blocksPerDay": {
+                          "anyOf": [
+                            {
+                              "description": "Projected from avg cadence (86400 / avgBlockTime).",
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "uniqueProposers": {
+                          "description": "Distinct attributed CoreSlots (+2-correct) in the window.",
+                          "type": "integer"
+                        },
+                        "totalTxs": {
+                          "type": "integer"
+                        }
+                      },
+                      "title": "BlocksAggregate"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/blocks/{height}": {
       "get": {
         "summary": "Get a block by height",

@@ -14,6 +14,7 @@ export type StatusResponse = JsonOf<'/api/v1/status'>;
 export type ProjectionsResponse = JsonOf<'/api/v1/projections'>;
 export type DecodeFailuresResponse = JsonOf<'/api/v1/decode-failures'>;
 export type BlocksResponse = JsonOf<'/api/v1/blocks'>;
+export type BlocksAggregateResponse = JsonOf<'/api/v1/blocks/aggregate'>;
 export type TxsResponse = JsonOf<'/api/v1/txs'>;
 export type CoreSlotsResponse = JsonOf<'/api/v1/coreslots'>;
 export type ValidatorSetResponse = JsonOf<'/api/v1/network/validator-set'>;
@@ -52,6 +53,16 @@ export function useLatestBlocks(limit = 8) {
   return useQuery({
     queryKey: ['blocks', { limit }],
     queryFn: () => apiGet('/api/v1/blocks', { limit }),
+    refetchInterval: LIST_REFETCH_MS,
+  });
+}
+
+// Windowed block aggregate (avg block time, txs/block, blocks/day, unique proposers). `window` is an
+// optional block-count (server default 1000); omitted -> undefined is dropped by apiGet.
+export function useBlocksAggregate(window?: number) {
+  return useQuery({
+    queryKey: ['blocks', 'aggregate', window ?? null],
+    queryFn: () => apiGet('/api/v1/blocks/aggregate', { window }),
     refetchInterval: LIST_REFETCH_MS,
   });
 }

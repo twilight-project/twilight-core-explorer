@@ -15,6 +15,16 @@ export async function getBlock(prisma: PrismaClient, height: bigint) {
   return prisma.block.findUnique({ where: { height } });
 }
 
+// The last `limit` blocks (newest-first), thinned to just what the aggregate needs. The window stats
+// are computed in the mapper from these canonical rows — a live read, not a projection.
+export async function listBlocksForAggregate(prisma: PrismaClient, limit: number) {
+  return prisma.block.findMany({
+    orderBy: { height: 'desc' },
+    take: limit,
+    select: { height: true, time: true, txCount: true },
+  });
+}
+
 export async function getProposerByHeight(prisma: PrismaClient, height: bigint) {
   return prisma.blockProposerAttribution.findFirst({ where: { height } });
 }

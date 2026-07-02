@@ -1,17 +1,21 @@
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SupplySummaryStrip } from '@/components/supply/SupplySummaryStrip';
 import { SupplyView } from '@/components/supply/SupplyView';
 
-export const metadata = { title: "Supply" };
+export const metadata = { title: 'Supply' };
 
+// Airy redesign — conservative by design (per the review): a real summary strip (sampled total,
+// sample height, cumulative emitted, denom count) over the observed denom sample. No
+// circulating/bonded/vesting donut — the contract exposes no breakdown, so we don't fabricate one.
 export default function SupplyPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl text-text">Supply</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Observed total supply by denom at a sampled height — read-only, not a computed economic
-          breakdown.
-        </p>
-      </div>
+    <div className="space-y-section">
+      <PageHeader
+        eyebrow="Supply"
+        title="Token supply"
+        sub="Observed total supply by denom at a sampled height, plus cumulative emitted rewards — read-only, not a computed economic breakdown (no circulating / bonded / vesting split)."
+      />
+      <SupplySummaryStrip />
       <SupplyView />
     </div>
   );

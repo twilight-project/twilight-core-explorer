@@ -54,6 +54,18 @@ module.exports = {
         'tighter-2': '-0.02em',
         'tighter-1': '-0.01em',
       },
+      // Density tokens (compact <-> airy), resolved from CSS vars set by `data-density` on <html>.
+      // Independent of theme (color) and layout (structure): the third switchable axis.
+      spacing: {
+        section: 'var(--d-section-gap)',
+        grid: 'var(--d-grid-gap)',
+        'card-x': 'var(--d-card-px)',
+        'card-y': 'var(--d-card-py)',
+      },
+      fontSize: {
+        kpi: ['var(--d-kpi-size)', { lineHeight: '1' }],
+        metric: ['var(--d-metric-size)', { lineHeight: '1' }],
+      },
       borderRadius: {
         '2xl': '1rem',
         '3xl': '1.5rem',

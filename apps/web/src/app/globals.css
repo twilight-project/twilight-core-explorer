@@ -92,40 +92,65 @@
    Reinterprets "twilight" as the true dusk hour — cool, high-contrast, modern. Status colors
    (green/amber/red) stay SEPARATE from the brand accent, per the brand brief. */
 [data-theme='twilight-cool'] {
-  --page: 9 9 16;
-  --background: 9 9 16;
-  --background-secondary: 15 15 26;
-  --background-tertiary: 22 22 37;
-  --background-primary: 6 6 12;
+  /* near-pure-black canvas (whisper of indigo) -> maximum contrast, premium */
+  --page: 4 4 8;
+  --background: 4 4 8;
+  --background-secondary: 9 9 15;
+  --background-tertiary: 14 14 22;
+  --background-primary: 2 2 5;
 
-  --card: 16 16 28;
-  --card-hover: 24 24 40;
-  --card-border: 38 38 60;
+  --card: 10 10 17;
+  --card-hover: 16 16 25;
+  --card-border: 30 30 46;
 
-  --primary: 139 122 255;
-  --primary-light: 176 163 255;
-  --primary-dark: 108 84 240;
+  /* bluer, slightly deeper indigo-violet accent (periwinkle / Linear register) */
+  --primary: 107 118 232;
+  --primary-light: 150 160 255;
+  --primary-dark: 82 92 200;
 
-  --accent-blue: 90 200 245;
+  --accent-blue: 96 200 245;
   --accent-orange: 255 168 92;
   --accent-yellow: 255 205 102;
-  --accent-green: 61 220 151;
-  --accent-red: 255 107 107;
+  --accent-green: 52 220 148;
+  --accent-red: 255 99 99;
 
-  /* brand-role tokens repoint to violet so existing `accent-gold*` consumers rebrand cleanly */
-  --accent-gold: 139 122 255;
-  --accent-gold-light: 176 163 255;
-  --accent-gold-dark: 108 84 240;
+  /* brand-role tokens repoint to the indigo-violet so existing `accent-gold*` consumers rebrand cleanly */
+  --accent-gold: 107 118 232;
+  --accent-gold-light: 150 160 255;
+  --accent-gold-dark: 82 92 200;
   --accent-amber: 255 205 102;
-  --accent-burgundy: 42 26 77;
+  --accent-burgundy: 36 28 66;
 
-  --text: 236 236 247;
-  --text-secondary: 168 168 196;
-  /* WCAG 1.4.3: ~6:1 on the twilight-cool --background. */
-  --text-muted: 140 140 168;
+  /* crisp white + higher-contrast greys on the near-black canvas */
+  --text: 245 246 252;
+  --text-secondary: 190 193 212;
+  /* WCAG 1.4.3: ~8:1 on the near-black twilight-cool --background. */
+  --text-muted: 158 161 184;
 
-  --border: 38 38 60;
-  --border-light: 54 54 84;
+  --border: 30 30 46;
+  --border-light: 46 46 70;
+}
+
+/* ---- Density scale (independent of theme + layout) --------------------------------------------
+   `compact` reproduces the handoff's dense operator-console spacing/type; `airy` is the roomier
+   new-brand treatment. Switch with `data-density` on <html>. :root defaults to compact so SSR (and
+   any element before the density attribute is applied) renders faithfully. */
+:root,
+[data-density='compact'] {
+  --d-section-gap: 1.25rem; /* 20px — handoff section gap */
+  --d-grid-gap: 0.875rem; /* 14px — handoff card-grid gap */
+  --d-card-px: 1rem; /* 16px */
+  --d-card-py: 0.875rem; /* 14px */
+  --d-kpi-size: 1.375rem; /* 22px — handoff stat value */
+  --d-metric-size: 2rem; /* 32px — handoff big metric */
+}
+[data-density='airy'] {
+  --d-section-gap: 2rem; /* 32px */
+  --d-grid-gap: 1.25rem; /* 20px */
+  --d-card-px: 1.25rem; /* 20px */
+  --d-card-py: 1rem; /* 16px */
+  --d-kpi-size: 1.625rem; /* 26px */
+  --d-metric-size: 2.25rem; /* 36px */
 }
 
 * {

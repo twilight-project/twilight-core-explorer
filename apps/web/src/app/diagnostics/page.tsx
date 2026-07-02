@@ -11,16 +11,18 @@ import { formatRelativeTime } from '@/lib/format/time';
 import { statusTone } from '@/lib/format/status';
 
 // Operational diagnostics surface: indexer projection health and freshness. Read-only.
-export default function ApiDiagnosticsPage() {
+// (Renamed from the old "/api" route — this was never a public API reference; that lives at the
+// Scalar /docs page. Summary-first redesign lands when the Diagnostics page is rebuilt in the batch.)
+export default function DiagnosticsPage() {
   const query = useProjections();
   const decodeFailures = useDecodeFailures();
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-serif text-3xl text-text">API &amp; indexer diagnostics</h1>
+        <h1 className="font-serif text-3xl text-text">Diagnostics</h1>
         <p className="mt-1 text-sm text-text-muted">
-          Projection cursors, status, unresolved projection failures, and decode failures from the
-          public API.
+          Indexer projection cursors, status, unresolved projection failures, and decode failures —
+          the operational health of the pipeline behind this explorer.
         </p>
       </div>
       <Card>

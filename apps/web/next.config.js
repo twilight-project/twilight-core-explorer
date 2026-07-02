@@ -3,6 +3,11 @@
 // Phase 10 design doc). No experimental flags; client-leaning app-router posture.
 const nextConfig = {
   reactStrictMode: true,
+  // The in-app diagnostics page moved from /api -> /diagnostics (it was never a public API reference;
+  // that lives at the Scalar /docs page). Exact-path source so it never shadows the backend /api/v1/*.
+  async redirects() {
+    return [{ source: '/api', destination: '/diagnostics', permanent: true }];
+  },
   async headers() {
     return [
       {

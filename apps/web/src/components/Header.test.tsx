@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NAV, type NavGroup } from './Header';
 
-const GROUPS: NavGroup[] = ['explore', 'validators', 'economics', 'diagnostics'];
+const GROUPS: NavGroup[] = ['overview', 'validators', 'economics', 'explore', 'diagnostics'];
 
 // J-007: nav items are grouped by concern for discoverability. Every item must carry a known group,
 // and groups must be contiguous (so the desktop separators land on real concern boundaries).

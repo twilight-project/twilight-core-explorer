@@ -4,8 +4,8 @@ import { KpiCard } from '@/components/ui/KpiCard';
 import {
   useCoreSlots,
   useLivenessRisk,
+  useRewardsEpochs,
   useStatus,
-  useSupply,
   useValidatorSet,
 } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
@@ -13,16 +13,18 @@ import { formatAmount } from '@/lib/format/amount';
 import { bpsToPercent } from '@/lib/format/bps';
 import { statusTone } from '@/lib/format/status';
 
-// Max active CoreSlots is a chain constant (PoA cap), not a live field — the set can hold up to 100.
-const MAX_CORESLOTS = 100;
-
-// The airy 6-up KPI grid. Every value is a real API field; a pending metric shows "…", a missing one
-// "—" (never 0, never a fabricated staking/APR/throughput number the handoff mock used).
+// The airy 8-up KPI grid. Every value is a real API field; a pending metric shows "…", a missing one
+// "—" (never 0, never a fabricated staking/APR/throughput number). Total supply is intentionally NOT
+// a card here — it has its own sampled panel below, so a card would double-count the sample.
+//
+// Active vs Registered are separate reads on purpose (PoA: the registry keeps rotated-out slots, so
+// registered ≥ active). We show real counts, not "N/100" — the 100 cap is real but reads as a
+// borrowed Cosmos default, per the redesign review.
 export function OverviewKpis() {
   const status = useStatus();
   const liveness = useLivenessRisk();
-  const supply = useSupply();
   const slots = useCoreSlots();
+  const epochs = useRewardsEpochs();
 
   const indexer = status.data?.data.indexer;
   // Active set = validator set AT the latest indexed height (string height; never Number()).
@@ -31,16 +33,21 @@ export function OverviewKpis() {
   const validatorSet = useValidatorSet(height);
 
   const risk = liveness.data?.data;
-  const utwlt = supply.data?.data.supply.find((c) => c.denom === 'utwlt');
-  const amount = utwlt ? formatAmount(utwlt.amount, utwlt.denom) : null;
-
   const activeCount = validatorSet.data ? validatorSet.data.data.length : undefined;
   const registered = slots.data ? slots.data.data.length : undefined;
+
+  // Epochs are DESC (epochNumber desc), so the first row is the latest. cumulativeEmitted is a running
+  // total carried on the epoch row — real, no client-side summing.
+  const latestEpoch = epochs.data?.pages[0]?.data[0];
+  const emitted =
+    latestEpoch && latestEpoch.cumulativeEmitted !== null && latestEpoch.denom !== null
+      ? formatAmount(latestEpoch.cumulativeEmitted, latestEpoch.denom)
+      : null;
 
   const dash = (pending: boolean) => (pending ? '…' : '—');
 
   return (
-    <div className="grid grid-cols-1 gap-grid sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
         label="Latest height"
         value={indexer ? formatHeight(indexer.lastIndexedHeight) : dash(status.isPending)}
@@ -64,9 +71,16 @@ export function OverviewKpis() {
 
       <KpiCard
         label="Active CoreSlots"
-        value={activeCount === undefined ? dash(validatorSet.isPending || status.isPending) : activeCount}
-        unit={`/ ${MAX_CORESLOTS}`}
-        sub={registered === undefined ? 'of registered set' : `of ${registered} registered`}
+        value={
+          activeCount === undefined ? dash(validatorSet.isPending || status.isPending) : activeCount
+        }
+        sub={height ? `signing at height ${formatHeight(height)}` : 'active validator set'}
+      />
+
+      <KpiCard
+        label="Registered CoreSlots"
+        value={registered === undefined ? dash(slots.isPending) : registered}
+        sub="in registry (incl. rotated-out)"
       />
 
       <KpiCard
@@ -90,13 +104,21 @@ export function OverviewKpis() {
       />
 
       <KpiCard
-        label="Total supply"
-        value={amount ? amount.display : dash(supply.isPending)}
-        unit={amount ? amount.symbol : undefined}
+        label="Latest reward epoch"
+        value={latestEpoch ? formatHeight(latestEpoch.epochNumber) : dash(epochs.isPending)}
         sub={
-          supply.data
-            ? `sampled at height ${formatHeight(supply.data.data.sampledAtHeight)}`
-            : 'sampled snapshot'
+          latestEpoch?.activeSlotCount !== null && latestEpoch?.activeSlotCount !== undefined
+            ? `${latestEpoch.activeSlotCount} slots rewarded`
+            : 'aggregate projection'
+        }
+      />
+
+      <KpiCard
+        label="Cumulative emitted"
+        value={emitted ? emitted.display : dash(epochs.isPending)}
+        unit={emitted ? emitted.symbol : undefined}
+        sub={
+          latestEpoch ? `through epoch ${formatHeight(latestEpoch.epochNumber)}` : 'observed rewards'
         }
       />
     </div>

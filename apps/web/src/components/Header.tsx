@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { clsx } from 'clsx';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -50,36 +50,95 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// Accessible desktop dropdown for a NavMenu (Explorer). Toggles on click; closes on Escape, on
-// outside click, and on navigating to a child. The trigger is "active" when any child route is active.
+// Accessible desktop dropdown for a NavMenu (Explorer), implementing the WAI-ARIA menu-button pattern:
+// click/ArrowDown opens and moves focus into the menu; Arrow/Home/End roves between items; Escape
+// closes and returns focus to the trigger; outside-click and navigating to a child also close.
 function NavDropdown({ menu, pathname }: { menu: NavMenu; pathname: string }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const active = menu.children.some((c) => isActive(pathname, c.href));
+  const menuId = `nav-menu-${menu.label.toLowerCase()}`;
 
   useEffect(() => {
     if (!open) return;
+    // Move focus into the menu on open (menu-button pattern).
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     function onDocClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
     }
-    function onKey(e: KeyboardEvent) {
+    function onDocKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
     document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onDocKey);
     return () => {
       document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onDocKey);
     };
   }, [open]);
 
+  function items(): HTMLElement[] {
+    return Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+  }
+  function focusAt(index: number) {
+    const list = items();
+    if (list.length === 0) return;
+    list[(index + list.length) % list.length]?.focus();
+  }
+
+  function onTriggerKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      setOpen(true); // the open effect moves focus to the first item
+    }
+  }
+
+  function onMenuKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    const list = items();
+    if (list.length === 0) return;
+    const current = list.indexOf(document.activeElement as HTMLElement);
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        focusAt(current + 1);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        focusAt(current - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        focusAt(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        focusAt(list.length - 1);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+        break;
+      case 'Tab':
+        setOpen(false); // close, but let Tab move focus onward naturally
+        break;
+      default:
+        break;
+    }
+  }
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={menuId}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={onTriggerKeyDown}
         className={clsx(
           'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm',
           active ? 'bg-card text-primary' : 'text-text-secondary hover:text-text',
@@ -99,7 +158,11 @@ function NavDropdown({ menu, pathname }: { menu: NavMenu; pathname: string }) {
       </button>
       {open ? (
         <div
+          ref={menuRef}
+          id={menuId}
           role="menu"
+          aria-label={menu.label}
+          onKeyDown={onMenuKeyDown}
           className="absolute right-0 z-50 mt-1 min-w-40 rounded-xl border border-card-border bg-card p-1 shadow-card"
         >
           {menu.children.map((c) => (
@@ -107,6 +170,7 @@ function NavDropdown({ menu, pathname }: { menu: NavMenu; pathname: string }) {
               key={c.href}
               href={c.href}
               role="menuitem"
+              tabIndex={-1}
               onClick={() => setOpen(false)}
               className={clsx(
                 'block rounded-lg px-3 py-1.5 text-sm',

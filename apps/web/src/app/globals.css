@@ -88,6 +88,46 @@
   --border-light: 71 85 105;
 }
 
+/* Twilight-cool theme (redesign direction #1: deep indigo near-black + luminous violet brand accent).
+   Reinterprets "twilight" as the true dusk hour — cool, high-contrast, modern. Status colors
+   (green/amber/red) stay SEPARATE from the brand accent, per the brand brief. */
+[data-theme='twilight-cool'] {
+  --page: 9 9 16;
+  --background: 9 9 16;
+  --background-secondary: 15 15 26;
+  --background-tertiary: 22 22 37;
+  --background-primary: 6 6 12;
+
+  --card: 16 16 28;
+  --card-hover: 24 24 40;
+  --card-border: 38 38 60;
+
+  --primary: 139 122 255;
+  --primary-light: 176 163 255;
+  --primary-dark: 108 84 240;
+
+  --accent-blue: 90 200 245;
+  --accent-orange: 255 168 92;
+  --accent-yellow: 255 205 102;
+  --accent-green: 61 220 151;
+  --accent-red: 255 107 107;
+
+  /* brand-role tokens repoint to violet so existing `accent-gold*` consumers rebrand cleanly */
+  --accent-gold: 139 122 255;
+  --accent-gold-light: 176 163 255;
+  --accent-gold-dark: 108 84 240;
+  --accent-amber: 255 205 102;
+  --accent-burgundy: 42 26 77;
+
+  --text: 236 236 247;
+  --text-secondary: 168 168 196;
+  /* WCAG 1.4.3: ~6:1 on the twilight-cool --background. */
+  --text-muted: 140 140 168;
+
+  --border: 38 38 60;
+  --border-light: 54 54 84;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

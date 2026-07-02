@@ -1,9 +1,15 @@
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { CoreSlotsSummaryStrip } from '@/components/coreslots/CoreSlotsSummaryStrip';
 import { CoreSlotsList } from '@/components/coreslots/CoreSlotsList';
 import { oneParam } from '@/lib/search-params';
 import { coerceStatus, CORESLOT_STATUS_OPTIONS } from '@/lib/status-filters';
 
-export const metadata = { title: "CoreSlots" };
+export const metadata = { title: 'CoreSlots' };
 
+// Airy redesign — the CoreSlot registry: a real active-vs-registered summary strip over the full
+// registry table (slot, operator, consensus, status, power, reward weight, created/removed height)
+// with status filter + keyset pagination. Per-slot signing health lives on Liveness + the detail page.
 export default function CoreSlotsPage({
   searchParams,
 }: {
@@ -13,14 +19,22 @@ export default function CoreSlotsPage({
   // case-sensitive API filter; unknown/lowercase values normalize or drop to "All".
   const status = coerceStatus(oneParam(searchParams.status), CORESLOT_STATUS_OPTIONS);
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl text-text">CoreSlots</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          The CoreSlot PoA validator set — lifecycle, authority, liveness, and per-slot detail.
-        </p>
-      </div>
-      <CoreSlotsList status={status} />
+    <div className="space-y-section">
+      <PageHeader
+        eyebrow="CoreSlots"
+        title="Validator set & registry"
+        sub="The CoreSlot PoA validator set — lifecycle, authority, consensus power, and reward weight. The registry keeps rotated-out slots; per-slot signing health lives on Liveness and each slot's detail page."
+      />
+      <CoreSlotsSummaryStrip />
+      <Card>
+        <CardHeader
+          title="CoreSlot registry"
+          action={<span className="font-mono text-xs text-text-muted">ranked by slot id</span>}
+        />
+        <CardBody>
+          <CoreSlotsList status={status} />
+        </CardBody>
+      </Card>
     </div>
   );
 }

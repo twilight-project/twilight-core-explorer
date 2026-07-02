@@ -1,16 +1,23 @@
+import { PageHeader } from '@/components/ui/PageHeader';
 import { LivenessOverview } from '@/components/liveness/LivenessOverview';
+import { PreviewHeatmap } from '@/components/liveness/PreviewHeatmap';
 import { PerSlotHealthTable } from '@/components/liveness/PerSlotHealthTable';
 
-export const metadata = { title: "Liveness" };
+export const metadata = { title: 'Liveness' };
 
+// Airy redesign — the deep signing-behavior view (distinct from Network's structural summary): the
+// real halt/liveness-risk overview, the intended signing heatmap (preview until a per-block endpoint
+// lands), and the real per-CoreSlot health table (uptime + missed-streak).
 export default function LivenessPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl text-text">Liveness</h1>
-        <p className="mt-1 text-sm text-text-muted">Network halt-risk and per-CoreSlot signing health.</p>
-      </div>
+    <div className="space-y-section">
+      <PageHeader
+        eyebrow="Liveness"
+        title="Signing & downtime monitor"
+        sub="Per-CoreSlot signing health, uptime, and missed-block streaks — the deep operator view of who is signing and where downtime is emerging."
+      />
       <LivenessOverview />
+      <PreviewHeatmap />
       <PerSlotHealthTable />
     </div>
   );

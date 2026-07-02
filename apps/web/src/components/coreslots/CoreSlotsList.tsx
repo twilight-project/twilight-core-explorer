@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { Badge } from '@/components/ui/Badge';
 import { MonoCopy } from '@/components/ui/MonoCopy';
+import { OperatorLink } from '@/components/operator/OperatorLink';
 import { StatusFilter } from '@/components/list/StatusFilter';
 import { CORESLOT_STATUS_OPTIONS } from '@/lib/status-filters';
 import { useCoreSlotsList, type CoreSlotsResponse } from '@/lib/api/queries';
@@ -25,7 +26,16 @@ export function CoreSlotsList({ status }: { status?: string | undefined }) {
       ),
     },
     { header: 'Status', cell: (s) => (s.status ? <Badge tone={statusTone(s.status)}>{s.status}</Badge> : '—') },
-    { header: 'Operator', cell: (s) => <MonoCopy value={s.operatorAddress} label="operator" /> },
+    { header: 'Operator', cell: (s) => <OperatorLink operatorAddress={s.operatorAddress} /> },
+    {
+      header: 'Consensus',
+      cell: (s) =>
+        s.consensusAddress ? (
+          <MonoCopy value={s.consensusAddress} head={8} tail={6} label="consensus" />
+        ) : (
+          '—'
+        ),
+    },
     { header: 'Power', mono: true, cell: (s) => s.consensusPower ?? '—' },
     { header: 'Reward wt', mono: true, cell: (s) => s.rewardWeight ?? '—' },
     { header: 'Created', mono: true, cell: (s) => formatHeight(s.createdHeight) },

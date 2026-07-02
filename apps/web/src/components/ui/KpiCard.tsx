@@ -2,13 +2,13 @@ import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
 import type { BadgeTone } from '@/lib/format/status';
 
-// A big, airy KPI stat card for the redesigned Overview. Top row: uppercase label + an optional
-// status "delta" chip (tone-colored). Then a large mono value (with optional trailing unit), then a
-// muted sub line. All colors resolve from theme tokens, so the card rebrands Gold <-> Twilight.
+// A big, airy KPI stat card for the redesigned pages. Top row: uppercase label + an optional status
+// "delta" chip (tone-colored). Then a large mono value (+ optional unit), then a muted sub line. All
+// colors resolve from theme tokens; spacing/size from density tokens — so it rebrands + re-densifies.
 //
-// Deliberately NO sparkline: the handoff's per-KPI sparklines are mock time-series, and we have no
-// history endpoint to source them truthfully. Adding one would fabricate data (forbidden). A real
-// series (e.g. a /metrics time-series) can light this up later.
+// `preview` marks a card whose metric IS derivable from the indexed DB but has no API endpoint YET:
+// it renders a dashed border, a "preview" pill, and a "Real data coming up" note so the mock value is
+// unmistakably a placeholder (never mistaken for live data). Wire the real endpoint next iteration.
 
 const DELTA_TEXT: Record<BadgeTone, string> = {
   neutral: 'text-text-muted',
@@ -26,6 +26,7 @@ export function KpiCard({
   delta,
   deltaTone = 'neutral',
   mono = true,
+  preview = false,
 }: {
   label: string;
   value: ReactNode;
@@ -34,14 +35,24 @@ export function KpiCard({
   delta?: ReactNode;
   deltaTone?: BadgeTone;
   mono?: boolean;
+  preview?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-card-border bg-card px-card-x py-card-y shadow-card">
+    <div
+      className={clsx(
+        'flex flex-col gap-3 rounded-2xl border bg-card px-card-x py-card-y shadow-card',
+        preview ? 'border-dashed border-border' : 'border-card-border',
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium uppercase tracking-wider text-text-muted">
           {label}
         </span>
-        {delta ? (
+        {preview ? (
+          <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-text-muted">
+            preview
+          </span>
+        ) : delta ? (
           <span className={clsx('text-[11px] font-medium tabular-nums', DELTA_TEXT[deltaTone])}>
             {delta}
           </span>
@@ -50,7 +61,8 @@ export function KpiCard({
       <div className="flex items-baseline gap-1.5">
         <span
           className={clsx(
-            'text-kpi font-semibold leading-none tracking-tight text-text',
+            'text-kpi font-semibold leading-none tracking-tight',
+            preview ? 'text-text-secondary' : 'text-text',
             mono && 'font-mono',
           )}
         >
@@ -58,7 +70,11 @@ export function KpiCard({
         </span>
         {unit ? <span className="text-xs text-text-muted">{unit}</span> : null}
       </div>
-      {sub ? <div className="text-xs text-text-muted">{sub}</div> : null}
+      {preview ? (
+        <div className="text-[11px] italic text-text-muted">Real data coming up</div>
+      ) : sub ? (
+        <div className="text-xs text-text-muted">{sub}</div>
+      ) : null}
     </div>
   );
 }

@@ -86,8 +86,9 @@ export async function transactionsRoutes(fastify: FastifyInstance): Promise<void
     },
   );
 
-  // GET /txs/aggregate — windowed stats over the last N transactions. Static route, resolves ahead of
-  // /txs/:hash ("aggregate" is not a valid hash anyway). A live read, not a projection.
+  // GET /txs/aggregate — windowed stats over the last N transactions. Static route: Fastify's router
+  // matches it ahead of the parametric /txs/:hash (TxParams accepts any string, so precedence — not
+  // hash validation — is what reserves the literal "aggregate"). A live read, not a projection.
   app.get(
     '/txs/aggregate',
     {

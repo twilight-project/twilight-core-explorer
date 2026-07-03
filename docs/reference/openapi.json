@@ -5032,6 +5032,203 @@
         }
       }
     },
+    "/api/v1/network/signing-heatmap": {
+      "get": {
+        "summary": "Per-CoreSlot signing heatmap over the last N committed blocks",
+        "tags": [
+          "network"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 48,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "window",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "window",
+                        "blocksInWindow",
+                        "fromHeight",
+                        "toHeight",
+                        "heights",
+                        "slots"
+                      ],
+                      "properties": {
+                        "window": {
+                          "type": "integer"
+                        },
+                        "blocksInWindow": {
+                          "type": "integer"
+                        },
+                        "fromHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "toHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "heights": {
+                          "type": "array",
+                          "items": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          }
+                        },
+                        "slots": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "slotId",
+                              "operatorAddress",
+                              "consensusAddress",
+                              "signed",
+                              "missed",
+                              "cells"
+                            ],
+                            "properties": {
+                              "slotId": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "operatorAddress": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "consensusAddress": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "signed": {
+                                "type": "integer"
+                              },
+                              "missed": {
+                                "type": "integer"
+                              },
+                              "cells": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "signed"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "missed"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "title": "SigningHeatmap"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/rewards/epochs": {
       "get": {
         "summary": "List reward epochs (aggregate projection, not claim truth)",

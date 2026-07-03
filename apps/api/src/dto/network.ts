@@ -132,3 +132,118 @@ export function toNetworkRisk(row: NetworkRiskRow): Static<typeof NetworkRiskDto
     policyVersion: row.policyVersion,
   };
 }
+
+// ---- signing heatmap (per-slot signed/missed over the last N committed blocks) ----
+
+export const SigningHeatmapQuery = Type.Object(
+  { window: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 48 })) },
+  { additionalProperties: false },
+);
+
+// A heatmap cell: the slot's status at a committed height, or null where it had no evidence there.
+const CellStatus = Nullable(Type.Union([Type.Literal('signed'), Type.Literal('missed')]));
+
+export const SigningHeatmapSlot = Type.Object({
+  slotId: HeightString,
+  operatorAddress: Nullable(Type.String()),
+  consensusAddress: Nullable(Type.String()),
+  signed: Type.Integer(),
+  missed: Type.Integer(),
+  // Aligned index-for-index to the top-level `heights`.
+  cells: Type.Array(CellStatus),
+});
+
+export const SigningHeatmap = Type.Object(
+  {
+    window: Type.Integer(),
+    blocksInWindow: Type.Integer(),
+    fromHeight: Nullable(HeightString),
+    toHeight: Nullable(HeightString),
+    heights: Type.Array(HeightString),
+    slots: Type.Array(SigningHeatmapSlot),
+  },
+  { $id: 'SigningHeatmap' },
+);
+
+export const SigningHeatmapResponse = Type.Object(
+  { data: SigningHeatmap },
+  { $id: 'SigningHeatmapResponse' },
+);
+
+export interface LivenessEvidenceRow {
+  committedBlockHeight: bigint;
+  slotId: bigint; // non-null in the Prisma schema (CoreSlotLivenessEvidence.slotId)
+  operatorAddress: string | null;
+  consensusAddress: string | null;
+  status: string;
+}
+
+/**
+ * Build the heatmap grid from the window's distinct heights (desc) + the per-slot evidence rows.
+ * Columns are heights ascending; each slot gets a `cells` array aligned to those columns
+ * ('signed'/'missed'/null where the slot had no evidence). All heights are emitted as strings.
+ */
+export function toSigningHeatmap(
+  window: number,
+  heightsDesc: bigint[],
+  rows: LivenessEvidenceRow[],
+): Static<typeof SigningHeatmap> {
+  const heightsAsc = [...heightsDesc].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const heightStrs = heightsAsc.map((h) => h.toString());
+  const colIndex = new Map(heightStrs.map((h, i) => [h, i] as const));
+
+  type Cell = 'signed' | 'missed' | null;
+  interface SlotAcc {
+    slotId: string;
+    operatorAddress: string | null;
+    consensusAddress: string | null;
+    cells: Cell[];
+    signed: number;
+    missed: number;
+  }
+  const bySlot = new Map<string, SlotAcc>();
+
+  for (const r of rows) {
+    const ci = colIndex.get(r.committedBlockHeight.toString());
+    if (ci === undefined) continue; // height not in the window
+    // Narrow the stored status to the two real values; anything else is treated as no-evidence.
+    const cell: Cell = r.status === 'signed' ? 'signed' : r.status === 'missed' ? 'missed' : null;
+    const key = r.slotId.toString();
+    let slot = bySlot.get(key);
+    if (!slot) {
+      slot = {
+        slotId: key,
+        operatorAddress: r.operatorAddress,
+        consensusAddress: r.consensusAddress,
+        cells: heightStrs.map((): Cell => null),
+        signed: 0,
+        missed: 0,
+      };
+      bySlot.set(key, slot);
+    }
+    slot.cells[ci] = cell;
+    if (cell === 'signed') slot.signed += 1;
+    else if (cell === 'missed') slot.missed += 1;
+    if (slot.operatorAddress === null && r.operatorAddress !== null) {
+      slot.operatorAddress = r.operatorAddress;
+    }
+    if (slot.consensusAddress === null && r.consensusAddress !== null) {
+      slot.consensusAddress = r.consensusAddress;
+    }
+  }
+
+  const slots = [...bySlot.values()].sort((a, b) => {
+    const aa = BigInt(a.slotId);
+    const bb = BigInt(b.slotId);
+    return aa < bb ? -1 : aa > bb ? 1 : 0;
+  });
+
+  return {
+    window,
+    blocksInWindow: heightStrs.length,
+    fromHeight: heightStrs[0] ?? null,
+    toHeight: heightStrs[heightStrs.length - 1] ?? null,
+    heights: heightStrs,
+    slots,
+  };
+}

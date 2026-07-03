@@ -5160,7 +5160,20 @@
                                 "items": {
                                   "anyOf": [
                                     {
-                                      "type": "string"
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "signed"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "missed"
+                                          ]
+                                        }
+                                      ]
                                     },
                                     {
                                       "type": "null"

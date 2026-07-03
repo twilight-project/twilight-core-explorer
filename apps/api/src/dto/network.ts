@@ -140,14 +140,17 @@ export const SigningHeatmapQuery = Type.Object(
   { additionalProperties: false },
 );
 
+// A heatmap cell: the slot's status at a committed height, or null where it had no evidence there.
+const CellStatus = Nullable(Type.Union([Type.Literal('signed'), Type.Literal('missed')]));
+
 export const SigningHeatmapSlot = Type.Object({
   slotId: HeightString,
   operatorAddress: Nullable(Type.String()),
   consensusAddress: Nullable(Type.String()),
   signed: Type.Integer(),
   missed: Type.Integer(),
-  // Aligned to the top-level `heights`: 'signed' | 'missed' | null (no evidence for this slot@height).
-  cells: Type.Array(Nullable(Type.String())),
+  // Aligned index-for-index to the top-level `heights`.
+  cells: Type.Array(CellStatus),
 });
 
 export const SigningHeatmap = Type.Object(
@@ -169,7 +172,7 @@ export const SigningHeatmapResponse = Type.Object(
 
 export interface LivenessEvidenceRow {
   committedBlockHeight: bigint;
-  slotId: bigint | null;
+  slotId: bigint; // non-null in the Prisma schema (CoreSlotLivenessEvidence.slotId)
   operatorAddress: string | null;
   consensusAddress: string | null;
   status: string;
@@ -189,20 +192,22 @@ export function toSigningHeatmap(
   const heightStrs = heightsAsc.map((h) => h.toString());
   const colIndex = new Map(heightStrs.map((h, i) => [h, i] as const));
 
+  type Cell = 'signed' | 'missed' | null;
   interface SlotAcc {
     slotId: string;
     operatorAddress: string | null;
     consensusAddress: string | null;
-    cells: (string | null)[];
+    cells: Cell[];
     signed: number;
     missed: number;
   }
   const bySlot = new Map<string, SlotAcc>();
 
   for (const r of rows) {
-    if (r.slotId === null) continue;
     const ci = colIndex.get(r.committedBlockHeight.toString());
     if (ci === undefined) continue; // height not in the window
+    // Narrow the stored status to the two real values; anything else is treated as no-evidence.
+    const cell: Cell = r.status === 'signed' ? 'signed' : r.status === 'missed' ? 'missed' : null;
     const key = r.slotId.toString();
     let slot = bySlot.get(key);
     if (!slot) {
@@ -210,15 +215,15 @@ export function toSigningHeatmap(
         slotId: key,
         operatorAddress: r.operatorAddress,
         consensusAddress: r.consensusAddress,
-        cells: heightStrs.map(() => null),
+        cells: heightStrs.map((): Cell => null),
         signed: 0,
         missed: 0,
       };
       bySlot.set(key, slot);
     }
-    slot.cells[ci] = r.status;
-    if (r.status === 'signed') slot.signed += 1;
-    else if (r.status === 'missed') slot.missed += 1;
+    slot.cells[ci] = cell;
+    if (cell === 'signed') slot.signed += 1;
+    else if (cell === 'missed') slot.missed += 1;
     if (slot.operatorAddress === null && r.operatorAddress !== null) {
       slot.operatorAddress = r.operatorAddress;
     }

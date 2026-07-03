@@ -2023,7 +2023,7 @@ export interface paths {
                                     consensusAddress: string | null;
                                     signed: number;
                                     missed: number;
-                                    cells: (string | null)[];
+                                    cells: (("signed" | "missed") | null)[];
                                 }[];
                             };
                         };

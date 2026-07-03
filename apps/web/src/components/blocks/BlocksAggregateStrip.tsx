@@ -19,13 +19,13 @@ export function BlocksAggregateStrip() {
       <KpiCard
         label="Avg block time"
         value={d?.avgBlockTimeSeconds != null ? d.avgBlockTimeSeconds.toFixed(2) : dash}
-        unit="s"
+        unit={d?.avgBlockTimeSeconds != null ? 's' : undefined}
         sub={windowLabel}
       />
       <KpiCard
         label="Txs / block"
         value={d?.avgTxsPerBlock != null ? d.avgTxsPerBlock.toFixed(1) : dash}
-        unit="avg"
+        unit={d?.avgTxsPerBlock != null ? 'avg' : undefined}
         sub={d ? `${d.totalTxs.toLocaleString('en-US')} txs in window` : windowLabel}
       />
       <KpiCard

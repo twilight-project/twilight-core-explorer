@@ -23,7 +23,7 @@ export function TxsAggregateStrip() {
       <KpiCard
         label="Success rate"
         value={d?.successRate != null ? d.successRate.toFixed(1) : dash}
-        unit="%"
+        unit={d?.successRate != null ? '%' : undefined}
         deltaTone={d && d.successRate != null && d.successRate >= 99 ? 'success' : 'neutral'}
         delta={d ? `${d.successCount.toLocaleString('en-US')} ok` : undefined}
         sub={windowLabel}

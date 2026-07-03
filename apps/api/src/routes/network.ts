@@ -3,18 +3,23 @@ import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import {
   NetworkRiskResponse,
   ProposerLeaderboardResponse,
+  SigningHeatmapQuery,
+  SigningHeatmapResponse,
   ValidatorSetQuery,
   ValidatorSetResponse,
   toNetworkRisk,
   toProposerLeaderboardItem,
+  toSigningHeatmap,
   toValidatorSetMember,
 } from '../dto/network.js';
 import { ErrorResponse } from '../dto/common.js';
 import { invalidQuery, notFound } from '../lib/errors.js';
 import { parseUint64 } from '../lib/pagination.js';
 import {
+  getLivenessEvidenceForHeights,
   getNetworkRisk,
   getProposerLeaderboard,
+  getRecentLivenessHeights,
   getValidatorSetAtHeight,
 } from '../repositories/network-repository.js';
 
@@ -71,6 +76,27 @@ export async function networkRoutes(fastify: FastifyInstance): Promise<void> {
         throw notFound('network liveness-risk snapshot not found');
       }
       return { data: toNetworkRisk(risk) };
+    },
+  );
+
+  // GET /network/signing-heatmap — per-slot signed/missed grid over the last N committed blocks.
+  // A live read of the CoreSlotLivenessEvidence projection; empty -> 200 with empty arrays.
+  app.get(
+    '/network/signing-heatmap',
+    {
+      schema: {
+        tags: ['network'],
+        summary: 'Per-CoreSlot signing heatmap over the last N committed blocks',
+        querystring: SigningHeatmapQuery,
+        response: { 200: SigningHeatmapResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const window = request.query.window ?? 48;
+      const heights = await getRecentLivenessHeights(app.prisma, window);
+      const rows = await getLivenessEvidenceForHeights(app.prisma, heights);
+      return { data: toSigningHeatmap(window, heights, rows) };
     },
   );
 }

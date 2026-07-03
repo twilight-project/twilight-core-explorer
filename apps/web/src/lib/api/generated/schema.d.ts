@@ -1983,6 +1983,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/network/signing-heatmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-CoreSlot signing heatmap over the last N committed blocks */
+        get: {
+            parameters: {
+                query?: {
+                    window?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** SigningHeatmap */
+                            data: {
+                                window: number;
+                                blocksInWindow: number;
+                                fromHeight: string | null;
+                                toHeight: string | null;
+                                heights: string[];
+                                slots: {
+                                    /** @description Decimal height/id as string */
+                                    slotId: string;
+                                    operatorAddress: string | null;
+                                    consensusAddress: string | null;
+                                    signed: number;
+                                    missed: number;
+                                    cells: (string | null)[];
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rewards/epochs": {
         parameters: {
             query?: never;

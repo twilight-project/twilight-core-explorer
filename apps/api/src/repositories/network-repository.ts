@@ -39,3 +39,30 @@ export async function getValidatorSetAtHeight(prisma: PrismaClient, height: bigi
 export async function getNetworkRisk(prisma: PrismaClient) {
   return prisma.networkLivenessRiskSnapshot.findFirst({ orderBy: { updatedAtDb: 'desc' } });
 }
+
+// The last `window` distinct committed heights that carry liveness evidence (newest-first). These are
+// the columns of the signing heatmap.
+export async function getRecentLivenessHeights(prisma: PrismaClient, window: number) {
+  const rows = await prisma.coreSlotLivenessEvidence.findMany({
+    distinct: ['committedBlockHeight'],
+    orderBy: { committedBlockHeight: 'desc' },
+    take: window,
+    select: { committedBlockHeight: true },
+  });
+  return rows.map((r) => r.committedBlockHeight);
+}
+
+// All per-slot signed/missed evidence rows for the given committed heights (the heatmap cells).
+export async function getLivenessEvidenceForHeights(prisma: PrismaClient, heights: bigint[]) {
+  if (heights.length === 0) return [];
+  return prisma.coreSlotLivenessEvidence.findMany({
+    where: { committedBlockHeight: { in: heights } },
+    select: {
+      committedBlockHeight: true,
+      slotId: true,
+      operatorAddress: true,
+      consensusAddress: true,
+      status: true,
+    },
+  });
+}

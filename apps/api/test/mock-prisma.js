@@ -33,6 +33,7 @@ export class MockPrisma {
     this._keyRotations = data.keyRotations ?? [];
     this._windows = data.windows ?? [];
     this._livenessSummaries = data.livenessSummaries ?? [];
+    this._livenessEvidence = data.livenessEvidence ?? [];
     this._healthSnapshots = data.healthSnapshots ?? [];
     this._networkRisk = data.networkRisk ?? null;
     this._epochs = data.epochs ?? [];
@@ -322,6 +323,30 @@ export class MockPrisma {
 
     this.networkLivenessRiskSnapshot = {
       findFirst: async () => this._networkRisk,
+    };
+
+    this.coreSlotLivenessEvidence = {
+      findMany: async (args = {}) => {
+        let rows = [...this._livenessEvidence];
+        const w = args.where ?? {};
+        if (w.committedBlockHeight?.in) {
+          rows = rows.filter((r) => w.committedBlockHeight.in.some((h) => h === r.committedBlockHeight));
+        }
+        // Prisma applies orderBy before distinct (distinct keeps the first row per value).
+        if (args.orderBy?.committedBlockHeight === 'desc') {
+          rows.sort((a, b) => descBig(a.committedBlockHeight, b.committedBlockHeight));
+        }
+        if (args.distinct?.includes('committedBlockHeight')) {
+          const seen = new Set();
+          rows = rows.filter((r) => {
+            const k = r.committedBlockHeight.toString();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+        }
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
     };
 
     this.rewardEpochProjection = {

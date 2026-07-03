@@ -139,6 +139,17 @@ export function useLivenessRisk() {
   });
 }
 
+export type SigningHeatmapResponse = JsonOf<'/api/v1/network/signing-heatmap'>;
+
+// Per-slot signed/missed grid over the last N committed blocks (server default 48).
+export function useSigningHeatmap(window?: number) {
+  return useQuery({
+    queryKey: ['network', 'signing-heatmap', window ?? null],
+    queryFn: () => apiGet('/api/v1/network/signing-heatmap', { window }),
+    refetchInterval: STATUS_REFETCH_MS,
+  });
+}
+
 export function useSupply() {
   return useQuery({
     queryKey: ['supply'],

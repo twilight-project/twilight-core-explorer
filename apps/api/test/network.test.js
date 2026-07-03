@@ -94,3 +94,74 @@ describe('network liveness-risk', () => {
     await app.close();
   });
 });
+
+describe('network signing heatmap', () => {
+  const le = (h, slotId, status) => ({
+    committedBlockHeight: BigInt(h),
+    slotId: BigInt(slotId),
+    operatorAddress: `op${slotId}`,
+    consensusAddress: `c${slotId}`,
+    status,
+  });
+
+  it('builds a per-slot grid aligned to the window heights (signed/missed/null)', async () => {
+    const app = await build({
+      livenessEvidence: [
+        le(100, 1, 'signed'),
+        le(100, 2, 'missed'),
+        le(101, 1, 'signed'),
+        le(101, 2, 'signed'),
+        le(102, 1, 'missed'), // slot 2 has NO row at 102 -> its cell must be null
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/network/signing-heatmap' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.blocksInWindow, 3);
+    assert.deepEqual(d.heights, ['100', '101', '102']); // ascending columns
+    assert.equal(d.fromHeight, '100');
+    assert.equal(d.toHeight, '102');
+    assert.equal(d.slots.length, 2);
+    const [s1, s2] = d.slots; // sorted by slotId asc
+    assert.equal(s1.slotId, '1');
+    assert.deepEqual(s1.cells, ['signed', 'signed', 'missed']);
+    assert.equal(s1.signed, 2);
+    assert.equal(s1.missed, 1);
+    assert.equal(s1.operatorAddress, 'op1');
+    assert.equal(s2.slotId, '2');
+    assert.deepEqual(s2.cells, ['missed', 'signed', null]); // null where slot 2 had no evidence
+    assert.equal(s2.signed, 1);
+    assert.equal(s2.missed, 1);
+    await app.close();
+  });
+
+  it('windows to the last N distinct committed heights', async () => {
+    const app = await build({
+      livenessEvidence: [le(100, 1, 'signed'), le(101, 1, 'signed'), le(102, 1, 'missed')],
+    });
+    const d = (await app.inject({ url: '/api/v1/network/signing-heatmap?window=2' })).json().data;
+    assert.equal(d.blocksInWindow, 2);
+    assert.deepEqual(d.heights, ['101', '102']); // the newest 2, ascending
+    await app.close();
+  });
+
+  it('returns 200 with empty arrays when there is no evidence', async () => {
+    const app = await build({ livenessEvidence: [] });
+    const res = await app.inject({ url: '/api/v1/network/signing-heatmap' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.blocksInWindow, 0);
+    assert.deepEqual(d.heights, []);
+    assert.deepEqual(d.slots, []);
+    assert.equal(d.fromHeight, null);
+    await app.close();
+  });
+
+  it('rejects an out-of-range window with 400 invalid_query', async () => {
+    const app = await build({ livenessEvidence: [] });
+    const res = await app.inject({ url: '/api/v1/network/signing-heatmap?window=999' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error.code, 'invalid_query');
+    await app.close();
+  });
+});

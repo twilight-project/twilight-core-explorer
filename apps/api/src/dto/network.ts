@@ -132,3 +132,113 @@ export function toNetworkRisk(row: NetworkRiskRow): Static<typeof NetworkRiskDto
     policyVersion: row.policyVersion,
   };
 }
+
+// ---- signing heatmap (per-slot signed/missed over the last N committed blocks) ----
+
+export const SigningHeatmapQuery = Type.Object(
+  { window: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 48 })) },
+  { additionalProperties: false },
+);
+
+export const SigningHeatmapSlot = Type.Object({
+  slotId: HeightString,
+  operatorAddress: Nullable(Type.String()),
+  consensusAddress: Nullable(Type.String()),
+  signed: Type.Integer(),
+  missed: Type.Integer(),
+  // Aligned to the top-level `heights`: 'signed' | 'missed' | null (no evidence for this slot@height).
+  cells: Type.Array(Nullable(Type.String())),
+});
+
+export const SigningHeatmap = Type.Object(
+  {
+    window: Type.Integer(),
+    blocksInWindow: Type.Integer(),
+    fromHeight: Nullable(HeightString),
+    toHeight: Nullable(HeightString),
+    heights: Type.Array(HeightString),
+    slots: Type.Array(SigningHeatmapSlot),
+  },
+  { $id: 'SigningHeatmap' },
+);
+
+export const SigningHeatmapResponse = Type.Object(
+  { data: SigningHeatmap },
+  { $id: 'SigningHeatmapResponse' },
+);
+
+export interface LivenessEvidenceRow {
+  committedBlockHeight: bigint;
+  slotId: bigint | null;
+  operatorAddress: string | null;
+  consensusAddress: string | null;
+  status: string;
+}
+
+/**
+ * Build the heatmap grid from the window's distinct heights (desc) + the per-slot evidence rows.
+ * Columns are heights ascending; each slot gets a `cells` array aligned to those columns
+ * ('signed'/'missed'/null). Rows without a slotId are skipped. All heights are strings.
+ */
+export function toSigningHeatmap(
+  window: number,
+  heightsDesc: bigint[],
+  rows: LivenessEvidenceRow[],
+): Static<typeof SigningHeatmap> {
+  const heightsAsc = [...heightsDesc].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const heightStrs = heightsAsc.map((h) => h.toString());
+  const colIndex = new Map(heightStrs.map((h, i) => [h, i] as const));
+
+  interface SlotAcc {
+    slotId: string;
+    operatorAddress: string | null;
+    consensusAddress: string | null;
+    cells: (string | null)[];
+    signed: number;
+    missed: number;
+  }
+  const bySlot = new Map<string, SlotAcc>();
+
+  for (const r of rows) {
+    if (r.slotId === null) continue;
+    const ci = colIndex.get(r.committedBlockHeight.toString());
+    if (ci === undefined) continue; // height not in the window
+    const key = r.slotId.toString();
+    let slot = bySlot.get(key);
+    if (!slot) {
+      slot = {
+        slotId: key,
+        operatorAddress: r.operatorAddress,
+        consensusAddress: r.consensusAddress,
+        cells: heightStrs.map(() => null),
+        signed: 0,
+        missed: 0,
+      };
+      bySlot.set(key, slot);
+    }
+    slot.cells[ci] = r.status;
+    if (r.status === 'signed') slot.signed += 1;
+    else if (r.status === 'missed') slot.missed += 1;
+    if (slot.operatorAddress === null && r.operatorAddress !== null) {
+      slot.operatorAddress = r.operatorAddress;
+    }
+    if (slot.consensusAddress === null && r.consensusAddress !== null) {
+      slot.consensusAddress = r.consensusAddress;
+    }
+  }
+
+  const slots = [...bySlot.values()].sort((a, b) => {
+    const aa = BigInt(a.slotId);
+    const bb = BigInt(b.slotId);
+    return aa < bb ? -1 : aa > bb ? 1 : 0;
+  });
+
+  return {
+    window,
+    blocksInWindow: heightStrs.length,
+    fromHeight: heightStrs[0] ?? null,
+    toHeight: heightStrs[heightStrs.length - 1] ?? null,
+    heights: heightStrs,
+    slots,
+  };
+}

@@ -5,9 +5,12 @@ import {
   TxDetailResponse,
   TxListResponse,
   TxParams,
+  TxsAggregateQuery,
+  TxsAggregateResponse,
   TxsQuery,
   toTxDetail,
   toTxListItem,
+  toTxsAggregate,
 } from '../dto/transactions.js';
 import { ErrorResponse } from '../dto/common.js';
 import {
@@ -24,6 +27,7 @@ import {
   getMessages,
   getTx,
   listTxs,
+  listTxsForAggregate,
 } from '../repositories/transactions-repository.js';
 
 export async function transactionsRoutes(fastify: FastifyInstance): Promise<void> {
@@ -79,6 +83,27 @@ export async function transactionsRoutes(fastify: FastifyInstance): Promise<void
       const nextCursor = hasMore && last ? encodeKeyset([last.height, last.index]) : null;
 
       return { data, page: { limit, nextCursor } };
+    },
+  );
+
+  // GET /txs/aggregate — windowed stats over the last N transactions. Static route: Fastify's router
+  // matches it ahead of the parametric /txs/:hash (TxParams accepts any string, so precedence — not
+  // hash validation — is what reserves the literal "aggregate"). A live read, not a projection.
+  app.get(
+    '/txs/aggregate',
+    {
+      schema: {
+        tags: ['transactions'],
+        summary: 'Aggregate stats over the last N transactions',
+        querystring: TxsAggregateQuery,
+        response: { 200: TxsAggregateResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const window = request.query.window ?? 1000;
+      const txs = await listTxsForAggregate(app.prisma, window);
+      return { data: toTxsAggregate(window, txs) };
     },
   );
 

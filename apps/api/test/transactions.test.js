@@ -123,3 +123,61 @@ describe('tx detail', () => {
     await app.close();
   });
 });
+
+describe('txs aggregate', () => {
+  it('computes windowed success/failed/rate and avg messages per tx', async () => {
+    const app = await build({
+      txs: [
+        tx('A', 10, 0, { status: 'success', messageTypesJson: ['m1'] }),
+        tx('B', 10, 1, { status: 'failed', messageTypesJson: ['m1', 'm2'] }),
+        tx('C', 11, 0, { status: 'success', messageTypesJson: ['m1', 'm2', 'm3'] }),
+        tx('D', 12, 0, { status: 'success', messageTypesJson: [] }),
+      ],
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/txs/aggregate' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.txsInWindow, 4);
+    assert.equal(d.successCount, 3);
+    assert.equal(d.failedCount, 1);
+    assert.equal(d.otherCount, 0);
+    assert.equal(d.successRate, 75); // 3/4
+    assert.equal(d.totalMessages, 6); // 1+2+3+0
+    assert.equal(d.avgMessagesPerTx, 1.5);
+    assert.equal(d.fromHeight, '10');
+    assert.equal(d.toHeight, '12');
+    await app.close();
+  });
+
+  it('counts a non-success/failed status as "other"', async () => {
+    const app = await build({
+      txs: [tx('A', 1, 0, { status: 'success' }), tx('B', 2, 0, { status: 'pending' })],
+    });
+    const d = (await app.inject({ method: 'GET', url: '/api/v1/txs/aggregate' })).json().data;
+    assert.equal(d.successCount, 1);
+    assert.equal(d.failedCount, 0);
+    assert.equal(d.otherCount, 1);
+    await app.close();
+  });
+
+  it('returns 200 with nulls/0 on an empty chain (never 404, never a guessed 0)', async () => {
+    const app = await build({ txs: [] });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/txs/aggregate' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.txsInWindow, 0);
+    assert.equal(d.successRate, null);
+    assert.equal(d.avgMessagesPerTx, null);
+    assert.equal(d.fromHeight, null);
+    assert.equal(d.totalMessages, 0);
+    await app.close();
+  });
+
+  it('rejects an out-of-range window with 400 invalid_query', async () => {
+    const app = await build({ txs: [] });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/txs/aggregate?window=99999' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.json().error.code, 'invalid_query');
+    await app.close();
+  });
+});

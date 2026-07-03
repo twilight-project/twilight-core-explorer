@@ -173,6 +173,31 @@ export class MockPrisma {
       },
       findUnique: async (args) =>
         this._accounts.find((a) => a.address === args.where.address) ?? null,
+      count: async (args = {}) => {
+        const w = args.where ?? {};
+        let rows = [...this._accounts];
+        if (w.accountKind !== undefined) {
+          if (typeof w.accountKind === 'object' && w.accountKind !== null && 'not' in w.accountKind) {
+            const nv = w.accountKind.not;
+            rows = rows.filter((a) => (nv === null ? a.accountKind != null : a.accountKind !== nv));
+          } else {
+            rows = rows.filter((a) => a.accountKind === w.accountKind);
+          }
+        }
+        return rows.length;
+      },
+      aggregate: async (args = {}) => {
+        const out = {};
+        if (args._avg?.txCount) {
+          const rows = this._accounts;
+          out._avg = {
+            txCount: rows.length
+              ? rows.reduce((s, a) => s + (a.txCount ?? 0), 0) / rows.length
+              : null,
+          };
+        }
+        return out;
+      },
     };
 
     this.decodeFailure = {

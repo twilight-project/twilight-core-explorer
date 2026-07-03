@@ -5,14 +5,20 @@ import {
   AccountDetailResponse,
   AccountListResponse,
   AccountParams,
+  AccountsAggregateResponse,
   AccountsQuery,
   toAccountDetail,
   toAccountListItem,
+  toAccountsAggregate,
 } from '../dto/accounts.js';
 import { ErrorResponse } from '../dto/common.js';
 import { DEFAULT_LIMIT, decodeKeyset, encodeKeyset } from '../lib/pagination.js';
 import { invalidCursor, notFound } from '../lib/errors.js';
-import { getAccount, listAccounts } from '../repositories/accounts-repository.js';
+import {
+  getAccount,
+  getAccountsAggregate,
+  listAccounts,
+} from '../repositories/accounts-repository.js';
 
 // Account cursors are emitted from a bech32 account address (encodeKeyset([address])). Validate the
 // decoded part has that shape so a structurally-valid-but-meaningless cursor is rejected. (No bech32
@@ -59,6 +65,23 @@ export async function accountsRoutes(fastify: FastifyInstance): Promise<void> {
       const nextCursor = hasMore && last ? encodeKeyset([last.address]) : null;
 
       return { data, page: { limit, nextCursor } };
+    },
+  );
+
+  // GET /accounts/aggregate — global registry counts. Static route, resolves ahead of
+  // /accounts/:address. A live read (count/aggregate), not a projection.
+  app.get(
+    '/accounts/aggregate',
+    {
+      schema: {
+        tags: ['accounts'],
+        summary: 'Global account registry counts',
+        response: { 200: AccountsAggregateResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async () => {
+      return { data: toAccountsAggregate(await getAccountsAggregate(app.prisma)) };
     },
   );
 

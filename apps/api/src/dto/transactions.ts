@@ -85,6 +85,36 @@ export const TxDetailQuery = Type.Object(
   { additionalProperties: false },
 );
 
+// ----- txs aggregate (windowed stats over the last N transactions) -----
+
+export const TxsAggregateQuery = Type.Object(
+  { window: Type.Optional(Type.Integer({ minimum: 1, maximum: 5000, default: 1000 })) },
+  { additionalProperties: false },
+);
+
+export const TxsAggregate = Type.Object(
+  {
+    window: Type.Integer(),
+    txsInWindow: Type.Integer(),
+    fromHeight: Nullable(HeightString),
+    toHeight: Nullable(HeightString),
+    successCount: Type.Integer(),
+    failedCount: Type.Integer(),
+    otherCount: Type.Integer(),
+    successRate: Nullable(
+      Type.Number({ description: 'Percent of the window that succeeded; null if empty.' }),
+    ),
+    avgMessagesPerTx: Nullable(Type.Number()),
+    totalMessages: Type.Integer(),
+  },
+  { $id: 'TxsAggregate' },
+);
+
+export const TxsAggregateResponse = Type.Object(
+  { data: TxsAggregate },
+  { $id: 'TxsAggregateResponse' },
+);
+
 // ----- row shapes + mappers -----
 
 export interface TxRow {
@@ -123,6 +153,51 @@ export interface EventRow {
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+}
+
+export interface AggregateTxRow {
+  height: bigint;
+  status: string;
+  messageTypesJson: unknown;
+}
+
+const roundTo = (n: number, dp: number): number => {
+  const f = 10 ** dp;
+  return Math.round(n * f) / f;
+};
+
+/**
+ * Windowed transaction stats from canonical rows. Success/failed are counted by the stored status
+ * string; messages-per-tx uses the tx's messageTypes array length. Rates/averages are null on an
+ * empty window (never a guessed 0).
+ */
+export function toTxsAggregate(window: number, txs: AggregateTxRow[]): Static<typeof TxsAggregate> {
+  const txsInWindow = txs.length;
+  let minHeight: bigint | null = null;
+  let maxHeight: bigint | null = null;
+  let successCount = 0;
+  let failedCount = 0;
+  let totalMessages = 0;
+  for (const t of txs) {
+    if (minHeight === null || t.height < minHeight) minHeight = t.height;
+    if (maxHeight === null || t.height > maxHeight) maxHeight = t.height;
+    const s = t.status.toLowerCase();
+    if (s === 'success') successCount += 1;
+    else if (s === 'failed') failedCount += 1;
+    totalMessages += toStringArray(t.messageTypesJson).length;
+  }
+  return {
+    window,
+    txsInWindow,
+    fromHeight: minHeight !== null ? minHeight.toString() : null,
+    toHeight: maxHeight !== null ? maxHeight.toString() : null,
+    successCount,
+    failedCount,
+    otherCount: txsInWindow - successCount - failedCount,
+    successRate: txsInWindow > 0 ? roundTo((successCount / txsInWindow) * 100, 1) : null,
+    avgMessagesPerTx: txsInWindow > 0 ? roundTo(totalMessages / txsInWindow, 2) : null,
+    totalMessages,
+  };
 }
 
 export function toTxListItem(row: TxRow): Static<typeof TxListItem> {

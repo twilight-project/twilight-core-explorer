@@ -33,7 +33,10 @@ function FreshItem({
       <div className="text-[11px] uppercase tracking-wider text-text-muted">{label}</div>
       <div className="mt-1 font-mono text-lg text-text">
         {value}
-        {unit ? <span className="ml-1 text-xs text-text-muted">{unit}</span> : null}
+        {/* Same placeholder convention as KpiCard: no unit next to a "…" pending value. */}
+        {unit && value !== '…' && value !== '—' ? (
+          <span className="ml-1 text-xs text-text-muted">{unit}</span>
+        ) : null}
       </div>
       {sub ? <div className="mt-0.5 text-[11px] text-text-muted">{sub}</div> : null}
     </div>

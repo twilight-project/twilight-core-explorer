@@ -111,3 +111,40 @@ describe('account detail', () => {
     await app.close();
   });
 });
+
+describe('accounts aggregate', () => {
+  it('returns global registry counts + avg tx count', async () => {
+    const app = await build({
+      accounts: [
+        account('twilight1a', { accountKind: 'base', txCount: 2 }),
+        account('twilight1b', { accountKind: 'module', txCount: 4 }),
+        account('twilight1c', { accountKind: null, txCount: 6 }),
+      ],
+    });
+    const d = (await app.inject({ method: 'GET', url: '/api/v1/accounts/aggregate' })).json().data;
+    assert.equal(d.totalAccounts, 3);
+    assert.equal(d.moduleAccounts, 1);
+    assert.equal(d.labelledAccounts, 2); // base + module; the null-kind account is unlabelled
+    assert.equal(d.avgTxCount, 4); // (2+4+6)/3
+    await app.close();
+  });
+
+  it('returns 200 with 0s and null avg on an empty registry (never a guessed 0 avg)', async () => {
+    const app = await build({ accounts: [] });
+    const d = (await app.inject({ method: 'GET', url: '/api/v1/accounts/aggregate' })).json().data;
+    assert.equal(d.totalAccounts, 0);
+    assert.equal(d.moduleAccounts, 0);
+    assert.equal(d.labelledAccounts, 0);
+    assert.equal(d.avgTxCount, null);
+    await app.close();
+  });
+
+  // /accounts/aggregate must NOT be swallowed by /accounts/:address.
+  it('resolves /accounts/aggregate as the aggregate route, not an address lookup', async () => {
+    const app = await build({ accounts: [account('twilight1a')] });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/accounts/aggregate' });
+    assert.equal(res.statusCode, 200);
+    assert.ok('totalAccounts' in res.json().data);
+    await app.close();
+  });
+});

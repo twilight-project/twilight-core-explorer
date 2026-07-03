@@ -58,10 +58,18 @@ export function SigningHeatmap() {
                         >
                           {s.operatorAddress ? shortenMiddle(s.operatorAddress) : `slot ${s.slotId}`}
                         </Link>
-                        <div className="flex flex-1 flex-wrap gap-[3px]">
+                        {/* The cell strip is one labelled image for assistive tech: per-cell title
+                            tooltips aren't reliably announced, so the row's signed/missed summary
+                            carries the meaning while the individual cells are decorative. */}
+                        <div
+                          className="flex flex-1 flex-wrap gap-[3px]"
+                          role="img"
+                          aria-label={`${s.operatorAddress ?? `slot ${s.slotId}`}: ${s.signed} signed, ${s.missed} missed over the last ${expected} committed blocks`}
+                        >
                           {s.cells.map((c, i) => (
                             <span
                               key={i}
+                              aria-hidden="true"
                               className={clsx('h-3.5 w-2.5 rounded-sm', cellClass(c))}
                               title={`${d.heights[i] ?? ''}: ${c ?? 'no evidence'}`}
                             />

@@ -181,7 +181,7 @@ export interface LivenessEvidenceRow {
 /**
  * Build the heatmap grid from the window's distinct heights (desc) + the per-slot evidence rows.
  * Columns are heights ascending; each slot gets a `cells` array aligned to those columns
- * ('signed'/'missed'/null). Rows without a slotId are skipped. All heights are strings.
+ * ('signed'/'missed'/null where the slot had no evidence). All heights are emitted as strings.
  */
 export function toSigningHeatmap(
   window: number,

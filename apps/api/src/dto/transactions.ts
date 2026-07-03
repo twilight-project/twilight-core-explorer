@@ -95,7 +95,7 @@ export const TxsAggregateQuery = Type.Object(
 export const TxsAggregate = Type.Object(
   {
     window: Type.Integer(),
-    txInWindow: Type.Integer(),
+    txsInWindow: Type.Integer(),
     fromHeight: Nullable(HeightString),
     toHeight: Nullable(HeightString),
     successCount: Type.Integer(),
@@ -172,7 +172,7 @@ const roundTo = (n: number, dp: number): number => {
  * empty window (never a guessed 0).
  */
 export function toTxsAggregate(window: number, txs: AggregateTxRow[]): Static<typeof TxsAggregate> {
-  const txInWindow = txs.length;
+  const txsInWindow = txs.length;
   let minHeight: bigint | null = null;
   let maxHeight: bigint | null = null;
   let successCount = 0;
@@ -188,14 +188,14 @@ export function toTxsAggregate(window: number, txs: AggregateTxRow[]): Static<ty
   }
   return {
     window,
-    txInWindow,
+    txsInWindow,
     fromHeight: minHeight !== null ? minHeight.toString() : null,
     toHeight: maxHeight !== null ? maxHeight.toString() : null,
     successCount,
     failedCount,
-    otherCount: txInWindow - successCount - failedCount,
-    successRate: txInWindow > 0 ? roundTo((successCount / txInWindow) * 100, 1) : null,
-    avgMessagesPerTx: txInWindow > 0 ? roundTo(totalMessages / txInWindow, 2) : null,
+    otherCount: txsInWindow - successCount - failedCount,
+    successRate: txsInWindow > 0 ? roundTo((successCount / txsInWindow) * 100, 1) : null,
+    avgMessagesPerTx: txsInWindow > 0 ? roundTo(totalMessages / txsInWindow, 2) : null,
     totalMessages,
   };
 }

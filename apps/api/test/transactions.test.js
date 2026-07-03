@@ -137,7 +137,7 @@ describe('txs aggregate', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/txs/aggregate' });
     assert.equal(res.statusCode, 200);
     const d = res.json().data;
-    assert.equal(d.txInWindow, 4);
+    assert.equal(d.txsInWindow, 4);
     assert.equal(d.successCount, 3);
     assert.equal(d.failedCount, 1);
     assert.equal(d.otherCount, 0);
@@ -165,7 +165,7 @@ describe('txs aggregate', () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/txs/aggregate' });
     assert.equal(res.statusCode, 200);
     const d = res.json().data;
-    assert.equal(d.txInWindow, 0);
+    assert.equal(d.txsInWindow, 0);
     assert.equal(d.successRate, null);
     assert.equal(d.avgMessagesPerTx, null);
     assert.equal(d.fromHeight, null);

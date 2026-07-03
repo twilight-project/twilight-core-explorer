@@ -10,14 +10,14 @@ export function TxsAggregateStrip() {
   const d = query.data?.data;
   const dash = query.isPending ? '…' : '—';
   const windowLabel = d
-    ? `over last ${d.txInWindow.toLocaleString('en-US')} txs`
+    ? `over last ${d.txsInWindow.toLocaleString('en-US')} txs`
     : 'windowed sample';
 
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
         label="Transactions (window)"
-        value={d ? d.txInWindow.toLocaleString('en-US') : dash}
+        value={d ? d.txsInWindow.toLocaleString('en-US') : dash}
         sub={d ? `${d.totalMessages.toLocaleString('en-US')} messages` : windowLabel}
       />
       <KpiCard
@@ -31,7 +31,8 @@ export function TxsAggregateStrip() {
       <KpiCard
         label="Failed"
         value={d ? d.failedCount.toLocaleString('en-US') : dash}
-        deltaTone={d && d.failedCount > 0 ? 'danger' : 'success'}
+        delta={d && d.failedCount > 0 ? 'attention' : undefined}
+        deltaTone={d && d.failedCount > 0 ? 'danger' : 'neutral'}
         sub={windowLabel}
       />
       <KpiCard

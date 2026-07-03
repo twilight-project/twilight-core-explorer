@@ -1323,7 +1323,7 @@
                       "type": "object",
                       "required": [
                         "window",
-                        "txInWindow",
+                        "txsInWindow",
                         "fromHeight",
                         "toHeight",
                         "successCount",
@@ -1337,7 +1337,7 @@
                         "window": {
                           "type": "integer"
                         },
-                        "txInWindow": {
+                        "txsInWindow": {
                           "type": "integer"
                         },
                         "fromHeight": {

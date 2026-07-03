@@ -35,7 +35,7 @@ export function BlocksAggregateStrip() {
       />
       <KpiCard
         label="Unique proposers"
-        value={d ? d.uniqueProposers : dash}
+        value={d ? d.uniqueProposers.toLocaleString('en-US') : dash}
         sub={windowLabel}
       />
     </div>

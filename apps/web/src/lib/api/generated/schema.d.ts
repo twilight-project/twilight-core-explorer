@@ -533,7 +533,7 @@ export interface paths {
                             /** TxsAggregate */
                             data: {
                                 window: number;
-                                txInWindow: number;
+                                txsInWindow: number;
                                 fromHeight: string | null;
                                 toHeight: string | null;
                                 successCount: number;

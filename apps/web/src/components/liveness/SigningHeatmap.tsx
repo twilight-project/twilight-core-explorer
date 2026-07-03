@@ -12,7 +12,7 @@ import { formatHeight } from '@/lib/format/height';
 // The real per-CoreSlot signing heatmap (replaces the PreviewHeatmap): each row is a CoreSlot, each
 // cell a committed block — green signed, red missed, neutral where the slot had no evidence at that
 // height. Data from GET /network/signing-heatmap (the +2-correct CoreSlotLivenessEvidence projection).
-function cellClass(status: string | null): string {
+function cellClass(status: 'signed' | 'missed' | null): string {
   if (status === 'signed') return 'bg-accent-green';
   if (status === 'missed') return 'bg-accent-red';
   return 'bg-background-tertiary'; // no evidence for this slot at this height

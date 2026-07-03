@@ -53,10 +53,13 @@ export async function getRecentLivenessHeights(prisma: PrismaClient, window: num
 }
 
 // All per-slot signed/missed evidence rows for the given committed heights (the heatmap cells).
+// Ordered deterministically (height asc, slot asc) so the mapper's first-seen operator/consensus per
+// slot is stable across requests.
 export async function getLivenessEvidenceForHeights(prisma: PrismaClient, heights: bigint[]) {
   if (heights.length === 0) return [];
   return prisma.coreSlotLivenessEvidence.findMany({
     where: { committedBlockHeight: { in: heights } },
+    orderBy: [{ committedBlockHeight: 'asc' }, { slotId: 'asc' }],
     select: {
       committedBlockHeight: true,
       slotId: true,

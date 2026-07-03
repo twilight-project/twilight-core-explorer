@@ -333,7 +333,19 @@ export class MockPrisma {
           rows = rows.filter((r) => w.committedBlockHeight.in.some((h) => h === r.committedBlockHeight));
         }
         // Prisma applies orderBy before distinct (distinct keeps the first row per value).
-        if (args.orderBy?.committedBlockHeight === 'desc') {
+        const ob = args.orderBy;
+        if (Array.isArray(ob)) {
+          rows.sort((a, b) => {
+            for (const key of ob) {
+              const [field, dir] = Object.entries(key)[0];
+              if (a[field] !== b[field]) {
+                const cmp = a[field] < b[field] ? -1 : 1;
+                return dir === 'desc' ? -cmp : cmp;
+              }
+            }
+            return 0;
+          });
+        } else if (ob?.committedBlockHeight === 'desc') {
           rows.sort((a, b) => descBig(a.committedBlockHeight, b.committedBlockHeight));
         }
         if (args.distinct?.includes('committedBlockHeight')) {

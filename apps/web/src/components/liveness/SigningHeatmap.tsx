@@ -64,7 +64,7 @@ export function SigningHeatmap() {
                         <div
                           className="flex flex-1 flex-wrap gap-[3px]"
                           role="img"
-                          aria-label={`${s.operatorAddress ?? `slot ${s.slotId}`}: ${s.signed} signed, ${s.missed} missed over the last ${expected} committed blocks`}
+                          aria-label={`${s.operatorAddress ?? `slot ${s.slotId}`}: ${s.signed} signed, ${s.missed} missed (of ${expected} blocks with evidence)`}
                         >
                           {s.cells.map((c, i) => (
                             <span

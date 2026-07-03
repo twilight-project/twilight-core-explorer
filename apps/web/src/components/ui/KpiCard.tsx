@@ -68,7 +68,11 @@ export function KpiCard({
         >
           {value}
         </span>
-        {unit ? <span className="text-xs text-text-muted">{unit}</span> : null}
+        {/* Hide the unit next to a loading/empty placeholder so a pending card reads "…" not "… s".
+            '…' (pending) and '—' (missing) are the shared placeholder convention used by every strip. */}
+        {unit && value !== '…' && value !== '—' ? (
+          <span className="text-xs text-text-muted">{unit}</span>
+        ) : null}
       </div>
       {preview ? (
         <div className="text-[11px] italic text-text-muted">Real data coming up</div>

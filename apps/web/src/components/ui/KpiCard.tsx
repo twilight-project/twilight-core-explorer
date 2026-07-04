@@ -40,8 +40,12 @@ export function KpiCard({
   return (
     <div
       className={clsx(
-        'flex flex-col gap-3 rounded-2xl border bg-card px-card-x py-card-y shadow-card',
-        preview ? 'border-dashed border-border' : 'border-card-border',
+        'flex flex-col gap-3 rounded-2xl bg-card px-card-x py-card-y shadow-card',
+        // Preview keeps an explicit dashed 1px marker regardless of theme; live cards take the
+        // theme-owned border width (0 for elevation-led themes that float on their shadow ring).
+        preview
+          ? 'border border-dashed border-border'
+          : 'border-card-border [border-width:var(--card-border-width,1px)]',
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -63,7 +67,8 @@ export function KpiCard({
           className={clsx(
             'text-kpi font-semibold leading-none tracking-tight',
             preview ? 'text-text-secondary' : 'text-text',
-            mono && 'font-mono',
+            // Hero numerals use the theme's metric face (defaults to mono → auction unchanged).
+            mono && 'font-metric',
           )}
         >
           {value}

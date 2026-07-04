@@ -3,7 +3,14 @@ import type { ReactNode } from 'react';
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <section className={clsx('rounded-2xl border border-card-border bg-card shadow-card', className)}>
+    <section
+      className={clsx(
+        // Border WIDTH is theme-owned (border-led vs elevation-led): 1px for bordered themes, 0 for
+        // ones that float on their shadow ring. Color/style/radius/shadow still flow through tokens.
+        'rounded-2xl border-card-border bg-card shadow-card [border-width:var(--card-border-width,1px)]',
+        className,
+      )}
+    >
       {children}
     </section>
   );

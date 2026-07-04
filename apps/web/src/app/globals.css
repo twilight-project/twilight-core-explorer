@@ -9,46 +9,71 @@
 */
 
 :root {
-  --font-serif: ui-serif, Georgia, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Roboto Mono', monospace;
+  /* Semantic font ROLES resolve onto the faces loaded by next/font in layout.tsx (each bound to a
+     unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
+     its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
+     if a face fails to load. --font-serif here is the auction/legacy default (Instrument Serif). */
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter,
+    sans-serif;
+  --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Roboto Mono', monospace;
+  /* Hero-numeral role (KPI/stat values). Defaults to mono so auction/legacy numbers are unchanged;
+     a theme repoints it to its display face for brand-voiced big numbers. */
+  --font-metric: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
-/* Auction theme (default, strict palette — gold on near-black) */
+/* Default theme — "Twilight Console" (warm-gold operator console, the brand-brief v1 recommendation).
+   NOTE: the id is kept as `auction` for compatibility — it is the load-bearing default referenced by
+   layout.tsx (SSR default), .env.example, and the ops runbooks. Rather than flip that surface, the
+   default was retuned IN PLACE from the original loud multi-gold look to the disciplined single-gold
+   console. The toggle now labels this chip "Console". (A later cosmetic rename auction→console across
+   layout/env/docs is a clean mechanical follow-up if desired.) */
 [data-theme='auction'] {
-  --page: 5 5 5;
-  --background: 5 5 5;
-  --background-secondary: 10 10 12;
-  --background-tertiary: 14 14 16;
-  --background-primary: 0 0 0;
+  --page: 10 8 5;
+  --background: 10 8 5;
+  --background-secondary: 15 13 9;
+  --background-tertiary: 28 24 16;
+  --background-primary: 6 5 3;
 
-  --card: 10 10 12;
-  --card-hover: 14 14 16;
-  --card-border: 31 31 35;
+  --card: 22 19 13;
+  --card-hover: 28 24 16;
+  --card-border: 38 34 27;
 
-  --primary: 232 158 40;
-  --primary-light: 246 180 108;
-  --primary-dark: 198 127 26;
+  --primary: 245 197 66;
+  --primary-light: 255 215 102;
+  --primary-dark: 200 158 46;
 
-  --accent-blue: 217 126 72;
-  --accent-orange: 198 127 26;
-  --accent-yellow: 246 180 108;
-  --accent-green: 24 195 125;
-  --accent-red: 255 74 74;
+  --accent-blue: 78 163 255;
+  --accent-orange: 255 154 61;
+  --accent-yellow: 255 181 112;
+  --accent-green: 61 220 151;
+  --accent-red: 255 107 107;
 
-  --accent-gold: 232 158 40;
-  --accent-gold-light: 246 180 108;
-  --accent-gold-dark: 198 127 26;
-  --accent-amber: 217 126 72;
-  --accent-burgundy: 63 29 29;
+  --accent-gold: 245 197 66;
+  --accent-gold-light: 255 215 102;
+  --accent-gold-dark: 200 158 46;
+  --accent-amber: 255 181 112;
+  --accent-burgundy: 40 24 12;
 
-  --text: 249 250 251;
-  --text-secondary: 163 163 179;
-  /* WCAG 1.4.3: ~5.3:1 on --background (was 107 107 122 ≈ 3.9:1, sub-AA for normal text). */
-  --text-muted: 128 128 144;
+  --text: 233 234 242;
+  --text-secondary: 201 202 214;
+  /* WCAG 1.4.3: ~7:1 on the warm-black --background. */
+  --text-muted: 154 157 180;
 
-  --border: 31 31 35;
-  --border-light: 42 42 46;
+  --border: 38 34 27;
+  --border-light: 54 48 38;
+
+  /* expressive — balanced elevation, bordered, sans display, MONO numerals (operator honesty) */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
+  --display-tracking: -0.01em;
+  --card-border-width: 1px;
+  /* display face — Inter (compact technical sans per brief); hierarchy by size/weight, not face */
+  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* --font-metric inherits the :root mono default — heights/amounts stay monospaced */
 }
 
 /* Legacy theme (alternate mempool-style violet-on-navy) */
@@ -86,49 +111,119 @@
 
   --border: 51 65 85;
   --border-light: 71 85 105;
+
+  /* expressive axis — legacy: soft product-console shapes, gentle drop */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 24px rgba(0, 0, 0, 0.45);
+  --display-tracking: -0.005em;
+  --card-border-width: 1px;
 }
 
-/* Twilight-cool theme (redesign direction #1: deep indigo near-black + luminous violet brand accent).
-   Reinterprets "twilight" as the true dusk hour — cool, high-contrast, modern. Status colors
-   (green/amber/red) stay SEPARATE from the brand accent, per the brand brief. */
-[data-theme='twilight-cool'] {
-  /* near-pure-black canvas (whisper of indigo) -> maximum contrast, premium */
-  --page: 4 4 8;
-  --background: 4 4 8;
-  --background-secondary: 9 9 15;
-  --background-tertiary: 14 14 22;
-  --background-primary: 2 2 5;
+/* ===== Brand-brief variants (Twilight Operations Console) =======================================
+   Two directions beyond the default after convergence: a glow-richer premium gold (Orbit) and a
+   blue-signal high-contrast engineering variant (Minimal). The brief's recommended default — the
+   warm-gold operator console ("A") — now lives IN the default `auction` block above (retuned in
+   place). Cosmic motifs for Orbit are deliberately deferred (approximated with a gold glow ring +
+   rounder cards). Per the brief's data-honesty ethos, both keep MONO hero numerals (--font-metric
+   inherits mono). Faces reuse those already loaded in layout.tsx (Sora / Space Grotesk). */
 
-  --card: 10 10 17;
-  --card-hover: 16 16 25;
-  --card-border: 30 30 46;
+/* Gold Orbit — premium gold with a glow ring + rounder cards (cosmic motifs deferred) */
+[data-theme='gold-orbit'] {
+  --page: 12 9 5;
+  --background: 12 9 5;
+  --background-secondary: 18 14 8;
+  --background-tertiary: 30 24 14;
+  --background-primary: 7 5 3;
 
-  /* bluer, slightly deeper indigo-violet accent (periwinkle / Linear register) */
-  --primary: 107 118 232;
-  --primary-light: 150 160 255;
-  --primary-dark: 82 92 200;
+  --card: 24 20 13;
+  --card-hover: 30 25 17;
+  --card-border: 44 38 28;
 
-  --accent-blue: 96 200 245;
-  --accent-orange: 255 168 92;
-  --accent-yellow: 255 205 102;
-  --accent-green: 52 220 148;
-  --accent-red: 255 99 99;
+  --primary: 245 197 66;
+  --primary-light: 255 215 102;
+  --primary-dark: 200 158 46;
 
-  /* brand-role tokens repoint to the indigo-violet so existing `accent-gold*` consumers rebrand cleanly */
-  --accent-gold: 107 118 232;
-  --accent-gold-light: 150 160 255;
-  --accent-gold-dark: 82 92 200;
-  --accent-amber: 255 205 102;
-  --accent-burgundy: 36 28 66;
+  --accent-blue: 78 163 255;
+  --accent-orange: 255 154 61;
+  --accent-yellow: 255 181 112;
+  --accent-green: 61 220 151;
+  --accent-red: 255 107 107;
 
-  /* crisp white + higher-contrast greys on the near-black canvas */
-  --text: 245 246 252;
-  --text-secondary: 190 193 212;
-  /* WCAG 1.4.3: ~8:1 on the near-black twilight-cool --background. */
-  --text-muted: 158 161 184;
+  --accent-gold: 245 197 66;
+  --accent-gold-light: 255 215 102;
+  --accent-gold-dark: 200 158 46;
+  --accent-amber: 255 181 112;
+  --accent-burgundy: 54 30 14;
 
-  --border: 30 30 46;
-  --border-light: 46 46 70;
+  --text: 233 234 242;
+  --text-secondary: 201 202 214;
+  --text-muted: 154 157 180;
+
+  --border: 44 38 28;
+  --border-light: 62 52 38;
+
+  /* expressive — richer: softer rounded cards + a gold GLOW ring (the "orbit" premium cue) */
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
+  --shadow-card: 0 0 0 1px rgba(245, 197, 66, 0.1), 0 8px 36px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(245, 197, 66, 0.05);
+  --display-tracking: -0.01em;
+  --card-border-width: 1px;
+  /* display face — Sora: a touch more designed for the premium/public register */
+  --font-serif: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  /* MONO numerals retained (honesty) — premium comes from glow/shape, not decorative numbers */
+}
+
+/* C. Minimal Operator — blue-signal, flat, high-contrast engineering variant */
+[data-theme='minimal-operator'] {
+  --page: 8 8 10;
+  --background: 8 8 10;
+  --background-secondary: 13 13 16;
+  --background-tertiary: 20 20 24;
+  --background-primary: 5 5 6;
+
+  --card: 15 15 18;
+  --card-hover: 21 21 25;
+  /* brighter cool border → crisp high-contrast wireframe grid (cards + table rules) */
+  --card-border: 48 48 56;
+
+  --primary: 78 163 255;
+  --primary-light: 130 180 255;
+  --primary-dark: 54 130 220;
+
+  --accent-blue: 78 163 255;
+  --accent-orange: 255 181 112;
+  --accent-yellow: 220 220 228;
+  --accent-green: 61 220 151;
+  --accent-red: 255 107 107;
+
+  /* brand-role tokens repoint to the blue signal so accent-gold consumers rebrand cleanly */
+  --accent-gold: 78 163 255;
+  --accent-gold-light: 130 180 255;
+  --accent-gold-dark: 54 130 220;
+  --accent-amber: 220 220 228;
+  --accent-burgundy: 18 24 38;
+
+  --text: 233 234 242;
+  --text-secondary: 201 202 214;
+  --text-muted: 154 157 180;
+
+  --border: 48 48 56;
+  --border-light: 64 64 74;
+
+  /* expressive — sharp, flat, border-led (engineering precision); mono numerals */
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.375rem;
+  --radius-2xl: 0.5rem;
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --display-tracking: -0.015em;
+  --card-border-width: 1px;
+  /* display face — Space Grotesk: tight technical grotesk */
+  --font-serif: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  /* MONO numerals (inherit) — engineering honesty */
 }
 
 /* ---- Density scale (independent of theme + layout) --------------------------------------------
@@ -165,6 +260,14 @@ body {
   background-color: rgb(var(--background));
   color: rgb(var(--text));
   font-family: var(--font-sans);
+}
+
+/* Heading rhythm is a theme-owned expressive lever: each brand sets its own display tracking
+   (tight grotesk vs relaxed editorial). Element-level selector (specificity 0,0,1) so any
+   component utility class — e.g. a one-off tracking-* — still overrides it. */
+h1,
+h2 {
+  letter-spacing: var(--display-tracking, -0.01em);
 }
 
 /* Keep in-page anchor targets (e.g. the skip link → #main) clear of the sticky header. */

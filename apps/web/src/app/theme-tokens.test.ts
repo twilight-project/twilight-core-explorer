@@ -46,12 +46,53 @@ function tokenRgb(css: string, theme: string, name: string): number[] {
   return [Number(m[1]), Number(m[2]), Number(m[3])];
 }
 
+// The converged "Twilight Operations Console" theme set. `auction` carries the default warm-gold
+// console look (id kept for compatibility); gold-orbit + minimal-operator are the two variants;
+// legacy is the older alt.
+const THEMES = ['auction', 'legacy', 'gold-orbit', 'minimal-operator'];
+
+// Themes that repoint the display face (--font-serif) — the console (auction) and both variants each
+// pick a distinct display sans. `legacy` inherits the Instrument Serif default, so it is excluded.
+const BRAND_THEMES = ['auction', 'gold-orbit', 'minimal-operator'];
+
 describe('theme token contrast (WCAG 1.4.3)', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
-  for (const theme of ['auction', 'legacy']) {
+  for (const theme of THEMES) {
     it(`${theme}: --text-muted on --background meets AA (>= 4.5:1)`, () => {
       const ratio = contrastRatio(tokenRgb(css, theme, 'text-muted'), tokenRgb(css, theme, 'background'));
       expect(ratio).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
+// Expressive axis (shape/elevation/heading) is theme-owned. Tailwind supplies a var() fallback so a
+// missing token can't break layout — but a theme that silently falls back would lose its distinct
+// feel. Guard that every theme defines the expressive tokens explicitly, so differentiation is real.
+describe('every theme defines the expressive shape tokens (no silent fallback)', () => {
+  const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
+  for (const theme of THEMES) {
+    it(`${theme}: defines --radius-2xl, --shadow-card and --display-tracking`, () => {
+      const block = css.match(new RegExp(`\\[data-theme='${theme}'\\]\\s*\\{([\\s\\S]*?)\\}`));
+      expect(block, `theme block not found: ${theme}`).not.toBeNull();
+      const body = block?.[1] ?? '';
+      expect(body).toContain('--radius-2xl');
+      expect(body).toContain('--shadow-card');
+      expect(body).toContain('--display-tracking');
+      // Stage-3 surface strategy: every theme picks a border-led (1px) vs elevation-led (0) treatment.
+      expect(body).toContain('--card-border-width');
+    });
+  }
+});
+
+// Typography: every non-default brand theme repoints the display face (--font-serif) so headings
+// carry a distinct voice, not just color/shape.
+describe('brand themes repoint the display face', () => {
+  const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
+  for (const theme of BRAND_THEMES) {
+    it(`${theme}: overrides --font-serif (display face)`, () => {
+      const block = css.match(new RegExp(`\\[data-theme='${theme}'\\]\\s*\\{([\\s\\S]*?)\\}`));
+      expect(block, `theme block not found: ${theme}`).not.toBeNull();
+      expect(block?.[1] ?? '').toContain('--font-serif');
     });
   }
 });

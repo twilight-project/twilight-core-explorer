@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
+import type { LucideIcon } from 'lucide-react';
 import type { BadgeTone } from '@/lib/format/status';
 
-// A big, airy KPI stat card for the redesigned pages. Top row: uppercase label + an optional status
-// "delta" chip (tone-colored). Then a large mono value (+ optional unit), then a muted sub line. All
-// colors resolve from theme tokens; spacing/size from density tokens — so it rebrands + re-densifies.
+// A big, airy KPI stat card for the redesigned pages. Top row: an optional decorative icon chip +
+// uppercase label + an optional status "delta" chip (tone-colored). Then a large mono value (+ optional
+// unit), then a muted sub line. All colors resolve from theme tokens; spacing/size from density tokens
+// — so it rebrands + re-densifies.
+//
+// `icon` is a lucide component (concept, not tone): it renders muted + aria-hidden so the label stays
+// the sole accessible name and the glyph never competes with the value or status pill.
 //
 // `preview` marks a card whose metric IS derivable from the indexed DB but has no API endpoint YET:
 // it renders a dashed border, a "preview" pill, and a "Real data coming up" note so the mock value is
@@ -18,6 +23,20 @@ const DELTA_TEXT: Record<BadgeTone, string> = {
   info: 'text-primary',
 };
 
+// KPI category legend. `iconTone` colors the icon chip by DOMAIN (which metric), leaving the status
+// delta pill to own TONE (how the metric is doing) — the two color channels never collide. Liveness
+// and risk reuse the accent-green/-red tokens so those icons match their own status pills exactly.
+// Class strings are static literals (not built from the key) so Tailwind's JIT keeps them in the build.
+export type KpiCategory = 'infra' | 'coreslot' | 'liveness' | 'risk' | 'rewards';
+
+const ICON_TONE: Record<KpiCategory, string> = {
+  infra: 'bg-accent-blue/10 text-accent-blue',
+  coreslot: 'bg-accent-violet/10 text-accent-violet',
+  liveness: 'bg-accent-green/10 text-accent-green',
+  risk: 'bg-accent-red/10 text-accent-red',
+  rewards: 'bg-accent-gold/10 text-accent-gold',
+};
+
 export function KpiCard({
   label,
   value,
@@ -27,6 +46,8 @@ export function KpiCard({
   deltaTone = 'neutral',
   mono = true,
   preview = false,
+  icon,
+  iconTone,
 }: {
   label: string;
   value: ReactNode;
@@ -36,7 +57,11 @@ export function KpiCard({
   deltaTone?: BadgeTone;
   mono?: boolean;
   preview?: boolean;
+  icon?: LucideIcon;
+  iconTone?: KpiCategory;
 }) {
+  // Capitalized alias so the optional icon can be used as a JSX component.
+  const Icon = icon;
   return (
     <div
       className={clsx(
@@ -49,8 +74,23 @@ export function KpiCard({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-text-muted">
-          {label}
+        <span className="flex min-w-0 items-center gap-2">
+          {Icon ? (
+            // Decorative chip: rounded-lg so the corner follows the theme. With `iconTone` it takes a
+            // faint category-hued surface + matching icon (color = domain); without one it falls back
+            // to the neutral white-alpha/muted chrome. Either way the icon is aria-hidden, never a name.
+            <span
+              className={clsx(
+                'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+                iconTone ? ICON_TONE[iconTone] : 'bg-white/5 text-text-muted',
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+            </span>
+          ) : null}
+          <span className="truncate text-[11px] font-medium uppercase tracking-wider text-text-muted">
+            {label}
+          </span>
         </span>
         {preview ? (
           <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-text-muted">

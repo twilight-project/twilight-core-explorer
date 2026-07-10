@@ -21,6 +21,11 @@
   /* Hero-numeral role (KPI/stat values). Defaults to mono so auction/legacy numbers are unchanged;
      a theme repoints it to its display face for brand-voiced big numbers. */
   --font-metric: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  /* KPI category legend. Every category hue except violet already exists as a per-theme --accent-*
+     (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. Violet has
+     no accent, so it lives here in :root as a global fallback — constant across all themes. */
+  --accent-violet: 167 139 250;
 }
 
 /* Default theme — "Twilight Console" (warm-gold operator console, the brand-brief v1 recommendation).

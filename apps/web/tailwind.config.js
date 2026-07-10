@@ -28,6 +28,7 @@ module.exports = {
           green: 'rgb(var(--accent-green) / <alpha-value>)',
           yellow: 'rgb(var(--accent-yellow) / <alpha-value>)',
           red: 'rgb(var(--accent-red) / <alpha-value>)',
+          violet: 'rgb(var(--accent-violet) / <alpha-value>)',
           orange: 'rgb(var(--accent-orange) / <alpha-value>)',
           gold: 'rgb(var(--accent-gold) / <alpha-value>)',
           'gold-light': 'rgb(var(--accent-gold-light) / <alpha-value>)',

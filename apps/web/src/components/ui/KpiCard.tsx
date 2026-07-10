@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
 import type { LucideIcon } from 'lucide-react';
 import type { BadgeTone } from '@/lib/format/status';
+import { ICON_TONE, type IconTone } from './icon-tone';
 
 // A big, airy KPI stat card for the redesigned pages. Top row: an optional decorative icon chip +
 // uppercase label + an optional status "delta" chip (tone-colored). Then a large mono value (+ optional
@@ -23,19 +24,9 @@ const DELTA_TEXT: Record<BadgeTone, string> = {
   info: 'text-primary',
 };
 
-// KPI category legend. `iconTone` colors the icon chip by DOMAIN (which metric), leaving the status
-// delta pill to own TONE (how the metric is doing) — the two color channels never collide. Liveness
-// and risk reuse the accent-green/-red tokens so those icons match their own status pills exactly.
-// Class strings are static literals (not built from the key) so Tailwind's JIT keeps them in the build.
-export type KpiCategory = 'infra' | 'coreslot' | 'liveness' | 'risk' | 'rewards';
-
-const ICON_TONE: Record<KpiCategory, string> = {
-  infra: 'bg-accent-blue/10 text-accent-blue',
-  coreslot: 'bg-accent-violet/10 text-accent-violet',
-  liveness: 'bg-accent-green/10 text-accent-green',
-  risk: 'bg-accent-red/10 text-accent-red',
-  rewards: 'bg-accent-gold/10 text-accent-gold',
-};
+// `iconTone` colors the icon chip by DOMAIN (which metric); the status delta pill still owns TONE (how
+// the metric is doing) — the two color channels never collide. The tint vocabulary is shared with
+// StatCard via ./icon-tone so a metric reads the same color on every page.
 
 export function KpiCard({
   label,
@@ -58,7 +49,7 @@ export function KpiCard({
   mono?: boolean;
   preview?: boolean;
   icon?: LucideIcon;
-  iconTone?: KpiCategory;
+  iconTone?: IconTone;
 }) {
   // Capitalized alias so the optional icon can be used as a JSX component.
   const Icon = icon;

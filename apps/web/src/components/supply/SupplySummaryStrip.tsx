@@ -1,5 +1,6 @@
 'use client';
 
+import { Coins, Database, Layers, Wallet } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { useRewardsEpochs, useSupply } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
@@ -27,6 +28,8 @@ export function SupplySummaryStrip() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={Wallet}
+        iconTone="rewards"
         label="Total supply (sampled)"
         value={total ? total.display : dash(supply.isPending)}
         unit={total ? total.symbol : undefined}
@@ -37,17 +40,23 @@ export function SupplySummaryStrip() {
         }
       />
       <KpiCard
+        icon={Database}
+        iconTone="infra"
         label="Sampled at height"
         value={supply.data ? formatHeight(supply.data.data.sampledAtHeight) : dash(supply.isPending)}
         sub="observed sample"
       />
       <KpiCard
+        icon={Coins}
+        iconTone="rewards"
         label="Cumulative emitted"
         value={emitted ? emitted.display : dash(epochs.isPending)}
         unit={emitted ? emitted.symbol : undefined}
         sub={latest ? `through epoch ${formatHeight(latest.epochNumber)}` : 'observed rewards'}
       />
       <KpiCard
+        icon={Layers}
+        iconTone="rewards"
         label="Denominations"
         value={denomCount === undefined ? dash(supply.isPending) : denomCount}
         sub="in the supply sample"

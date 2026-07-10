@@ -1,5 +1,6 @@
 'use client';
 
+import { Activity, CircleAlert, CircleX, Layers } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { QueryBoundary } from '@/components/QueryBoundary';
@@ -40,16 +41,22 @@ export default function DiagnosticsPage() {
 
       <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
         <KpiCard
+          icon={Activity}
+          iconTone="infra"
           label="Indexer status"
           value={indexerStatus ?? dash(status.isPending)}
           mono={false}
           deltaTone={statusTone(indexerStatus)}
         />
         <KpiCard
+          icon={Layers}
+          iconTone="infra"
           label="Projections tracked"
           value={projCount === undefined ? dash(query.isPending) : projCount}
         />
         <KpiCard
+          icon={CircleX}
+          iconTone="risk"
           label="Projection failures"
           value={projFailures === undefined ? dash(query.isPending) : projFailures}
           deltaTone={projFailures ? 'danger' : 'success'}
@@ -57,6 +64,8 @@ export default function DiagnosticsPage() {
           sub="unresolved"
         />
         <KpiCard
+          icon={CircleAlert}
+          iconTone="risk"
           label="Decode failures"
           value={decodeCount === undefined ? dash(decodeFailures.isPending) : decodeCount}
           deltaTone={decodeCount ? 'warning' : 'success'}

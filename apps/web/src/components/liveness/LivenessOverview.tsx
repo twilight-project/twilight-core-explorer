@@ -1,5 +1,15 @@
 'use client';
 
+import {
+  CircleAlert,
+  CircleHelp,
+  CircleSlash,
+  CircleX,
+  Database,
+  Gauge,
+  HeartPulse,
+  Server,
+} from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
@@ -49,14 +59,14 @@ export function LivenessOverview() {
           <span className="text-xs text-text-muted">policy {d.policyVersion}</span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Healthy" value={d.healthySlotCount} mono />
-          <StatCard label="Degraded" value={d.degradedSlotCount} mono />
-          <StatCard label="Down" value={d.downSlotCount} mono />
-          <StatCard label="Unknown" value={d.unknownSlotCount} mono />
-          <StatCard label="Active slots" value={d.activeSlotCount} mono />
-          <StatCard label="Available power" value={bpsToPercent(d.availablePowerBps)} mono />
-          <StatCard label="Unavailable power" value={bpsToPercent(d.unavailablePowerBps)} mono />
-          <StatCard label="Latest committed" value={formatHeight(d.latestCommittedHeight)} mono />
+          <StatCard icon={HeartPulse} iconTone="liveness" label="Healthy" value={d.healthySlotCount} mono />
+          <StatCard icon={CircleAlert} iconTone="warn" label="Degraded" value={d.degradedSlotCount} mono />
+          <StatCard icon={CircleX} iconTone="risk" label="Down" value={d.downSlotCount} mono />
+          <StatCard icon={CircleHelp} label="Unknown" value={d.unknownSlotCount} mono />
+          <StatCard icon={Server} iconTone="coreslot" label="Active slots" value={d.activeSlotCount} mono />
+          <StatCard icon={Gauge} iconTone="liveness" label="Available power" value={bpsToPercent(d.availablePowerBps)} mono />
+          <StatCard icon={CircleSlash} iconTone="risk" label="Unavailable power" value={bpsToPercent(d.unavailablePowerBps)} mono />
+          <StatCard icon={Database} iconTone="infra" label="Latest committed" value={formatHeight(d.latestCommittedHeight)} mono />
         </div>
       </CardBody>
     </Card>

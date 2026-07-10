@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowLeftRight, CircleCheck, CircleX, Layers } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { useTxsAggregate } from '@/lib/api/queries';
 
@@ -16,11 +17,15 @@ export function TxsAggregateStrip() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={ArrowLeftRight}
+        iconTone="infra"
         label="Transactions (window)"
         value={d ? d.txsInWindow.toLocaleString('en-US') : dash}
         sub={d ? `${d.totalMessages.toLocaleString('en-US')} messages` : windowLabel}
       />
       <KpiCard
+        icon={CircleCheck}
+        iconTone="liveness"
         label="Success rate"
         value={d?.successRate != null ? d.successRate.toFixed(1) : dash}
         unit={d?.successRate != null ? '%' : undefined}
@@ -29,6 +34,8 @@ export function TxsAggregateStrip() {
         sub={windowLabel}
       />
       <KpiCard
+        icon={CircleX}
+        iconTone="risk"
         label="Failed"
         value={d ? d.failedCount.toLocaleString('en-US') : dash}
         delta={d && d.failedCount > 0 ? 'attention' : undefined}
@@ -36,6 +43,8 @@ export function TxsAggregateStrip() {
         sub={windowLabel}
       />
       <KpiCard
+        icon={Layers}
+        iconTone="infra"
         label="Avg messages / tx"
         value={d?.avgMessagesPerTx != null ? d.avgMessagesPerTx.toFixed(1) : dash}
         sub={windowLabel}

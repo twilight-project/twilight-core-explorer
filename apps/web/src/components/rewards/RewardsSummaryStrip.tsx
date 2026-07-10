@@ -1,5 +1,6 @@
 'use client';
 
+import { Award, Coins, HandCoins, Server } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { useRewardsEpochs } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
@@ -26,17 +27,23 @@ export function RewardsSummaryStrip() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={Award}
+        iconTone="rewards"
         label="Latest reward epoch"
         value={latest ? formatHeight(latest.epochNumber) : dash(epochs.isPending)}
         sub={latest?.blockTime ? formatRelativeTime(latest.blockTime) : 'aggregate projection'}
       />
       <KpiCard
+        icon={HandCoins}
+        iconTone="rewards"
         label="Latest reward"
         value={reward ? reward.display : dash(epochs.isPending)}
         unit={reward ? reward.symbol : undefined}
         sub={latest ? `epoch ${formatHeight(latest.epochNumber)}` : 'observed emission'}
       />
       <KpiCard
+        icon={Server}
+        iconTone="coreslot"
         label="Slots rewarded"
         value={
           latest?.activeSlotCount !== null && latest?.activeSlotCount !== undefined
@@ -46,6 +53,8 @@ export function RewardsSummaryStrip() {
         sub="in the latest epoch"
       />
       <KpiCard
+        icon={Coins}
+        iconTone="rewards"
         label="Cumulative emitted"
         value={emitted ? emitted.display : dash(epochs.isPending)}
         unit={emitted ? emitted.symbol : undefined}

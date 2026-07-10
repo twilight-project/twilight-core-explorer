@@ -28,6 +28,7 @@ module.exports = {
           green: 'rgb(var(--accent-green) / <alpha-value>)',
           yellow: 'rgb(var(--accent-yellow) / <alpha-value>)',
           red: 'rgb(var(--accent-red) / <alpha-value>)',
+          violet: 'rgb(var(--accent-violet) / <alpha-value>)',
           orange: 'rgb(var(--accent-orange) / <alpha-value>)',
           gold: 'rgb(var(--accent-gold) / <alpha-value>)',
           'gold-light': 'rgb(var(--accent-gold-light) / <alpha-value>)',
@@ -49,6 +50,10 @@ module.exports = {
         serif: ['var(--font-serif)', 'serif'],
         sans: ['var(--font-sans)', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
+        // Display numerals for hero KPI/stat values — theme-owned (a theme repoints --font-metric to
+        // give big numbers its own voice). Defaults to the mono stack so auction/legacy are unchanged.
+        // Table columns keep `font-mono` for tabular alignment; this is only for standalone stats.
+        metric: ['var(--font-metric)', 'ui-monospace', 'monospace'],
       },
       letterSpacing: {
         'tighter-2': '-0.02em',
@@ -66,12 +71,19 @@ module.exports = {
         kpi: ['var(--d-kpi-size)', { lineHeight: '1' }],
         metric: ['var(--d-metric-size)', { lineHeight: '1' }],
       },
+      // Radius scale is theme-owned (an expressive axis alongside color): a theme repoints the
+      // --radius-* steps to change corner character (sharp/technical vs soft/editorial) without
+      // touching any component. Fallbacks preserve the auction defaults if a theme omits a step.
+      // `full` (pills) intentionally stays circular and is not tokenized.
       borderRadius: {
-        '2xl': '1rem',
+        lg: 'var(--radius-lg, 0.5rem)',
+        xl: 'var(--radius-xl, 0.75rem)',
+        '2xl': 'var(--radius-2xl, 1rem)',
         '3xl': '1.5rem',
       },
       boxShadow: {
-        card: '0 0 0 1px rgba(255,255,255,0.03), 0 4px 24px rgba(0,0,0,0.5)',
+        // Card elevation is theme-owned too (flat hairline vs soft-raised). Same fallback discipline.
+        card: 'var(--shadow-card, 0 0 0 1px rgba(255,255,255,0.03), 0 4px 24px rgba(0,0,0,0.5))',
         'card-hover': '0 0 0 1px rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.6)',
         glow: '0 0 20px rgba(232, 158, 40, 0.3)',
         'glow-green': '0 0 20px rgba(24, 195, 125, 0.3)',

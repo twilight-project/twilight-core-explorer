@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Instrument_Serif, Roboto_Mono } from 'next/font/google';
+import { Inter, Instrument_Serif, Roboto_Mono, Sora, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -7,18 +7,29 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
 import './globals.css';
 
-// Auction is the default Twilight theme; legacy is opt-in via env.
+// `auction` is the default theme id (kept for compatibility) — it now carries the warm-gold
+// "Twilight Console" look. `legacy` is opt-in via env.
 const UI_THEME = (process.env.NEXT_PUBLIC_UI_THEME ?? 'auction').toLowerCase();
 const theme: 'auction' | 'legacy' = UI_THEME === 'legacy' ? 'legacy' : 'auction';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+// Faces are bound to UNIQUE css vars (not the role names). globals.css maps the semantic roles
+// (--font-sans / --font-serif / --font-mono) onto these, so loading a face and assigning it to a
+// role stay independent — which is what lets a theme repoint its display face with one CSS line.
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const instrumentSerif = Instrument_Serif({
   subsets: ['latin'],
   weight: ['400'],
-  variable: '--font-serif',
+  variable: '--font-instrument',
   adjustFontFallback: false,
 });
-const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-mono' });
+const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-roboto-mono' });
+
+// Per-theme DISPLAY faces. Each [data-theme] block repoints --font-serif (the display role) to one
+// of these so headings change voice with the brand: Console (auction) → Inter (compact technical),
+// Orbit → Sora (modern geometric), Minimal → Space Grotesk (tight technical grotesk). Legacy keeps
+// Instrument Serif (the default). Body stays Inter across all themes; numerals stay mono everywhere.
+const sora = Sora({ subsets: ['latin'], variable: '--font-sora' });
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-grotesk' });
 
 export const metadata: Metadata = {
   // `%s` is filled by each route's `metadata.title`; routes without one fall back to `default`.
@@ -38,7 +49,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
       data-theme={theme}
       data-density="compact"
-      className={`${inter.variable} ${instrumentSerif.variable} ${robotoMono.variable}`}
+      className={`${inter.variable} ${instrumentSerif.variable} ${robotoMono.variable} ${sora.variable} ${spaceGrotesk.variable}`}
     >
       <body className="bg-background text-text">
         {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults. */}

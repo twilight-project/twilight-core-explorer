@@ -1,5 +1,6 @@
 'use client';
 
+import { Gauge, HeartPulse, Server, ShieldAlert } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { useLivenessRisk, useStatus, useValidatorSet } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
@@ -24,6 +25,8 @@ export function NetworkHealthStrip() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={Server}
+        iconTone="coreslot"
         label="Active CoreSlots"
         value={
           activeCount === undefined ? dash(validatorSet.isPending || status.isPending) : activeCount
@@ -31,6 +34,8 @@ export function NetworkHealthStrip() {
         sub={height ? `at height ${formatHeight(height)}` : 'active validator set'}
       />
       <KpiCard
+        icon={Gauge}
+        iconTone="liveness"
         label="Available signing power"
         value={risk ? bpsToPercent(risk.availablePowerBps) : dash(liveness.isPending)}
         deltaTone={risk ? statusTone(risk.haltRiskLevel) : 'neutral'}
@@ -38,6 +43,8 @@ export function NetworkHealthStrip() {
         sub="of total consensus power"
       />
       <KpiCard
+        icon={HeartPulse}
+        iconTone="liveness"
         label="Healthy CoreSlots"
         value={risk ? risk.healthySlotCount : dash(liveness.isPending)}
         sub={
@@ -47,6 +54,8 @@ export function NetworkHealthStrip() {
         }
       />
       <KpiCard
+        icon={ShieldAlert}
+        iconTone="risk"
         label="Halt risk"
         value={risk ? risk.haltRiskLevel : dash(liveness.isPending)}
         mono={false}

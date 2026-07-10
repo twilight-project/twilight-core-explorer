@@ -1,5 +1,6 @@
 'use client';
 
+import { Boxes, Layers, Timer, Users } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { useBlocksAggregate } from '@/lib/api/queries';
 
@@ -17,23 +18,31 @@ export function BlocksAggregateStrip() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={Timer}
+        iconTone="infra"
         label="Avg block time"
         value={d?.avgBlockTimeSeconds != null ? d.avgBlockTimeSeconds.toFixed(2) : dash}
         unit={d?.avgBlockTimeSeconds != null ? 's' : undefined}
         sub={windowLabel}
       />
       <KpiCard
+        icon={Layers}
+        iconTone="infra"
         label="Txs / block"
         value={d?.avgTxsPerBlock != null ? d.avgTxsPerBlock.toFixed(1) : dash}
         unit={d?.avgTxsPerBlock != null ? 'avg' : undefined}
         sub={d ? `${d.totalTxs.toLocaleString('en-US')} txs in window` : windowLabel}
       />
       <KpiCard
+        icon={Boxes}
+        iconTone="infra"
         label="Blocks / day"
         value={d?.blocksPerDay != null ? d.blocksPerDay.toLocaleString('en-US') : dash}
         sub="at current cadence"
       />
       <KpiCard
+        icon={Users}
+        iconTone="infra"
         label="Unique proposers"
         value={d ? d.uniqueProposers.toLocaleString('en-US') : dash}
         sub={windowLabel}

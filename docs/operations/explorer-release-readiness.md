@@ -73,7 +73,7 @@ future hardening; today dynamic routes are render-verified at build and their da
 | Var | Req? | Default | Notes |
 |---|---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | **yes** | — | Base URL of the API the explorer reads. |
-| `NEXT_PUBLIC_UI_THEME` | no | `auction` | `auction` (default) or `legacy` (opt-in; see legacy-contrast follow-up). |
+| `NEXT_PUBLIC_UI_THEME` | no | `auction` | `auction` (default) or `legacy` (opt-in; see legacy-contrast follow-up). The `auction` id now renders the **Twilight Operations Console** look (warm-gold, Inter display, mono numerals) — retuned in place from the original gold; `gold-orbit` and `minimal-operator` are the in-app toggle variants. |
 
 **Truthfulness checks (to confirm in 13d-3):** the chain-id-mismatch guard fires (verified: throws);
 freshness/health (`/status` `freshnessSeconds`/`lagBlocks`, the `/api` diagnostics page) display truthfully
@@ -143,7 +143,8 @@ a later tightening pass.**
 - **Rewards-side filters** (13b-filters) — claims `txHash`/`fromHeight`/`toHeight`, balances
   `sampleKind`/`denom`/`height`, params `changeType`; adopt the `StatusFilter` pattern.
 - **Legacy-theme contrast pass** (13b-ux) — the opt-in `legacy` theme has sub-AA pairs (primary link
-  text, info badge, accent-red). Default `auction` theme is AA-clean.
+  text, info badge, accent-red). Default `auction` theme is AA-clean (guarded for all four converged
+  themes — `auction`/`legacy`/`gold-orbit`/`minimal-operator` — by `theme-tokens.test.ts`).
 - **Table accessible-name population** — *FIXED (13d-4, completed post-review).* `Table.caption` is now a
   **required** prop, so every data table (list + the ~10 non-list direct `<Table>` sites) carries an
   sr-only `<caption>` — and an unnamed `<table>` is a compile error (stronger than the axe net, which

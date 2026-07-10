@@ -1,5 +1,6 @@
 'use client';
 
+import { Gauge, Server, ServerCog, ShieldAlert } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { useCoreSlots, useLivenessRisk, useStatus, useValidatorSet } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
@@ -26,6 +27,8 @@ export function CoreSlotsSummaryStrip() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={Server}
+        iconTone="coreslot"
         label="Active CoreSlots"
         value={
           activeCount === undefined ? dash(validatorSet.isPending || status.isPending) : activeCount
@@ -33,11 +36,15 @@ export function CoreSlotsSummaryStrip() {
         sub={height ? `signing at height ${formatHeight(height)}` : 'active validator set'}
       />
       <KpiCard
+        icon={ServerCog}
+        iconTone="coreslot"
         label="Registered CoreSlots"
         value={registered === undefined ? dash(slots.isPending) : registered}
         sub="in registry (incl. rotated-out)"
       />
       <KpiCard
+        icon={Gauge}
+        iconTone="liveness"
         label="Available signing power"
         value={risk ? bpsToPercent(risk.availablePowerBps) : dash(liveness.isPending)}
         deltaTone={risk ? statusTone(risk.haltRiskLevel) : 'neutral'}
@@ -49,6 +56,8 @@ export function CoreSlotsSummaryStrip() {
         }
       />
       <KpiCard
+        icon={ShieldAlert}
+        iconTone="risk"
         label="Halt risk"
         value={risk ? risk.haltRiskLevel : dash(liveness.isPending)}
         mono={false}

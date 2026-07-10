@@ -1,5 +1,6 @@
 'use client';
 
+import { Award, Coins, Database, Gauge, RefreshCw, Server, ServerCog, ShieldAlert } from 'lucide-react';
 import { KpiCard } from '@/components/ui/KpiCard';
 import {
   useCoreSlots,
@@ -49,6 +50,8 @@ export function OverviewKpis() {
   return (
     <div className="grid grid-cols-2 gap-grid lg:grid-cols-4">
       <KpiCard
+        icon={Database}
+        iconTone="infra"
         label="Latest height"
         value={indexer ? formatHeight(indexer.lastIndexedHeight) : dash(status.isPending)}
         delta={indexer?.status}
@@ -57,6 +60,8 @@ export function OverviewKpis() {
       />
 
       <KpiCard
+        icon={RefreshCw}
+        iconTone="infra"
         label="Index lag"
         value={indexer ? formatHeight(indexer.lagBlocks) : dash(status.isPending)}
         unit="blocks"
@@ -70,6 +75,8 @@ export function OverviewKpis() {
       />
 
       <KpiCard
+        icon={Server}
+        iconTone="coreslot"
         label="Active CoreSlots"
         value={
           activeCount === undefined ? dash(validatorSet.isPending || status.isPending) : activeCount
@@ -78,12 +85,16 @@ export function OverviewKpis() {
       />
 
       <KpiCard
+        icon={ServerCog}
+        iconTone="coreslot"
         label="Registered CoreSlots"
         value={registered === undefined ? dash(slots.isPending) : registered}
         sub="in registry (incl. rotated-out)"
       />
 
       <KpiCard
+        icon={Gauge}
+        iconTone="liveness"
         label="Available signing power"
         value={risk ? bpsToPercent(risk.availablePowerBps) : dash(liveness.isPending)}
         deltaTone={risk ? statusTone(risk.haltRiskLevel) : 'neutral'}
@@ -96,6 +107,8 @@ export function OverviewKpis() {
       />
 
       <KpiCard
+        icon={ShieldAlert}
+        iconTone="risk"
         label="Halt risk"
         value={risk ? risk.haltRiskLevel : dash(liveness.isPending)}
         mono={false}
@@ -104,6 +117,8 @@ export function OverviewKpis() {
       />
 
       <KpiCard
+        icon={Award}
+        iconTone="rewards"
         label="Latest reward epoch"
         value={latestEpoch ? formatHeight(latestEpoch.epochNumber) : dash(epochs.isPending)}
         sub={
@@ -114,6 +129,8 @@ export function OverviewKpis() {
       />
 
       <KpiCard
+        icon={Coins}
+        iconTone="rewards"
         label="Cumulative emitted"
         value={emitted ? emitted.display : dash(epochs.isPending)}
         unit={emitted ? emitted.symbol : undefined}

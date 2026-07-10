@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react';
 
 // Runtime brand controls: two independent, tokenized axes.
-//  - Theme (color): `auction` = current gold brand (default); `twilight-cool` = redesign direction #1
-//    (deep indigo + violet); `legacy` = older violet-on-navy alt.
+//  - Theme (brand identity — color + shape + elevation + heading tracking + display/metric face):
+//    the converged "Twilight Operations Console" set. `auction` = the warm-gold operator console
+//    (default; id kept for compatibility, labelled "Console"); `gold-orbit` = premium glow gold;
+//    `minimal-operator` = blue-signal high-contrast engineering variant; `legacy` = older
+//    violet-on-navy alt. Each theme owns its shape/elevation/type tokens, not just color.
 //  - Density (spacing/type scale): `compact` = faithful to the handoff's dense console (default);
-//    `airy` = the roomier new-brand treatment.
+//    `airy` = the roomier treatment. Orthogonal to theme: magnitude, not character.
 // Both persist in localStorage and are applied pre-paint by the inline script in layout.tsx.
 const THEMES = [
-  { id: 'auction', label: 'Gold' },
-  { id: 'twilight-cool', label: 'Twilight' },
+  { id: 'auction', label: 'Console' },
+  { id: 'gold-orbit', label: 'Orbit' },
+  { id: 'minimal-operator', label: 'Minimal' },
   { id: 'legacy', label: 'Legacy' },
 ] as const;
 type ThemeId = (typeof THEMES)[number]['id'];
@@ -38,7 +42,7 @@ function Group<T extends string>({
   onPick: (id: T) => void;
 }) {
   return (
-    <div className="flex items-center gap-1" role="group" aria-label={ariaLabel}>
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={ariaLabel}>
       <span className="w-16 px-2 text-[10px] font-medium uppercase tracking-wider text-text-muted">
         {label}
       </span>

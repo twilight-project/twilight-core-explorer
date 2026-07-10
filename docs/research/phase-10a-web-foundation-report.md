@@ -106,6 +106,12 @@ Full ritual (all green):
 
 ## 9. Local visual notes (no screenshots in this environment)
 
+> **Correction note (theme convergence, post-Phase-13):** the `auction` id described here was later
+> retuned in place to the **Twilight Operations Console** look (warm-gold `#f5c542` on `#0a0805`, Inter
+> display, mono numerals). The theme system also became token-driven with three switchable variants
+> (`auction`=Console default, `gold-orbit`, `minimal-operator`) plus expressive per-theme shape/type
+> tokens. The palette below records the Phase-10a state, not the current default.
+
 The build prerendered all routes; the shell applies the `auction` theme (gold `#E89E28` on `#050505`,
 Inter/Instrument Serif/Roboto Mono), a fixed header with the global search + Twilight IA nav, the
 1432px content column, and the footer. Panels render skeleton loaders until their query resolves

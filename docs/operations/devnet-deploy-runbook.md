@@ -53,7 +53,9 @@ APP_VERSION=<git-sha or tag>                   # optional; surfaces at /api/v1/s
 **Web**:
 ```
 NEXT_PUBLIC_API_BASE_URL=https://<your-api-origin>
-NEXT_PUBLIC_UI_THEME=auction                   # default (AA-clean); `legacy` is opt-in
+NEXT_PUBLIC_UI_THEME=auction                   # default (AA-clean); renders the Twilight Operations
+                                               # Console look. `legacy` is opt-in; gold-orbit /
+                                               # minimal-operator selectable via the in-app toggle
 ```
 
 > **Basic-safety checklist (non-negotiable when internet-reachable):** `API_ENV=production` set ·

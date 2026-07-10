@@ -201,7 +201,10 @@
 
   --accent-blue: 78 163 255;
   --accent-orange: 255 181 112;
-  --accent-yellow: 220 220 228;
+  /* accent-yellow/-amber are the SEMANTIC warning color (Badge/delta warning tone + the warn icon
+     tint + the Degraded liveness tile), not a warm brand color — they must stay a real amber even in
+     this cool blue theme, or every "watch" signal desaturates to gray. */
+  --accent-yellow: 251 191 36;
   --accent-green: 61 220 151;
   --accent-red: 255 107 107;
 
@@ -209,7 +212,7 @@
   --accent-gold: 78 163 255;
   --accent-gold-light: 130 180 255;
   --accent-gold-dark: 54 130 220;
-  --accent-amber: 220 220 228;
+  --accent-amber: 251 191 36;
   --accent-burgundy: 18 24 38;
 
   --text: 233 234 242;

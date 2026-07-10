@@ -84,6 +84,20 @@ describe('every theme defines the expressive shape tokens (no silent fallback)',
   }
 });
 
+// Semantic-color guard (Copilot PR #68): --accent-yellow is the WARNING color — it backs the Badge/
+// delta warning tone, the `warn` icon tint, and the Degraded liveness tile. A theme must not desaturate
+// it to gray (minimal-operator once set it to 220 220 228), or every "watch" signal vanishes in that
+// theme. Assert it stays a warm amber (red channel clearly above blue) everywhere.
+describe('warning color stays a real amber (not gray) in every theme', () => {
+  const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
+  for (const theme of THEMES) {
+    it(`${theme}: --accent-yellow is warm (R - B >= 60), not a neutral gray`, () => {
+      const [r = 0, , b = 0] = tokenRgb(css, theme, 'accent-yellow');
+      expect(r - b).toBeGreaterThanOrEqual(60);
+    });
+  }
+});
+
 // Typography: every non-default brand theme repoints the display face (--font-serif) so headings
 // carry a distinct voice, not just color/shape.
 describe('brand themes repoint the display face', () => {

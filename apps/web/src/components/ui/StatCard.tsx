@@ -29,7 +29,9 @@ export function StatCard({
         {Icon ? (
           <span
             className={clsx(
-              'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md',
+              // rounded-lg (not rounded-md) so the chip corner follows the theme radius token, matching
+              // KpiCard — sharp in minimal-operator, softer in the gold themes.
+              'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg',
               iconTone ? ICON_TONE[iconTone] : 'bg-white/5 text-text-muted',
             )}
           >

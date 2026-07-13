@@ -1,3 +1,4 @@
+import { Boxes } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { BlocksAggregateStrip } from '@/components/blocks/BlocksAggregateStrip';
@@ -13,6 +14,8 @@ export default function BlocksPage() {
   return (
     <div className="space-y-section">
       <PageHeader
+        icon={Boxes}
+        iconTone="infra"
         eyebrow="Blocks"
         title="Block stream"
         sub="Every indexed block, newest first — height, age, transaction count, and the CoreSlot that proposed it."
@@ -22,6 +25,8 @@ export default function BlocksPage() {
 
       <Card>
         <CardHeader
+          icon={Boxes}
+          iconTone="infra"
           title="All blocks"
           action={<span className="font-mono text-xs text-text-muted">newest first · live</span>}
         />

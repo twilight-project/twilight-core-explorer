@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ServerCog } from 'lucide-react';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -100,19 +101,19 @@ export function CoreSlotAuthorityHistorySection({ slotId }: { slotId: string }) 
   return (
     <>
       <Card>
-        <CardHeader title="Authority events" />
+        <CardHeader icon={ServerCog} iconTone="coreslot" title="Authority events" />
         <CardBody>
           <EventsTable slotId={slotId} />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Key rotations" />
+        <CardHeader icon={ServerCog} iconTone="coreslot" title="Key rotations" />
         <CardBody>
           <KeyRotationsTable slotId={slotId} />
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Consensus windows" />
+        <CardHeader icon={ServerCog} iconTone="coreslot" title="Consensus windows" />
         <CardBody>
           <WindowsTable slotId={slotId} />
         </CardBody>

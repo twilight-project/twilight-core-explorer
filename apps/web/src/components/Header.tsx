@@ -4,6 +4,20 @@ import { Fragment, useEffect, useRef, useState, type KeyboardEvent as ReactKeybo
 import { clsx } from 'clsx';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import {
+  Activity,
+  ArrowLeftRight,
+  Award,
+  Boxes,
+  Coins,
+  Compass,
+  type LucideIcon,
+  LayoutDashboard,
+  Network,
+  Server,
+  Stethoscope,
+  Users,
+} from 'lucide-react';
 import { SearchBar } from './SearchBar';
 
 // IA reshaped for Twilight (CoreSlot PoA + rewards) per the redesign review: dashboard-first, then the
@@ -12,37 +26,48 @@ import { SearchBar } from './SearchBar';
 // Groups stay contiguous so the desktop separators fall on real concern boundaries.
 export type NavGroup = 'overview' | 'validators' | 'economics' | 'explore' | 'diagnostics';
 
-export type NavLink = { label: string; href: string; group: NavGroup };
-export type NavMenu = { label: string; group: NavGroup; children: { label: string; href: string }[] };
+export type NavChild = { label: string; href: string; icon: LucideIcon };
+export type NavLink = { label: string; href: string; group: NavGroup; icon: LucideIcon };
+export type NavMenu = { label: string; group: NavGroup; icon: LucideIcon; children: NavChild[] };
 export type NavEntry = NavLink | NavMenu;
 
+// Nav icons are wayfinding glyphs: they follow the link's text color (muted → primary when active),
+// NOT the category tones — a horizontal nav tinted six ways would read as noise. Where a destination
+// has a domain icon on its page (CoreSlots→Server, Rewards→Award, …) the nav reuses it for continuity.
 export const NAV: NavEntry[] = [
-  { label: 'Overview', href: '/', group: 'overview' },
-  { label: 'Network', href: '/network', group: 'validators' },
-  { label: 'Liveness', href: '/liveness', group: 'validators' },
-  { label: 'CoreSlots', href: '/coreslots', group: 'validators' },
-  { label: 'Rewards', href: '/rewards', group: 'economics' },
-  { label: 'Supply', href: '/supply', group: 'economics' },
+  { label: 'Overview', href: '/', group: 'overview', icon: LayoutDashboard },
+  { label: 'Network', href: '/network', group: 'validators', icon: Network },
+  { label: 'Liveness', href: '/liveness', group: 'validators', icon: Activity },
+  { label: 'CoreSlots', href: '/coreslots', group: 'validators', icon: Server },
+  { label: 'Rewards', href: '/rewards', group: 'economics', icon: Award },
+  { label: 'Supply', href: '/supply', group: 'economics', icon: Coins },
   {
     label: 'Explorer',
     group: 'explore',
+    icon: Compass,
     children: [
-      { label: 'Blocks', href: '/blocks' },
-      { label: 'Transactions', href: '/txs' },
-      { label: 'Accounts', href: '/accounts' },
+      { label: 'Blocks', href: '/blocks', icon: Boxes },
+      { label: 'Transactions', href: '/txs', icon: ArrowLeftRight },
+      { label: 'Accounts', href: '/accounts', icon: Users },
     ],
   },
-  { label: 'Diagnostics', href: '/diagnostics', group: 'diagnostics' },
+  { label: 'Diagnostics', href: '/diagnostics', group: 'diagnostics', icon: Stethoscope },
 ];
 
 function isMenu(entry: NavEntry): entry is NavMenu {
   return 'children' in entry;
 }
 
+// Decorative wayfinding glyph inside a nav link — inherits the link's text color (currentColor) so it
+// dims/highlights with the active state. aria-hidden: the link text is the accessible name.
+function NavIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <Icon className="h-4 w-4 shrink-0" aria-hidden />;
+}
+
 // Flattened link list for the compact (sub-xl) nav, where a dropdown in a wrap row is awkward: the
 // Explorer group's children render inline instead.
-const FLAT_NAV: { label: string; href: string }[] = NAV.flatMap((e) =>
-  isMenu(e) ? e.children : [{ label: e.label, href: e.href }],
+const FLAT_NAV: NavChild[] = NAV.flatMap((e) =>
+  isMenu(e) ? e.children : [{ label: e.label, href: e.href, icon: e.icon }],
 );
 
 function isActive(pathname: string, href: string): boolean {
@@ -140,10 +165,11 @@ function NavDropdown({ menu, pathname }: { menu: NavMenu; pathname: string }) {
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onTriggerKeyDown}
         className={clsx(
-          'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm',
+          'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm',
           active ? 'bg-card text-primary' : 'text-text-secondary hover:text-text',
         )}
       >
+        <NavIcon icon={menu.icon} />
         {menu.label}
         <svg aria-hidden="true" viewBox="0 0 12 12" className="h-3 w-3">
           <path
@@ -173,12 +199,13 @@ function NavDropdown({ menu, pathname }: { menu: NavMenu; pathname: string }) {
               tabIndex={-1}
               onClick={() => setOpen(false)}
               className={clsx(
-                'block rounded-lg px-3 py-1.5 text-sm',
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm',
                 isActive(pathname, c.href)
                   ? 'bg-background-tertiary text-primary'
                   : 'text-text-secondary hover:bg-background-tertiary hover:text-text',
               )}
             >
+              <NavIcon icon={c.icon} />
               {c.label}
             </Link>
           ))}
@@ -213,12 +240,13 @@ export function Header() {
                   <Link
                     href={item.href}
                     className={clsx(
-                      'rounded-lg px-2.5 py-1.5 text-sm',
+                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm',
                       isActive(pathname, item.href)
                         ? 'bg-card text-primary'
                         : 'text-text-secondary hover:text-text',
                     )}
                   >
+                    <NavIcon icon={item.icon} />
                     {item.label}
                   </Link>
                 )}
@@ -240,12 +268,13 @@ export function Header() {
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  'rounded-lg px-2 py-1 text-xs',
+                  'flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs',
                   isActive(pathname, item.href)
                     ? 'bg-card text-primary'
                     : 'text-text-secondary hover:text-text',
                 )}
               >
+                <NavIcon icon={item.icon} />
                 {item.label}
               </Link>
             ))}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { FileText, ScrollText } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -85,7 +86,7 @@ export function TxDetail({ hash }: { hash: string }) {
       </Card>
 
       <Card>
-        <CardHeader title={`Messages (${t.messages.length})`} />
+        <CardHeader icon={FileText} iconTone="infra" title={`Messages (${t.messages.length})`} />
         <CardBody>
           {t.messages.length === 0 ? (
             <EmptyState message="No messages." />
@@ -114,7 +115,7 @@ export function TxDetail({ hash }: { hash: string }) {
       </Card>
 
       <Card>
-        <CardHeader title={`Events (${t.events.length})`} />
+        <CardHeader icon={ScrollText} iconTone="infra" title={`Events (${t.events.length})`} />
         <CardBody>
           {t.events.length === 0 ? (
             <EmptyState message="No events." />

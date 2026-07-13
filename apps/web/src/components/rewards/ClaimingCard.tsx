@@ -1,3 +1,4 @@
+import { HandCoins } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 
 /**
@@ -13,7 +14,7 @@ const CLAIM_COMMAND = 'twilightd rewards claim <slotId> <startEpoch> <endEpoch> 
 export function ClaimingCard() {
   return (
     <Card>
-      <CardHeader title="Claiming" />
+      <CardHeader icon={HandCoins} iconTone="rewards" title="Claiming" />
       <CardBody>
         <p className="text-sm text-text-muted">
           Claiming is not available from this explorer. This page displays observed rewards and

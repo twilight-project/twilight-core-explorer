@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, CircleAlert, CircleX, Layers } from 'lucide-react';
+import { Activity, CircleAlert, CircleX, Layers, Stethoscope } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { KpiCard } from '@/components/ui/KpiCard';
 import { QueryBoundary } from '@/components/QueryBoundary';
@@ -34,6 +34,8 @@ export default function DiagnosticsPage() {
   return (
     <div className="space-y-section">
       <PageHeader
+        icon={Stethoscope}
+        iconTone="infra"
         eyebrow="Diagnostics"
         title="Indexer & projection diagnostics"
         sub="Projection cursors, status, unresolved projection failures, and decode failures — the operational health of the pipeline behind this explorer. Read-only."
@@ -74,7 +76,7 @@ export default function DiagnosticsPage() {
       </div>
 
       <Card>
-        <CardHeader title="Projections" />
+        <CardHeader icon={Activity} iconTone="infra" title="Projections" />
         <CardBody>
           <QueryBoundary query={query} context="Projections" loadingRows={5}>
             {(res) =>
@@ -118,7 +120,7 @@ export default function DiagnosticsPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Decode failures" />
+        <CardHeader icon={CircleX} iconTone="risk" title="Decode failures" />
         <CardBody>
           <QueryBoundary query={decodeFailures} context="Decode failures" loadingRows={3}>
             {(res) =>

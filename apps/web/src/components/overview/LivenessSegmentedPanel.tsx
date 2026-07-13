@@ -1,5 +1,6 @@
 'use client';
 
+import { HeartPulse } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -30,7 +31,7 @@ export function LivenessSegmentedPanel() {
 
   return (
     <Card>
-      <CardHeader title="Network liveness risk" href="/liveness" linkLabel="Open liveness" />
+      <CardHeader icon={HeartPulse} iconTone="liveness" title="Network liveness risk" href="/liveness" linkLabel="Open liveness" />
       <CardBody>
         {is404 ? (
           <div className="text-sm text-text-muted">No liveness snapshot yet.</div>

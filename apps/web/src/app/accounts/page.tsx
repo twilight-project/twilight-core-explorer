@@ -1,3 +1,4 @@
+import { Users } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { AccountsAggregateStrip } from '@/components/accounts/AccountsAggregateStrip';
@@ -16,6 +17,8 @@ export default function AccountsPage() {
   return (
     <div className="space-y-section">
       <PageHeader
+        icon={Users}
+        iconTone="infra"
         eyebrow="Accounts"
         title="Observed accounts"
         sub="Addresses seen by the indexer — first/last activity, transaction count, and kind. This is an observation log, not a holdings ranking; balances are per-address samples on each account's page."
@@ -25,6 +28,8 @@ export default function AccountsPage() {
 
       <Card>
         <CardHeader
+          icon={Users}
+          iconTone="infra"
           title="Observed accounts"
           action={<span className="font-mono text-xs text-text-muted">by observation</span>}
         />

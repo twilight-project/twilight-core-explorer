@@ -3,6 +3,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NAV, type NavGroup } from './Header';
 
+function isMenu(e: (typeof NAV)[number]): e is Extract<(typeof NAV)[number], { children: unknown }> {
+  return 'children' in e;
+}
+
 const GROUPS: NavGroup[] = ['overview', 'validators', 'economics', 'explore', 'diagnostics'];
 
 // J-007: nav items are grouped by concern for discoverability. Every item must carry a known group,
@@ -11,6 +15,17 @@ describe('Header nav grouping', () => {
   it('every nav item carries a known group', () => {
     for (const item of NAV) {
       expect(GROUPS).toContain(item.group);
+    }
+  });
+
+  it('every nav item and dropdown child carries a wayfinding icon', () => {
+    for (const item of NAV) {
+      expect(item.icon, `missing icon: ${item.label}`).toBeTruthy();
+      if (isMenu(item)) {
+        for (const child of item.children) {
+          expect(child.icon, `missing child icon: ${child.label}`).toBeTruthy();
+        }
+      }
     }
   });
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { Coins } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
@@ -13,7 +14,7 @@ export function SupplyPanel() {
   const status = useStatus();
   return (
     <Card>
-      <CardHeader title="Supply (sampled)" href="/supply" linkLabel="Supply detail" />
+      <CardHeader icon={Coins} iconTone="rewards" title="Supply (sampled)" href="/supply" linkLabel="Supply detail" />
       <CardBody>
         <QueryBoundary query={supply} context="Supply" loadingRows={2}>
           {(res) => {

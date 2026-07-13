@@ -1,5 +1,6 @@
 'use client';
 
+import { Gauge } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -14,7 +15,7 @@ export function CoreSlotLivenessSection({ slotId }: { slotId: string }) {
   const query = useCoreSlotLiveness(slotId);
   return (
     <Card>
-      <CardHeader title="Liveness (by window)" />
+      <CardHeader icon={Gauge} iconTone="liveness" title="Liveness (by window)" />
       <CardBody>
         <QueryBoundary query={query} context="Liveness" loadingRows={3}>
           {(res) =>

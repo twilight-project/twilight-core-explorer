@@ -1,5 +1,6 @@
 'use client';
 
+import { HeartPulse, Server } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
@@ -44,7 +45,7 @@ export function CoreSlotHealthPanel() {
 
   return (
     <Card>
-      <CardHeader title="CoreSlot active set" href="/coreslots" linkLabel="All CoreSlots" />
+      <CardHeader icon={Server} iconTone="coreslot" title="CoreSlot active set" href="/coreslots" linkLabel="All CoreSlots" />
       <CardBody>
         <QueryBoundary query={slots} context="CoreSlots" loadingRows={3}>
           {(res) => {
@@ -77,7 +78,7 @@ export function LivenessRiskPanel() {
     query.isError && query.error instanceof ApiError && query.error.code === ERROR_CODES.notFound;
   return (
     <Card>
-      <CardHeader title="Network liveness risk" href="/liveness" linkLabel="Open liveness" />
+      <CardHeader icon={HeartPulse} iconTone="liveness" title="Network liveness risk" href="/liveness" linkLabel="Open liveness" />
       <CardBody>
         {is404 ? (
           <div className="text-sm text-text-muted">No liveness snapshot yet.</div>

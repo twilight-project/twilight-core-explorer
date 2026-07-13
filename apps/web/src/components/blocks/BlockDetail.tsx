@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Boxes } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -83,7 +84,7 @@ export function BlockDetail({ height }: { height: string }) {
       </Card>
 
       <Card>
-        <CardHeader title="Transactions in this block" />
+        <CardHeader icon={Boxes} iconTone="infra" title="Transactions in this block" />
         <CardBody>
           <BlockTxsSection height={b.height} />
         </CardBody>

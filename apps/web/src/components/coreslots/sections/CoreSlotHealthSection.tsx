@@ -1,5 +1,6 @@
 'use client';
 
+import { HeartPulse } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
@@ -14,7 +15,7 @@ export function CoreSlotHealthSection({ slotId }: { slotId: string }) {
   const query = useCoreSlotHealth(slotId);
   return (
     <Card>
-      <CardHeader title="Health" />
+      <CardHeader icon={HeartPulse} iconTone="liveness" title="Health" />
       <CardBody>
         <QueryBoundary query={query} context="Health" loadingRows={3}>
           {(res) => {

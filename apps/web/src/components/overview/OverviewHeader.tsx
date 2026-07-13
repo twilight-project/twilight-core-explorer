@@ -1,5 +1,6 @@
 'use client';
 
+import { LayoutDashboard } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { useLivenessRisk, useStatus } from '@/lib/api/queries';
@@ -33,6 +34,8 @@ export function OverviewHeader() {
 
   return (
     <PageHeader
+      icon={LayoutDashboard}
+      iconTone="infra"
       eyebrow="Network Overview"
       title="Twilight Core operations console"
       sub="Chain status, indexer freshness, block & transaction activity, CoreSlot signing health, halt-risk, and sampled supply — the operator's answer to “is the network healthy and current?”"

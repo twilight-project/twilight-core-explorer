@@ -1,3 +1,4 @@
+import { Server } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { DataList } from '@/components/detail/DataList';
 import { JsonView } from '@/components/detail/JsonView';
@@ -16,7 +17,7 @@ export function OperatorProfile({ metadata }: { metadata: OperatorMetadata }) {
   ];
   return (
     <Card>
-      <CardHeader title="Operator profile" />
+      <CardHeader icon={Server} iconTone="coreslot" title="Operator profile" />
       <CardBody>
         <DataList items={items} />
       </CardBody>

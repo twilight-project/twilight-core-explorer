@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { HeartPulse } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
@@ -22,7 +23,7 @@ export function PerSlotHealthTable() {
 
   return (
     <Card>
-      <CardHeader title="Per-CoreSlot health" />
+      <CardHeader icon={HeartPulse} iconTone="liveness" title="Per-CoreSlot health" />
       <CardBody className="space-y-3">
         {slotsQuery.isPending ? (
           <LoadingState rows={4} />

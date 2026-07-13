@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { HandCoins } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -61,7 +62,7 @@ export function ClaimsSection({ filter }: { filter?: ClaimsFilter }) {
 
   return (
     <Card>
-      <CardHeader title="Claims (history)" />
+      <CardHeader icon={HandCoins} iconTone="rewards" title="Claims (history)" />
       <CardBody>
         {firstRow ? (
           <RewardCaveat>

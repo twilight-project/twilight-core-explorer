@@ -27,7 +27,7 @@ export function LivenessOverview() {
   if (query.isPending) {
     return (
       <Card>
-        <CardHeader title="Network liveness risk" />
+        <CardHeader icon={HeartPulse} iconTone="liveness" title="Network liveness risk" />
         <CardBody>
           <LoadingState rows={3} />
         </CardBody>
@@ -38,7 +38,7 @@ export function LivenessOverview() {
     if (query.error instanceof ApiError && query.error.code === ERROR_CODES.notFound) {
       return (
         <Card>
-          <CardHeader title="Network liveness risk" />
+          <CardHeader icon={HeartPulse} iconTone="liveness" title="Network liveness risk" />
           <CardBody>
             <div className="text-sm text-text-muted">No liveness snapshot yet.</div>
           </CardBody>
@@ -51,7 +51,7 @@ export function LivenessOverview() {
   const d = query.data.data;
   return (
     <Card>
-      <CardHeader title="Network liveness risk" />
+      <CardHeader icon={HeartPulse} iconTone="liveness" title="Network liveness risk" />
       <CardBody className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={statusTone(d.haltRiskLevel)}>halt risk: {d.haltRiskLevel}</Badge>

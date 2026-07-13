@@ -1,5 +1,6 @@
 'use client';
 
+import { Landmark } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -24,7 +25,7 @@ export function TreasurySection() {
 
   return (
     <Card>
-      <CardHeader title="Treasury payments" />
+      <CardHeader icon={Landmark} iconTone="rewards" title="Treasury payments" />
       <CardBody>
         <PaginatedTable
           query={query}

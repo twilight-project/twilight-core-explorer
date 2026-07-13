@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Server } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -21,7 +22,7 @@ export function ValidatorSetSection() {
 
   return (
     <Card>
-      <CardHeader title={height ? `Validator set at height ${formatHeight(height)}` : 'Validator set'} />
+      <CardHeader icon={Server} iconTone="coreslot" title={height ? `Validator set at height ${formatHeight(height)}` : 'Validator set'} />
       <CardBody>
         {height === undefined ? (
           status.isError ? (

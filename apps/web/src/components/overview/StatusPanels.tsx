@@ -1,5 +1,6 @@
 'use client';
 
+import { Activity, Database } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
@@ -14,7 +15,7 @@ export function ChainStatusPanel() {
   const query = useStatus();
   return (
     <Card>
-      <CardHeader title="Chain status" />
+      <CardHeader icon={Database} iconTone="infra" title="Chain status" />
       <CardBody>
         <QueryBoundary query={query} context="Chain status" loadingRows={2}>
           {(res) => {
@@ -53,7 +54,7 @@ export function IndexerFreshnessPanel() {
   const projectionsQuery = useProjections();
   return (
     <Card>
-      <CardHeader title="Indexer & projection freshness" />
+      <CardHeader icon={Activity} iconTone="infra" title="Indexer & projection freshness" />
       <CardBody className="space-y-3">
         <QueryBoundary query={statusQuery} context="Indexer freshness" loadingRows={2}>
           {(res) => {

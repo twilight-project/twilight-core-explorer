@@ -1,5 +1,6 @@
 'use client';
 
+import { Coins } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
 import { QueryBoundary } from '@/components/QueryBoundary';
@@ -21,7 +22,7 @@ export function SupplyView() {
 
   return (
     <Card>
-      <CardHeader title="Total supply (sampled)" />
+      <CardHeader icon={Coins} iconTone="rewards" title="Total supply (sampled)" />
       <CardBody>
         <QueryBoundary query={supply} context="Supply" loadingRows={3}>
           {(res) => {

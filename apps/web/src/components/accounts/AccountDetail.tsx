@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Users } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -57,6 +58,8 @@ export function AccountDetail({ address }: { address: string }) {
             account is not provably a claimant/operator, so a rewards/claims link would invent a
             relation the contract does not expose. */}
         <CardHeader
+          icon={Users}
+          iconTone="infra"
           title="Sampled balances"
           action={
             <Link href="/supply" className="text-sm text-primary hover:text-primary-light">

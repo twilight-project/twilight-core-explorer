@@ -1,3 +1,4 @@
+import { ArrowLeftRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { TxsAggregateStrip } from '@/components/txs/TxsAggregateStrip';
@@ -21,6 +22,8 @@ export default function TxsPage({
   return (
     <div className="space-y-section">
       <PageHeader
+        icon={ArrowLeftRight}
+        iconTone="infra"
         eyebrow="Transactions"
         title="Transaction stream"
         sub="Every indexed transaction, newest first — hash, block, message type, and success. Filter by success or failure; type-group filters arrive with a message-type API param."
@@ -30,6 +33,8 @@ export default function TxsPage({
 
       <Card>
         <CardHeader
+          icon={ArrowLeftRight}
+          iconTone="infra"
           title="All transactions"
           action={<span className="font-mono text-xs text-text-muted">newest first · live</span>}
         />

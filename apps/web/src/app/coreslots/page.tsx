@@ -1,3 +1,4 @@
+import { Server } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { CoreSlotsSummaryStrip } from '@/components/coreslots/CoreSlotsSummaryStrip';
@@ -21,6 +22,8 @@ export default function CoreSlotsPage({
   return (
     <div className="space-y-section">
       <PageHeader
+        icon={Server}
+        iconTone="coreslot"
         eyebrow="CoreSlots"
         title="Validator set & registry"
         sub="The CoreSlot PoA validator set — lifecycle, authority, consensus power, and reward weight. The registry keeps rotated-out slots; per-slot signing health lives on Liveness and each slot's detail page."
@@ -28,6 +31,8 @@ export default function CoreSlotsPage({
       <CoreSlotsSummaryStrip />
       <Card>
         <CardHeader
+          icon={Server}
+          iconTone="coreslot"
           title="CoreSlot registry"
           action={<span className="font-mono text-xs text-text-muted">ranked by slot id</span>}
         />

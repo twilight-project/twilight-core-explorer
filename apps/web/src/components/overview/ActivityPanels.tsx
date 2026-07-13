@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ArrowLeftRight, Boxes } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -18,7 +19,7 @@ export function LatestBlocksPanel() {
   const query = useLatestBlocks(8);
   return (
     <Card>
-      <CardHeader title="Latest blocks" href="/blocks" linkLabel="All blocks" />
+      <CardHeader icon={Boxes} iconTone="infra" title="Latest blocks" href="/blocks" linkLabel="All blocks" />
       <CardBody>
         <QueryBoundary query={query} context="Latest blocks" loadingRows={5}>
           {(res) =>
@@ -66,7 +67,7 @@ export function RecentTxPanel() {
   const query = useRecentTxs(8);
   return (
     <Card>
-      <CardHeader title="Recent transactions" href="/txs" linkLabel="All transactions" />
+      <CardHeader icon={ArrowLeftRight} iconTone="infra" title="Recent transactions" href="/txs" linkLabel="All transactions" />
       <CardBody>
         <QueryBoundary query={query} context="Recent transactions" loadingRows={5}>
           {(res) =>

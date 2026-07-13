@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Users } from 'lucide-react';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
@@ -15,7 +16,7 @@ export function ProposerLeaderboard() {
   const directory = useOperatorDirectory(slotIds);
   return (
     <Card>
-      <CardHeader title="Proposer leaderboard" />
+      <CardHeader icon={Users} iconTone="infra" title="Proposer leaderboard" />
       <CardBody>
         <QueryBoundary query={proposers} context="Proposers" loadingRows={4}>
           {(res) => {

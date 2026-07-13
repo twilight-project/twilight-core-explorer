@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { clsx } from 'clsx';
+import { Activity } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { EmptyState } from '@/components/states/States';
@@ -23,6 +24,8 @@ export function SigningHeatmap() {
   return (
     <Card>
       <CardHeader
+        icon={Activity}
+        iconTone="liveness"
         title="Signing window heatmap"
         action={
           <span className="font-mono text-xs text-text-muted">

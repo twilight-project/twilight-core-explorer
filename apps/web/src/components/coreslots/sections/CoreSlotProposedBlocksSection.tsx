@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Boxes } from 'lucide-react';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -28,7 +29,7 @@ export function CoreSlotProposedBlocksSection({ slotId }: { slotId: string }) {
   ];
   return (
     <Card>
-      <CardHeader title="Proposed blocks" />
+      <CardHeader icon={Boxes} iconTone="infra" title="Proposed blocks" />
       <CardBody>
         <PaginatedTable
           query={query}

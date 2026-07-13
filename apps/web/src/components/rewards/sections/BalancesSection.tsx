@@ -1,5 +1,6 @@
 'use client';
 
+import { Scale } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -27,7 +28,7 @@ export function BalancesSection() {
 
   return (
     <Card>
-      <CardHeader title="Module / reward balances (sampled)" />
+      <CardHeader icon={Scale} iconTone="rewards" title="Module / reward balances (sampled)" />
       <CardBody>
         {firstRow ? (
           <RewardCaveat>

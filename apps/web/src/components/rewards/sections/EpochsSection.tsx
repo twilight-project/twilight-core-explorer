@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Award } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { formatHeight } from '@/lib/format/height';
@@ -48,7 +49,7 @@ export function EpochsSection() {
 
   return (
     <Card>
-      <CardHeader title="Epochs" />
+      <CardHeader icon={Award} iconTone="rewards" title="Epochs" />
       <CardBody>
         {firstRow ? (
           <RewardCaveat>

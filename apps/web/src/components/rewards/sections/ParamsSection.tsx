@@ -1,5 +1,6 @@
 'use client';
 
+import { SlidersHorizontal } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { MonoCopy } from '@/components/ui/MonoCopy';
@@ -22,7 +23,7 @@ export function ParamsSection() {
 
   return (
     <Card>
-      <CardHeader title="Params changes" />
+      <CardHeader icon={SlidersHorizontal} iconTone="rewards" title="Params changes" />
       <CardBody>
         <PaginatedTable
           query={query}

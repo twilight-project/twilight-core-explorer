@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { NetworkHealthStrip } from '@/components/network/NetworkHealthStrip';
 import { ValidatorSetSection } from '@/components/network/ValidatorSetSection';
 import { ProposerLeaderboard } from '@/components/network/ProposerLeaderboard';
+import { ProposerDistributionChart } from '@/components/network/ProposerDistributionChart';
 
 export const metadata = { title: 'Network' };
 
@@ -21,6 +22,7 @@ export default function NetworkPage() {
       />
       <NetworkHealthStrip />
       <ValidatorSetSection />
+      <ProposerDistributionChart />
       <ProposerLeaderboard />
     </div>
   );

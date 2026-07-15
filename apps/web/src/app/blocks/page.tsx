@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { BlocksAggregateStrip } from '@/components/blocks/BlocksAggregateStrip';
 import { BlocksList } from '@/components/blocks/BlocksList';
+import { BlockCadencePanel } from '@/components/blocks/BlockCadencePanel';
 import { LiveLabel } from '@/components/freshness/LiveLabel';
 
 export const metadata = { title: 'Blocks' };
@@ -23,6 +24,8 @@ export default function BlocksPage() {
       />
 
       <BlocksAggregateStrip />
+
+      <BlockCadencePanel />
 
       <Card>
         <CardHeader

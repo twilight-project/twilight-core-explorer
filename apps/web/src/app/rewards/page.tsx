@@ -2,6 +2,7 @@ import { Award } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { RewardsSummaryStrip } from '@/components/rewards/RewardsSummaryStrip';
 import { RewardsView } from '@/components/rewards/RewardsView';
+import { EmissionCharts } from '@/components/rewards/EmissionCharts';
 
 export const metadata = { title: 'Rewards' };
 
@@ -19,6 +20,7 @@ export default function RewardsPage() {
         sub="Epochs, claim history, module balances, treasury payments, and params changes — read-only observed projections and historical events. Claiming is not available here."
       />
       <RewardsSummaryStrip />
+      <EmissionCharts />
       <RewardsView />
     </div>
   );

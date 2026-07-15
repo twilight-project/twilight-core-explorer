@@ -20,6 +20,14 @@ export const TX_STATUS_OPTIONS: StatusOption[] = [
   { value: 'failed', label: 'Failed' },
 ];
 
+// Message-type GROUPS — the /txs `typeGroup` enum (module families; server maps each to its
+// Message.typeUrl prefix). "Claims" are rewards-module messages on this chain, not a group.
+export const TX_TYPE_GROUP_OPTIONS: StatusOption[] = [
+  { value: 'coreslot', label: 'CoreSlot' },
+  { value: 'rewards', label: 'Rewards' },
+  { value: 'bank', label: 'Bank' },
+];
+
 // Coerce a raw URL `?status=` value (untrusted — bookmarks, hand-edited URLs, stale links) to the
 // canonical stored enum value, matched case-insensitively. Unknown values become `undefined` (= no
 // filter / "All"). This is the trust boundary: only canonical values ever reach the API exact-match,

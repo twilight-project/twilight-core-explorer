@@ -1119,6 +1119,33 @@
             "in": "query",
             "name": "status",
             "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "coreslot"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "rewards"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "bank"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "typeGroup",
+            "required": false
           }
         ],
         "responses": {

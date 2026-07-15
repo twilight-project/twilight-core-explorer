@@ -222,12 +222,18 @@ export function useTxsByHeight(height: string) {
 }
 
 // --- Transactions ---
-// `status` joins the queryKey so changing the filter re-keys the infinite query — keyset pagination
-// restarts from page one (no stale cursor). apiGet drops `status` when undefined (unfiltered).
-export function useTxsList(status?: string) {
+// `status`/`typeGroup` join the queryKey so changing a filter re-keys the infinite query — keyset
+// pagination restarts from page one (no stale cursor). apiGet drops undefined params (unfiltered).
+export function useTxsList(status?: string, typeGroup?: string) {
   return useInfiniteQuery({
-    queryKey: ['txs', 'list', status ?? null],
-    queryFn: ({ pageParam }) => apiGet('/api/v1/txs', { limit: LIST_PAGE, cursor: pageParam, status }),
+    queryKey: ['txs', 'list', status ?? null, typeGroup ?? null],
+    queryFn: ({ pageParam }) =>
+      apiGet('/api/v1/txs', {
+        limit: LIST_PAGE,
+        cursor: pageParam,
+        status,
+        typeGroup: typeGroup as 'coreslot' | 'rewards' | 'bank' | undefined,
+      }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
   });

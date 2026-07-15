@@ -7,7 +7,7 @@ import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { Badge } from '@/components/ui/Badge';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { StatusFilter } from '@/components/list/StatusFilter';
-import { TX_STATUS_OPTIONS } from '@/lib/status-filters';
+import { TX_STATUS_OPTIONS, TX_TYPE_GROUP_OPTIONS } from '@/lib/status-filters';
 import { useTxsList, type TxsResponse } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
 import { statusTone } from '@/lib/format/status';
@@ -15,8 +15,14 @@ import { shortenMiddle } from '@/lib/format/address';
 
 type Tx = TxsResponse['data'][number];
 
-export function TxsList({ status }: { status?: string | undefined }) {
-  const query = useTxsList(status);
+export function TxsList({
+  status,
+  typeGroup,
+}: {
+  status?: string | undefined;
+  typeGroup?: string | undefined;
+}) {
+  const query = useTxsList(status, typeGroup);
   const queryClient = useQueryClient();
   const newestLoadedHeight = query.data?.pages[0]?.data[0]?.height ?? null;
   const columns: Column<Tx>[] = [
@@ -49,7 +55,22 @@ export function TxsList({ status }: { status?: string | undefined }) {
   ];
   return (
     <div className="space-y-3">
-      <StatusFilter label="Status" paramName="status" value={status ?? ''} options={TX_STATUS_OPTIONS} />
+      <div className="flex flex-wrap items-center gap-4">
+        <StatusFilter
+          label="Status"
+          paramName="status"
+          value={status ?? ''}
+          options={TX_STATUS_OPTIONS}
+          preserve={{ type: typeGroup }}
+        />
+        <StatusFilter
+          label="Type"
+          paramName="type"
+          value={typeGroup ?? ''}
+          options={TX_TYPE_GROUP_OPTIONS}
+          preserve={{ status }}
+        />
+      </div>
       <NewItemsBar
         newestLoadedHeight={newestLoadedHeight}
         // The delta counts BLOCKS since the newest loaded tx's block — an activity signal, not a

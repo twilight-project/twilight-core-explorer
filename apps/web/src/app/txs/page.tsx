@@ -5,21 +5,21 @@ import { TxsAggregateStrip } from '@/components/txs/TxsAggregateStrip';
 import { TxsList } from '@/components/txs/TxsList';
 import { LiveLabel } from '@/components/freshness/LiveLabel';
 import { oneParam } from '@/lib/search-params';
-import { coerceStatus, TX_STATUS_OPTIONS } from '@/lib/status-filters';
+import { coerceStatus, TX_STATUS_OPTIONS, TX_TYPE_GROUP_OPTIONS } from '@/lib/status-filters';
 
 export const metadata = { title: 'Transactions' };
 
 // Airy redesign — list-page pattern: header, a real windowed stat strip (GET /txs/aggregate), then
-// the real transaction list (with its API-backed success/failed status filter) in a titled panel.
-// Type-group filter chips (CoreSlot/Rewards/Bank/Claims) remain deferred: /txs has no message-type
-// param yet, and a non-functional filter would mislead — that's a separate next API addition.
+// the real transaction list with its API-backed success/failed status filter AND the message-type
+// group filter (?type= → the /txs typeGroup enum, matched server-side against Message.typeUrl).
 export default function TxsPage({
   searchParams,
 }: {
-  searchParams: { status?: string | string[] };
+  searchParams: { status?: string | string[]; type?: string | string[] };
 }) {
-  // Validate the raw URL param at the trust boundary — only success/failed reach the API filter.
+  // Validate the raw URL params at the trust boundary — only canonical values reach the API.
   const status = coerceStatus(oneParam(searchParams.status), TX_STATUS_OPTIONS);
+  const typeGroup = coerceStatus(oneParam(searchParams.type), TX_TYPE_GROUP_OPTIONS);
   return (
     <div className="space-y-section">
       <PageHeader
@@ -27,7 +27,7 @@ export default function TxsPage({
         iconTone="infra"
         eyebrow="Transactions"
         title="Transaction stream"
-        sub="Every indexed transaction, newest first — hash, block, message type, and success. Filter by success or failure; type-group filters arrive with a message-type API param."
+        sub="Every indexed transaction, newest first — hash, block, message type, and success. Filter by success/failure and by message-type group (CoreSlot / Rewards / Bank)."
       />
 
       <TxsAggregateStrip />
@@ -40,7 +40,7 @@ export default function TxsPage({
           action={<LiveLabel />}
         />
         <CardBody>
-          <TxsList status={status} />
+          <TxsList status={status} typeGroup={typeGroup} />
         </CardBody>
       </Card>
     </div>

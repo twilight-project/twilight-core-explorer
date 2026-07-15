@@ -8,18 +8,20 @@ import type { StatusOption } from '@/lib/status-filters';
 // a change rewrites the URL via router.replace — so the server re-renders with the new searchParam and
 // the list hook re-keys (resetting keyset pagination to page one). `''` means "all" (no `?status=`).
 //
-// `usePathname` (not `useSearchParams`) keeps this out of a Suspense boundary; `status` is the only
-// list-filter param on these pages, so building the URL from pathname + the single param is sufficient.
+// `usePathname` (not `useSearchParams`) keeps this out of a Suspense boundary. Pages with MORE than
+// one list-filter param pass the others via `preserve` so changing this one doesn't drop them.
 export function StatusFilter({
   label,
   paramName,
   value,
   options,
+  preserve,
 }: {
   label: string;
   paramName: string;
   value: string;
   options: StatusOption[];
+  preserve?: Record<string, string | undefined>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,7 +36,12 @@ export function StatusFilter({
         value={value}
         onChange={(e) => {
           const next = e.target.value;
-          router.replace(next ? `${pathname}?${paramName}=${encodeURIComponent(next)}` : pathname);
+          const qs = new URLSearchParams();
+          for (const [k, v] of Object.entries(preserve ?? {})) {
+            if (v) qs.set(k, v);
+          }
+          if (next) qs.set(paramName, next);
+          router.replace(qs.size > 0 ? `${pathname}?${qs.toString()}` : pathname);
         }}
         className="rounded-lg border border-card-border bg-background-secondary px-2 py-1.5 text-sm text-text focus:border-primary"
       >

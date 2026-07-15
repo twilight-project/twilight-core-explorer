@@ -30,6 +30,14 @@ import {
   listTxsForAggregate,
 } from '../repositories/transactions-repository.js';
 
+// typeGroup enum → Message.typeUrl prefix. Server-owned constants (the LIKE pattern is never
+// user input); "claims" stays part of the rewards module family on this chain.
+const TYPE_GROUP_PREFIX: Record<'coreslot' | 'rewards' | 'bank', string> = {
+  coreslot: '/twilight.coreslot.',
+  rewards: '/twilight.rewards.',
+  bank: '/cosmos.bank.',
+};
+
 export async function transactionsRoutes(fastify: FastifyInstance): Promise<void> {
   const app = fastify.withTypeProvider<TypeBoxTypeProvider>();
 
@@ -73,6 +81,10 @@ export async function transactionsRoutes(fastify: FastifyInstance): Promise<void
         beforeIndex,
         height,
         status: request.query.status,
+        typeUrlPrefix:
+          request.query.typeGroup !== undefined
+            ? TYPE_GROUP_PREFIX[request.query.typeGroup]
+            : undefined,
         limit: limit + 1,
       });
       const hasMore = fetched.length > limit;

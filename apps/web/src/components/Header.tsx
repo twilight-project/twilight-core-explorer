@@ -13,10 +13,12 @@ import {
   Compass,
   type LucideIcon,
   LayoutDashboard,
+  Menu,
   Network,
   Server,
   Stethoscope,
   Users,
+  X,
 } from 'lucide-react';
 import { SearchBar } from './SearchBar';
 
@@ -64,15 +66,27 @@ function NavIcon({ icon: Icon }: { icon: LucideIcon }) {
   return <Icon className="h-4 w-4 shrink-0" aria-hidden />;
 }
 
-// Flattened link list for the compact (sub-xl) nav, where a dropdown in a wrap row is awkward: the
-// Explorer group's children render inline instead.
-const FLAT_NAV: NavChild[] = NAV.flatMap((e) =>
-  isMenu(e) ? e.children : [{ label: e.label, href: e.href, icon: e.icon }],
-);
-
 function isActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+// One row of the compact disclosure nav — a plain link with a comfortable touch target.
+function CompactNavLink({ item, pathname }: { item: NavChild; pathname: string }) {
+  return (
+    <Link
+      href={item.href}
+      className={clsx(
+        'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
+        isActive(pathname, item.href)
+          ? 'bg-background-tertiary text-primary'
+          : 'text-text-secondary hover:bg-background-tertiary hover:text-text',
+      )}
+    >
+      <NavIcon icon={item.icon} />
+      {item.label}
+    </Link>
+  );
 }
 
 // Accessible desktop dropdown for a NavMenu (Explorer), implementing the WAI-ARIA menu-button pattern:
@@ -217,8 +231,39 @@ function NavDropdown({ menu, pathname }: { menu: NavMenu; pathname: string }) {
 
 export function Header() {
   const pathname = usePathname();
+  const [navOpen, setNavOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  // A route change means a nav link was used — close the disclosure.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) setNavOpen(false);
+    }
+    function onDocKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setNavOpen(false);
+        toggleRef.current?.focus();
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onDocKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onDocKey);
+    };
+  }, [navOpen]);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-card-border bg-background/90 backdrop-blur">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 border-b border-card-border bg-background/90 backdrop-blur"
+    >
       <div className="mx-auto w-full lg:w-[1432px] px-4 sm:px-6 lg:px-[156px]">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
@@ -253,33 +298,59 @@ export function Header() {
               </Fragment>
             ))}
           </nav>
+          {/* Disclosure toggle for the compact nav (below `xl`, where the inline nav takes over).
+              Constant accessible name + aria-expanded per the WAI-ARIA disclosure pattern. */}
+          <button
+            ref={toggleRef}
+            type="button"
+            aria-expanded={navOpen}
+            aria-controls="compact-nav"
+            onClick={() => setNavOpen((v) => !v)}
+            className="flex items-center rounded-lg p-2 text-text-secondary hover:text-text xl:hidden"
+          >
+            {navOpen ? <X className="h-5 w-5" aria-hidden /> : <Menu className="h-5 w-5" aria-hidden />}
+            <span className="sr-only">Menu</span>
+          </button>
         </div>
-        {/* Compact nav for narrower viewports. Visible until `xl` — where the inline desktop nav takes
-            over — so there is NO nav gap in the lg..xl band (Codex 13b-ux review). The compact search
-            hides at `lg`+, where the centered desktop search appears, to avoid a duplicate search.
-            The Explorer group is flattened to inline links here (a dropdown in a wrap row is awkward). */}
-        <div className="flex flex-col gap-2 pb-3 xl:hidden">
-          <div className="lg:hidden">
-            <SearchBar />
+        {/* Compact search stays one tap away (hidden at `lg`+ where the centered search appears). */}
+        <div className="pb-3 lg:hidden">
+          <SearchBar />
+        </div>
+        {/* Compact nav is a vertical disclosure panel (was a ~190px chip-wrap on phones). It stays
+            available until `xl` — where the inline desktop nav appears — so there is NO nav gap in
+            the lg..xl band (Codex 13b-ux review). Links are plain links (disclosure navigation
+            pattern), grouped with the same concern boundaries as the desktop nav. */}
+        {navOpen ? (
+          <div id="compact-nav" className="pb-3 xl:hidden">
+            <nav
+              aria-label="Primary (compact)"
+              className="flex flex-col gap-0.5 rounded-xl border border-card-border bg-card p-2"
+            >
+              {NAV.map((item, i) => (
+                <Fragment key={item.label}>
+                  {i > 0 && NAV[i - 1]?.group !== item.group ? (
+                    <span aria-hidden="true" className="my-1 h-px bg-card-border" />
+                  ) : null}
+                  {isMenu(item) ? (
+                    <>
+                      <span className="px-3 pt-1 text-[11px] uppercase tracking-wider text-text-muted">
+                        {item.label}
+                      </span>
+                      {item.children.map((c) => (
+                        <CompactNavLink key={c.href} item={c} pathname={pathname} />
+                      ))}
+                    </>
+                  ) : (
+                    <CompactNavLink
+                      item={{ label: item.label, href: item.href, icon: item.icon }}
+                      pathname={pathname}
+                    />
+                  )}
+                </Fragment>
+              ))}
+            </nav>
           </div>
-          <nav className="flex flex-wrap gap-1" aria-label="Primary (compact)">
-            {FLAT_NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={clsx(
-                  'flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs',
-                  isActive(pathname, item.href)
-                    ? 'bg-card text-primary'
-                    : 'text-text-secondary hover:text-text',
-                )}
-              >
-                <NavIcon icon={item.icon} />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+        ) : null}
       </div>
     </header>
   );

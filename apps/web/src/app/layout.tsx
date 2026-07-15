@@ -53,11 +53,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${inter.variable} ${instrumentSerif.variable} ${robotoMono.variable} ${sora.variable} ${spaceGrotesk.variable}`}
     >
       <body className="bg-background text-text">
-        {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults. */}
+        {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults.
+            With no persisted choice, an OS light-mode preference selects the daylight theme — an
+            explicit toggle pick always wins thereafter. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('tw-theme');if(t){document.documentElement.dataset.theme=t;}var d=localStorage.getItem('tw-density');if(d){document.documentElement.dataset.density=d;}}catch(e){}})();",
+              "(function(){try{var t=localStorage.getItem('tw-theme');if(t){document.documentElement.dataset.theme=t;}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.dataset.theme='daylight';}var d=localStorage.getItem('tw-density');if(d){document.documentElement.dataset.density=d;}}catch(e){}})();",
           }}
         />
         {/* WCAG 2.4.1 — first focusable element: bypass the header/nav straight to content. */}

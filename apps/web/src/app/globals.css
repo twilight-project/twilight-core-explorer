@@ -93,19 +93,22 @@
   --card-hover: 36 40 59;
   --card-border: 51 65 85;
 
-  --primary: 124 58 237;
-  --primary-light: 167 139 250;
-  --primary-dark: 91 33 182;
+  /* WCAG 1.4.3: link/info text on navy — the old 124 58 237 was ≈3.3:1 on --background; the
+     violet identity now leads with the lighter tint (≈6.8:1) and keeps the deep violet as -dark. */
+  --primary: 167 139 250;
+  --primary-light: 196 181 253;
+  --primary-dark: 124 58 237;
 
   --accent-blue: 59 130 246;
   --accent-green: 34 197 94;
   --accent-yellow: 234 179 8;
-  --accent-red: 239 68 68;
+  /* WCAG 1.4.3: was 239 68 68 ≈ 4.4:1 on --card; red-400 keeps the semantic red at ≈6:1. */
+  --accent-red: 248 113 113;
   --accent-orange: 249 115 22;
 
-  --accent-gold: 124 58 237;
-  --accent-gold-light: 167 139 250;
-  --accent-gold-dark: 91 33 182;
+  --accent-gold: 167 139 250;
+  --accent-gold-light: 196 181 253;
+  --accent-gold-dark: 124 58 237;
   --accent-amber: 234 179 8;
   --accent-burgundy: 249 115 22;
 
@@ -232,6 +235,57 @@
   /* display face — Space Grotesk: tight technical grotesk */
   --font-serif: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
   /* MONO numerals (inherit) — engineering honesty */
+}
+
+/* Daylight — the light-mode member of the console set (same voice as `auction`, inverted ground).
+   Picked automatically for first-time visitors whose OS prefers light (see the pre-paint script in
+   layout.tsx); always available from the toggle. All text/status pairs are AA-verified against both
+   --background and --card by theme-tokens.test.ts — keep them passing when retuning. */
+[data-theme='daylight'] {
+  --page: 250 249 245;
+  --background: 250 249 245;
+  --background-secondary: 243 241 234;
+  --background-tertiary: 232 229 219;
+  --background-primary: 255 255 255;
+
+  --card: 255 255 255;
+  --card-hover: 248 246 240;
+  --card-border: 214 209 196;
+
+  /* Ink-gold: the warm-gold identity carried at text-safe depth (≈5.2:1 on --background). */
+  --primary: 130 102 22;
+  --primary-light: 108 85 18;
+  --primary-dark: 92 72 15;
+
+  --accent-blue: 29 100 189;
+  --accent-orange: 180 83 9;
+  --accent-yellow: 146 96 6;
+  --accent-green: 15 122 87;
+  --accent-red: 185 28 28;
+
+  --accent-gold: 130 102 22;
+  --accent-gold-light: 108 85 18;
+  --accent-gold-dark: 92 72 15;
+  --accent-amber: 146 96 6;
+  --accent-burgundy: 240 231 214;
+
+  --text: 26 26 31;
+  --text-secondary: 68 70 80;
+  /* WCAG 1.4.3: ≈5.7:1 on the paper --background. */
+  --text-muted: 96 99 112;
+
+  --border: 214 209 196;
+  --border-light: 196 190 175;
+
+  /* expressive — the console shape language on paper: bordered cards, soft warm shadow */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
+  --display-tracking: -0.01em;
+  --card-border-width: 1px;
+  /* display face — Inter, same compact technical voice as the dark console */
+  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* ---- Density scale (independent of theme + layout) --------------------------------------------

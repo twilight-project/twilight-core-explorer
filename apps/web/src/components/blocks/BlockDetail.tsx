@@ -30,14 +30,14 @@ export function BlockDetail({ height }: { height: string }) {
 
   if (!valid) {
     return (
-      <DetailShell title={`Block ${height}`}>
+      <DetailShell title={`Block ${height}`} backHref="/blocks" backLabel="Blocks">
         <InvalidInput message="Block height must be a positive integer." />
       </DetailShell>
     );
   }
   if (query.isPending) {
     return (
-      <DetailShell title="Block">
+      <DetailShell title="Block" backHref="/blocks" backLabel="Blocks">
         <LoadingState rows={6} />
       </DetailShell>
     );

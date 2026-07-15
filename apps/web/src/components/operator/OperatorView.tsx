@@ -29,14 +29,14 @@ export function OperatorView({ address }: { address: string }) {
 
   if (resolution.isPending) {
     return (
-      <DetailShell title="Operator">
+      <DetailShell title="Operator" backHref="/coreslots" backLabel="CoreSlots">
         <LoadingState rows={4} />
       </DetailShell>
     );
   }
   if (resolution.isError) {
     return (
-      <DetailShell title="Operator">
+      <DetailShell title="Operator" backHref="/coreslots" backLabel="CoreSlots">
         <ErrorState error={resolution.error} context="Operator" />
       </DetailShell>
     );
@@ -45,7 +45,7 @@ export function OperatorView({ address }: { address: string }) {
   const { matchedRole } = resolution.data;
   if (matchedRole === null || primarySlot === undefined) {
     return (
-      <DetailShell title="Operator">
+      <DetailShell title="Operator" backHref="/coreslots" backLabel="CoreSlots">
         <EmptyState message="No CoreSlot found for this address." />
       </DetailShell>
     );

@@ -1,5 +1,7 @@
 'use client';
 
+import { clsx } from 'clsx';
+import { Palette } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 // Runtime brand controls: two independent, tokenized axes.
@@ -13,6 +15,7 @@ import { useEffect, useState } from 'react';
 // Both persist in localStorage and are applied pre-paint by the inline script in layout.tsx.
 const THEMES = [
   { id: 'auction', label: 'Console' },
+  { id: 'daylight', label: 'Daylight' },
   { id: 'gold-orbit', label: 'Orbit' },
   { id: 'minimal-operator', label: 'Minimal' },
   { id: 'legacy', label: 'Legacy' },
@@ -69,6 +72,8 @@ function Group<T extends string>({
 export function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeId>('auction');
   const [density, setDensity] = useState<DensityId>('compact');
+  // On phones the full chip panel would sit on top of content — collapse it behind a button.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setTheme((document.documentElement.dataset.theme as ThemeId) || 'auction');
@@ -96,21 +101,37 @@ export function ThemeToggle() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-1.5 rounded-2xl border border-border bg-card/90 p-2 shadow-card backdrop-blur">
-      <Group
-        label="Theme"
-        ariaLabel="Brand theme"
-        items={THEMES}
-        active={theme}
-        onPick={pickTheme}
-      />
-      <Group
-        label="Density"
-        ariaLabel="Layout density"
-        items={DENSITIES}
-        active={density}
-        onPick={pickDensity}
-      />
+    <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-1.5">
+      <div
+        className={clsx(
+          'flex-col gap-1.5 rounded-2xl border border-border bg-card/90 p-2 shadow-card backdrop-blur',
+          open ? 'flex' : 'hidden sm:flex',
+        )}
+      >
+        <Group
+          label="Theme"
+          ariaLabel="Brand theme"
+          items={THEMES}
+          active={theme}
+          onPick={pickTheme}
+        />
+        <Group
+          label="Density"
+          ariaLabel="Layout density"
+          items={DENSITIES}
+          active={density}
+          onPick={pickDensity}
+        />
+      </div>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-full border border-border bg-card/90 p-2.5 text-text-secondary shadow-card backdrop-blur hover:text-text sm:hidden"
+      >
+        <Palette className="h-4 w-4" aria-hidden />
+        <span className="sr-only">Appearance</span>
+      </button>
     </div>
   );
 }

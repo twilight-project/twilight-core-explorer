@@ -22,21 +22,21 @@ export function RewardEpochDetail({ epoch }: { epoch: string }) {
 
   if (!valid) {
     return (
-      <DetailShell title="Epoch">
+      <DetailShell title="Epoch" backHref="/rewards" backLabel="Rewards">
         <InvalidInput message="Epoch must be a positive integer." />
       </DetailShell>
     );
   }
   if (query.isPending) {
     return (
-      <DetailShell title="Epoch">
+      <DetailShell title="Epoch" backHref="/rewards" backLabel="Rewards">
         <LoadingState rows={6} />
       </DetailShell>
     );
   }
   if (query.isError) {
     return (
-      <DetailShell title="Epoch">
+      <DetailShell title="Epoch" backHref="/rewards" backLabel="Rewards">
         <ErrorState error={query.error} context="Epoch" />
       </DetailShell>
     );

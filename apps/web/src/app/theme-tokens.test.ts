@@ -47,21 +47,42 @@ function tokenRgb(css: string, theme: string, name: string): number[] {
 }
 
 // The converged "Twilight Operations Console" theme set. `auction` carries the default warm-gold
-// console look (id kept for compatibility); gold-orbit + minimal-operator are the two variants;
-// legacy is the older alt.
-const THEMES = ['auction', 'legacy', 'gold-orbit', 'minimal-operator'];
+// console look (id kept for compatibility); daylight is its light-mode member; gold-orbit +
+// minimal-operator are the two variants; legacy is the older alt.
+const THEMES = ['auction', 'daylight', 'legacy', 'gold-orbit', 'minimal-operator'];
 
-// Themes that repoint the display face (--font-serif) — the console (auction) and both variants each
-// pick a distinct display sans. `legacy` inherits the Instrument Serif default, so it is excluded.
-const BRAND_THEMES = ['auction', 'gold-orbit', 'minimal-operator'];
+// Themes that repoint the display face (--font-serif) — the console (auction), its daylight member,
+// and both variants each pick a display sans. `legacy` inherits the Instrument Serif default, so it
+// is excluded.
+const BRAND_THEMES = ['auction', 'daylight', 'gold-orbit', 'minimal-operator'];
 
 describe('theme token contrast (WCAG 1.4.3)', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
+
+  // Text tokens are used pervasively for body/secondary copy on the page ground.
+  const TEXT_TOKENS = ['text-muted', 'text-secondary'];
+  // Tokens rendered AS TEXT on tinted /10 surfaces over both grounds: --primary is link text and
+  // the Badge `info` tone; the three status accents back the Badge success/warning/danger tones,
+  // deltas, and inline status copy. All must clear AA against --background AND --card (audit 13b
+  // measured legacy --primary ≈3.3:1 and legacy --accent-red ≈4.4:1 before the retune).
+  const TEXT_ON_SURFACE_TOKENS = ['primary', 'accent-green', 'accent-yellow', 'accent-red'];
+  const SURFACES = ['background', 'card'];
+
   for (const theme of THEMES) {
-    it(`${theme}: --text-muted on --background meets AA (>= 4.5:1)`, () => {
-      const ratio = contrastRatio(tokenRgb(css, theme, 'text-muted'), tokenRgb(css, theme, 'background'));
-      expect(ratio).toBeGreaterThanOrEqual(4.5);
-    });
+    for (const token of TEXT_TOKENS) {
+      it(`${theme}: --${token} on --background meets AA (>= 4.5:1)`, () => {
+        const ratio = contrastRatio(tokenRgb(css, theme, token), tokenRgb(css, theme, 'background'));
+        expect(ratio).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    for (const token of TEXT_ON_SURFACE_TOKENS) {
+      for (const surface of SURFACES) {
+        it(`${theme}: --${token} on --${surface} meets AA (>= 4.5:1)`, () => {
+          const ratio = contrastRatio(tokenRgb(css, theme, token), tokenRgb(css, theme, surface));
+          expect(ratio).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    }
   }
 });
 

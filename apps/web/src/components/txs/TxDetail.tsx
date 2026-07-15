@@ -26,14 +26,14 @@ export function TxDetail({ hash }: { hash: string }) {
 
   if (query.isPending) {
     return (
-      <DetailShell title="Transaction">
+      <DetailShell title="Transaction" backHref="/txs" backLabel="Transactions">
         <LoadingState rows={6} />
       </DetailShell>
     );
   }
   if (query.isError) {
     return (
-      <DetailShell title="Transaction">
+      <DetailShell title="Transaction" backHref="/txs" backLabel="Transactions">
         <ErrorState error={query.error} context="Transaction" />
       </DetailShell>
     );

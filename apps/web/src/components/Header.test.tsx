@@ -43,13 +43,15 @@ describe('Header nav grouping', () => {
     }
   });
 
-  // Regression guard (Codex 13b-ux review): the inline desktop nav appears at `xl`, so the compact nav
-  // block must stay visible until `xl` (NOT hide at `lg`) — otherwise the 1024..1279px band has no
-  // primary nav at all. Class-level guard so the breakpoint can't silently regress.
-  it('has no responsive nav gap: compact nav hides at xl (where the desktop nav appears), not lg', () => {
+  // Regression guard (Codex 13b-ux review, reshaped for the disclosure nav): the inline desktop nav
+  // appears at `xl`, so the compact nav — now a hamburger DISCLOSURE (toggle + panel), not a chip
+  // wrap — must stay available until `xl`, otherwise the 1024..1279px band has no primary nav at
+  // all. Class-level guard so the breakpoints can't silently regress.
+  it('has no responsive nav gap: the disclosure toggle + panel stay until xl (where the desktop nav appears)', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
     expect(src).toContain('xl:flex'); // inline desktop nav appears at xl
-    expect(src).toContain('pb-3 xl:hidden'); // compact nav block stays until xl
-    expect(src).not.toContain('pb-3 lg:hidden'); // the old gappy compact-block class is gone
+    expect(src).toContain('aria-controls="compact-nav"'); // the disclosure toggle is wired
+    expect(src).toContain('hover:text-text xl:hidden'); // ...and stays visible until xl
+    expect(src).toContain('pb-3 xl:hidden'); // the disclosure panel also stays until xl
   });
 });

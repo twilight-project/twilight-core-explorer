@@ -23,14 +23,14 @@ export function AccountDetail({ address }: { address: string }) {
 
   if (query.isPending) {
     return (
-      <DetailShell title="Account">
+      <DetailShell title="Account" backHref="/accounts" backLabel="Accounts">
         <LoadingState rows={4} />
       </DetailShell>
     );
   }
   if (query.isError) {
     return (
-      <DetailShell title="Account">
+      <DetailShell title="Account" backHref="/accounts" backLabel="Accounts">
         <ErrorState error={query.error} context="Account" />
       </DetailShell>
     );

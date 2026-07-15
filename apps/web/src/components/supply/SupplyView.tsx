@@ -3,6 +3,7 @@
 import { Coins } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
+import { FilterBar } from '@/components/list/FilterBar';
 import { QueryBoundary } from '@/components/QueryBoundary';
 import { SampledAtNote } from '@/components/freshness/Freshness';
 import { useStatus, useSupply } from '@/lib/api/queries';
@@ -16,14 +17,33 @@ import { RewardAmount } from '@/components/rewards/RewardAmount';
  * schedule (none of which the contract exposes). When there is no sample the contract returns 404,
  * surfaced here as ErrorState/NotFound (never a fabricated 0).
  */
-export function SupplyView() {
-  const supply = useSupply();
+export function SupplyView({ height }: { height?: string | undefined }) {
+  const supply = useSupply(height);
   const status = useStatus();
 
   return (
     <Card>
-      <CardHeader icon={Coins} iconTone="rewards" title="Total supply (sampled)" />
+      <CardHeader
+        icon={Coins}
+        iconTone="rewards"
+        title="Total supply (sampled)"
+        action={
+          height ? (
+            <span className="font-mono text-xs text-text-muted">at height {height}</span>
+          ) : (
+            <span className="font-mono text-xs text-text-muted">latest sample</span>
+          )
+        }
+      />
       <CardBody>
+        {/* URL-synced historical lookup (Phase 12c deferral): ?height= re-renders the page and
+            re-keys the query; the API answers with the sample at/near that height or 404. */}
+        <div className="mb-3">
+          <FilterBar
+            fields={[{ param: 'height', label: 'Sample at height', kind: 'digits' }]}
+            values={{ height }}
+          />
+        </div>
         <QueryBoundary query={supply} context="Supply" loadingRows={3}>
           {(res) => {
             const latestIndexed = status.data?.data.indexer?.lastIndexedHeight ?? null;

@@ -48,15 +48,26 @@ export function AccountDetail({ address }: { address: string }) {
               { label: 'First seen', value: <span className="font-mono">{formatHeight(a.firstSeenHeight)}</span> },
               { label: 'Last seen', value: <span className="font-mono">{formatHeight(a.lastSeenHeight)}</span> },
               { label: 'Tx count', value: <span className="font-mono">{a.txCount}</span> },
+              {
+                label: 'Reward claims',
+                // Phrased as a SEARCH, not a relation: an account is not provably a claimant, so
+                // this links to the server-side claimant filter — an empty result is a valid answer.
+                value: (
+                  <Link
+                    href={`/rewards/claims?claimant=${encodeURIComponent(a.address)}`}
+                    className="text-sm text-primary hover:text-primary-light"
+                  >
+                    Search claim events naming this address →
+                  </Link>
+                ),
+              },
             ]}
           />
         </CardBody>
       </Card>
 
       <Card>
-        {/* /supply is the only contract-safe cross-link here: both are sampled observations. An
-            account is not provably a claimant/operator, so a rewards/claims link would invent a
-            relation the contract does not expose. */}
+        {/* /supply is a contract-safe cross-link: both are sampled observations. */}
         <CardHeader
           icon={Users}
           iconTone="infra"

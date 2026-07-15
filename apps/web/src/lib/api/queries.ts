@@ -150,11 +150,13 @@ export function useSigningHeatmap(window?: number) {
   });
 }
 
-export function useSupply() {
+/** Latest sample by default; `height` (digits string) asks for the sample at/near that height. */
+export function useSupply(height?: string) {
   return useQuery({
-    queryKey: ['supply'],
-    queryFn: () => apiGet('/api/v1/supply'),
-    refetchInterval: LIST_REFETCH_MS,
+    queryKey: ['supply', height ?? null],
+    queryFn: () => apiGet('/api/v1/supply', { height }),
+    // A historical lookup is immutable — only the "latest" view polls.
+    ...(height === undefined ? { refetchInterval: LIST_REFETCH_MS } : {}),
   });
 }
 
@@ -511,38 +513,73 @@ export function useRewardEpochRaw(epoch: string, enabled: boolean) {
   });
 }
 
-/** Optional claims filters power cross-links (e.g. ?slotId=). undefined values are omitted. */
+/** Claims filters (all server-side ClaimsQuery params). undefined values are omitted. */
 export interface ClaimsFilter {
   slotId?: string | undefined;
   claimant?: string | undefined;
+  txHash?: string | undefined;
+  fromHeight?: string | undefined;
+  toHeight?: string | undefined;
 }
 
 export function useRewardsClaims(filter: ClaimsFilter = {}) {
-  const { slotId, claimant } = filter;
+  const { slotId, claimant, txHash, fromHeight, toHeight } = filter;
   return useInfiniteQuery({
-    queryKey: ['rewards', 'claims', 'list', slotId ?? null, claimant ?? null],
+    // Every filter member joins the queryKey so a change re-keys the keyset list (page one).
+    queryKey: [
+      'rewards',
+      'claims',
+      'list',
+      slotId ?? null,
+      claimant ?? null,
+      txHash ?? null,
+      fromHeight ?? null,
+      toHeight ?? null,
+    ],
     queryFn: ({ pageParam }) =>
-      apiGet('/api/v1/rewards/claims', { limit: LIST_PAGE, cursor: pageParam, slotId, claimant }),
+      apiGet('/api/v1/rewards/claims', {
+        limit: LIST_PAGE,
+        cursor: pageParam,
+        slotId,
+        claimant,
+        txHash,
+        fromHeight,
+        toHeight,
+      }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
   });
 }
 
-export function useRewardsBalances() {
+/** Balances filters (server-side RewardsBalancesQuery params). */
+export interface BalancesFilter {
+  sampleKind?: string | undefined;
+  denom?: string | undefined;
+  height?: string | undefined;
+}
+
+export function useRewardsBalances(filter: BalancesFilter = {}) {
+  const { sampleKind, denom, height } = filter;
   return useInfiniteQuery({
-    queryKey: ['rewards', 'balances', 'list'],
+    queryKey: ['rewards', 'balances', 'list', sampleKind ?? null, denom ?? null, height ?? null],
     queryFn: ({ pageParam }) =>
-      apiGet('/api/v1/rewards/balances', { limit: LIST_PAGE, cursor: pageParam }),
+      apiGet('/api/v1/rewards/balances', {
+        limit: LIST_PAGE,
+        cursor: pageParam,
+        sampleKind,
+        denom,
+        height,
+      }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
   });
 }
 
-export function useRewardsParams() {
+export function useRewardsParams(changeType?: string) {
   return useInfiniteQuery({
-    queryKey: ['rewards', 'params', 'list'],
+    queryKey: ['rewards', 'params', 'list', changeType ?? null],
     queryFn: ({ pageParam }) =>
-      apiGet('/api/v1/rewards/params', { limit: LIST_PAGE, cursor: pageParam }),
+      apiGet('/api/v1/rewards/params', { limit: LIST_PAGE, cursor: pageParam, changeType }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
   });

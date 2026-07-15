@@ -9,6 +9,12 @@ vi.mock('@/lib/api/client', async (importOriginal) => {
   return { ...actual, apiGet };
 });
 
+// The URL-synced claims FilterBar needs a router; jsdom mounts no app router.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => '/rewards/claims',
+}));
+
 import RewardsClaimsPage from './page';
 
 const emptyPage = { data: [], page: { limit: 25, nextCursor: null } };

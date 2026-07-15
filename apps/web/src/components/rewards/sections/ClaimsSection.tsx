@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { HandCoins } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { FilterBar } from '@/components/list/FilterBar';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { MonoCopy } from '@/components/ui/MonoCopy';
 import { formatHeight } from '@/lib/format/height';
@@ -17,8 +18,17 @@ import { RewardCaveat } from '../RewardCaveat';
 
 type Claim = RewardsClaimsResponse['data'][number];
 
-/** `filter` (slotId/claimant) powers cross-links; no filter UI is rendered (deferred). */
-export function ClaimsSection({ filter }: { filter?: ClaimsFilter }) {
+/**
+ * `filter` powers cross-links (?slotId=, ?claimant=) and — with `showFilters` on the dedicated
+ * claims page — the URL-synced filter bar over all server-side ClaimsQuery params (13b deferral).
+ */
+export function ClaimsSection({
+  filter,
+  showFilters = false,
+}: {
+  filter?: ClaimsFilter;
+  showFilters?: boolean;
+}) {
   const query = useRewardsClaims(filter ?? {});
   const firstRow = query.data?.pages[0]?.data[0];
 
@@ -64,6 +74,26 @@ export function ClaimsSection({ filter }: { filter?: ClaimsFilter }) {
     <Card>
       <CardHeader icon={HandCoins} iconTone="rewards" title="Claims (history)" />
       <CardBody>
+        {showFilters ? (
+          <div className="mb-3">
+            <FilterBar
+              fields={[
+                { param: 'slotId', label: 'Slot id', kind: 'digits', placeholder: 'e.g. 3' },
+                { param: 'claimant', label: 'Claimant', placeholder: 'twilight1…' },
+                { param: 'txHash', label: 'Tx hash', placeholder: 'full hash' },
+                { param: 'fromHeight', label: 'From height', kind: 'digits' },
+                { param: 'toHeight', label: 'To height', kind: 'digits' },
+              ]}
+              values={{
+                slotId: filter?.slotId,
+                claimant: filter?.claimant,
+                txHash: filter?.txHash,
+                fromHeight: filter?.fromHeight,
+                toHeight: filter?.toHeight,
+              }}
+            />
+          </div>
+        ) : null}
         {firstRow ? (
           <RewardCaveat>
             production claim readiness:{' '}

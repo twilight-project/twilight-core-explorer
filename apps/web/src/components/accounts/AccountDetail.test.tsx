@@ -55,10 +55,14 @@ describe('AccountDetail', () => {
     // No account transaction history (Phase 9 API has no address/signer tx filter).
     expect(screen.queryByText(/transactions in this block/i)).not.toBeInTheDocument();
     expect(apiGet.mock.calls.every((c) => c[0] === '/api/v1/status')).toBe(true);
-    // 12c cross-link: the ONLY contract-safe account cross-link is /supply (sampled <-> sampled).
+    // 12c cross-link: /supply stays (sampled <-> sampled).
     expect(screen.getByRole('link', { name: /network supply/i })).toHaveAttribute('href', '/supply');
-    // An account is not provably a claimant -> NO invented ?claimant= rewards relation.
-    expect(screen.queryByRole('link', { name: /claim/i })).toBeNull();
+    // An account is not provably a claimant, so the claims cross-link is phrased as a SEARCH of
+    // the server-side claimant filter (an empty result is a valid answer), never a stated relation.
+    expect(screen.getByRole('link', { name: /search claim events/i })).toHaveAttribute(
+      'href',
+      '/rewards/claims?claimant=twilight1abc',
+    );
   });
 
   it('sampled:false renders "no sample" — never 0', async () => {

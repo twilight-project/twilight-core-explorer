@@ -9,9 +9,11 @@ import { DataList } from '@/components/detail/DataList';
 import { DetailShell } from '@/components/detail/DetailShell';
 import { RawSection } from '@/components/detail/RawSection';
 import { OperatorLink } from '@/components/operator/OperatorLink';
-import { ErrorState, InvalidInput, LoadingState } from '@/components/states/States';
+import { EmptyState, ErrorState, InvalidInput, LoadingState } from '@/components/states/States';
 import { BlockTxsSection } from './BlockTxsSection';
-import { useBlock, useBlockRaw } from '@/lib/api/queries';
+import { isNotFound } from '@/lib/api/client';
+import { useBlock, useBlockRaw, useStatus } from '@/lib/api/queries';
+import { deriveHeightIndexingState } from '@/lib/freshness';
 import { formatHeight } from '@/lib/format/height';
 import { formatAbsoluteTime } from '@/lib/format/time';
 import { statusTone } from '@/lib/format/status';
@@ -22,6 +24,7 @@ export function BlockDetail({ height }: { height: string }) {
   // and ErrorState branches on error.code.
   const valid = /^[1-9]\d*$/.test(height);
   const query = useBlock(valid ? height : '');
+  const status = useStatus();
   const [rawOpen, setRawOpen] = useState(false);
   const raw = useBlockRaw(valid ? height : '', rawOpen);
 
@@ -40,9 +43,28 @@ export function BlockDetail({ height }: { height: string }) {
     );
   }
   if (query.isError) {
+    // During backfill a not_found for an on-chain height means "not indexed YET" — an expected
+    // state worth naming, not a hard failure.
+    const heightState = isNotFound(query.error)
+      ? deriveHeightIndexingState(height, status.data?.data.indexer ?? null)
+      : { kind: 'unknown' as const };
     return (
-      <DetailShell title={`Block ${formatHeight(height)}`}>
-        <ErrorState error={query.error} context="Block" />
+      <DetailShell title={`Block ${formatHeight(height)}`} backHref="/blocks" backLabel="Blocks">
+        {heightState.kind === 'pending' ? (
+          <EmptyState
+            message={`Block ${formatHeight(height)} isn’t indexed yet — the indexer is at ${formatHeight(
+              heightState.lastIndexedHeight,
+            )} of ${formatHeight(heightState.latestChainHeight)}. It will appear as the backfill catches up.`}
+          />
+        ) : heightState.kind === 'beyond-tip' ? (
+          <EmptyState
+            message={`Block ${formatHeight(height)} doesn’t exist yet — the chain tip is ${formatHeight(
+              heightState.latestChainHeight,
+            )}.`}
+          />
+        ) : (
+          <ErrorState error={query.error} context="Block" />
+        )}
       </DetailShell>
     );
   }

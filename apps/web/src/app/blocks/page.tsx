@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { BlocksAggregateStrip } from '@/components/blocks/BlocksAggregateStrip';
 import { BlocksList } from '@/components/blocks/BlocksList';
+import { LiveLabel } from '@/components/freshness/LiveLabel';
 
 export const metadata = { title: 'Blocks' };
 
@@ -28,7 +29,7 @@ export default function BlocksPage() {
           icon={Boxes}
           iconTone="infra"
           title="All blocks"
-          action={<span className="font-mono text-xs text-text-muted">newest first · live</span>}
+          action={<LiveLabel />}
         />
         <CardBody>
           <BlocksList />

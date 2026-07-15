@@ -130,11 +130,11 @@ describe('RewardsView (/rewards hub)', () => {
     ).toBeInTheDocument();
   });
 
-  it('surfaces a section error via ErrorState (branches on error.code, not message)', async () => {
+  it('collapses API-unreachable sections to compact notes (the global banner carries the alert)', async () => {
     apiGet.mockImplementation(async () => {
       throw new ApiError('network_unavailable', 'down', 0);
     });
     renderWithClient(<RewardsView />);
-    expect((await screen.findAllByText(/API unavailable/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/API unreachable/i)).length).toBeGreaterThan(0);
   });
 });

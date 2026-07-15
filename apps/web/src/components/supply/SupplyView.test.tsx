@@ -70,11 +70,11 @@ describe('SupplyView (/supply)', () => {
     expect(await screen.findByText(/not found/i)).toBeInTheDocument();
   });
 
-  it('surfaces a chain-read error via ErrorState (error.code)', async () => {
+  it('collapses API-unreachable to the compact note (the global banner carries the alert)', async () => {
     apiGet.mockImplementation(async () => {
       throw new ApiError('network_unavailable', 'down', 0);
     });
     renderWithClient(<SupplyView />);
-    expect(await screen.findByText(/API unavailable/i)).toBeInTheDocument();
+    expect(await screen.findByText(/API unreachable/i)).toBeInTheDocument();
   });
 });

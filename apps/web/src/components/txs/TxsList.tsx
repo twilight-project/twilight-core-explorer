@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
+import { NewItemsBar } from '@/components/list/NewItemsBar';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { Badge } from '@/components/ui/Badge';
 import { CopyButton } from '@/components/ui/CopyButton';
@@ -15,6 +17,8 @@ type Tx = TxsResponse['data'][number];
 
 export function TxsList({ status }: { status?: string | undefined }) {
   const query = useTxsList(status);
+  const queryClient = useQueryClient();
+  const newestLoadedHeight = query.data?.pages[0]?.data[0]?.height ?? null;
   const columns: Column<Tx>[] = [
     {
       header: 'Hash',
@@ -46,6 +50,13 @@ export function TxsList({ status }: { status?: string | undefined }) {
   return (
     <div className="space-y-3">
       <StatusFilter label="Status" paramName="status" value={status ?? ''} options={TX_STATUS_OPTIONS} />
+      <NewItemsBar
+        newestLoadedHeight={newestLoadedHeight}
+        // The delta counts BLOCKS since the newest loaded tx's block — an activity signal, not a
+        // tx count, so the label stays generic.
+        label={() => 'New activity indexed — refresh'}
+        onRefresh={() => void queryClient.resetQueries({ queryKey: ['txs', 'list'] })}
+      />
       <PaginatedTable
         query={query}
         columns={columns}

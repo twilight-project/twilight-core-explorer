@@ -12,6 +12,8 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/api/queries', () => ({
   useSearch: () => searchState.value,
+  // Status feeds only the "not indexed yet" hint; undefined data keeps the generic empty state.
+  useStatus: () => ({ data: undefined }),
 }));
 
 import { SearchResults } from './SearchResults';

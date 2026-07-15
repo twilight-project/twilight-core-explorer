@@ -38,6 +38,31 @@ export function NotFoundState({ message = 'Not found.' }: { message?: string }) 
   );
 }
 
+// Compact one-liner for API-unreachable panels: the GlobalStatusBanner carries the prominent
+// message, so N failing panels don't stack N red boxes. Optional inline retry for the panel.
+export function ApiUnavailableNote({
+  context,
+  onRetry,
+}: {
+  context?: string | undefined;
+  onRetry?: (() => void) | undefined;
+}) {
+  const prefix = context ? `${context}: ` : '';
+  return (
+    <div
+      role="status"
+      className="rounded-xl border border-dashed border-card-border px-4 py-3 text-center text-xs text-text-muted"
+    >
+      {prefix}unavailable — API unreachable.
+      {onRetry ? (
+        <button type="button" onClick={onRetry} className="ml-2 text-primary hover:underline">
+          Retry
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 // Renders the right message for a failed query. Branches on error.code (never message text):
 // transport-down vs not-found vs invalid input vs generic API error.
 export function ErrorState({
@@ -54,6 +79,21 @@ export function ErrorState({
       return (
         <div className="rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
           {prefix}API unavailable — the Twilight API could not be reached.
+        </div>
+      );
+    }
+    if (error.code === ERROR_CODES.timeout) {
+      return (
+        <div className="rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+          {prefix}API timeout — the Twilight API did not respond in time.
+        </div>
+      );
+    }
+    if (error.code === ERROR_CODES.notReady) {
+      // Backfill/warm-up is an expected state, not a failure — amber, not red.
+      return (
+        <div className="rounded-xl border border-accent-yellow/30 bg-accent-yellow/10 px-4 py-3 text-sm text-accent-yellow">
+          {prefix}Still indexing — this data isn&apos;t ready yet.
         </div>
       );
     }

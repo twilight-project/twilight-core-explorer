@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { deriveIndexerFreshness, deriveProjectionHealth, deriveSampleAge } from './freshness';
+import {
+  deriveHeightIndexingState,
+  deriveIndexerFreshness,
+  deriveProjectionHealth,
+  deriveSampleAge,
+} from './freshness';
 
 const indexer = (lagBlocks: string | null) => ({
   lastIndexedHeight: '10',
@@ -24,6 +29,37 @@ describe('indexer freshness', () => {
   });
   it('lagging over threshold', () => {
     expect(deriveIndexerFreshness(indexer('110')).kind).toBe('lagging');
+  });
+});
+
+describe('height indexing state (BigInt height math, no Number())', () => {
+  const backfilling = {
+    ...indexer('200297'),
+    lastIndexedHeight: '369',
+    latestChainHeight: '200666',
+  };
+
+  it('unknown for a non-digits height or missing indexer', () => {
+    expect(deriveHeightIndexingState('abc', backfilling).kind).toBe('unknown');
+    expect(deriveHeightIndexingState('42', null).kind).toBe('unknown');
+  });
+  it('indexed at or below the indexer head', () => {
+    expect(deriveHeightIndexingState('369', backfilling).kind).toBe('indexed');
+    expect(deriveHeightIndexingState('1', backfilling).kind).toBe('indexed');
+  });
+  it('pending between the head and the chain tip', () => {
+    expect(deriveHeightIndexingState('370', backfilling)).toEqual({
+      kind: 'pending',
+      lastIndexedHeight: '369',
+      latestChainHeight: '200666',
+    });
+    expect(deriveHeightIndexingState('200666', backfilling).kind).toBe('pending');
+  });
+  it('beyond-tip above the chain tip', () => {
+    expect(deriveHeightIndexingState('200667', backfilling)).toEqual({
+      kind: 'beyond-tip',
+      latestChainHeight: '200666',
+    });
   });
 });
 

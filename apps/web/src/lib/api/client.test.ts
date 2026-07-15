@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet, apiGetPath } from './client';
+import {
+  ApiError,
+  ERROR_CODES,
+  REQUEST_TIMEOUT_MS,
+  apiGet,
+  apiGetPath,
+  isRetryable,
+} from './client';
 
 function spyFetch(body: unknown = { data: {} }) {
   const spy = vi.fn(async (_url?: string, _init?: unknown) => ({
@@ -83,5 +90,47 @@ describe('apiGetPath templated paths', () => {
       code: 'missing_path_param',
     });
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('request timeout', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('rejects with a timeout ApiError when the API never responds', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url?: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')),
+            );
+          }),
+      ),
+    );
+    const pending = apiGet('/api/v1/status').catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1);
+    const err = await pending;
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe(ERROR_CODES.timeout);
+  });
+});
+
+describe('isRetryable', () => {
+  const mk = (code: string) => new ApiError(code, 'msg', 0);
+
+  it('is true only for transient transport codes', () => {
+    expect(isRetryable(mk(ERROR_CODES.networkUnavailable))).toBe(true);
+    expect(isRetryable(mk(ERROR_CODES.httpError))).toBe(true);
+    expect(isRetryable(mk(ERROR_CODES.timeout))).toBe(true);
+  });
+
+  it('is false for definitive API answers and unknown errors', () => {
+    expect(isRetryable(mk(ERROR_CODES.notFound))).toBe(false);
+    expect(isRetryable(mk(ERROR_CODES.invalidHeight))).toBe(false);
+    expect(isRetryable(mk(ERROR_CODES.notReady))).toBe(false);
+    expect(isRetryable(new Error('boom'))).toBe(false);
+    expect(isRetryable(undefined)).toBe(false);
   });
 });

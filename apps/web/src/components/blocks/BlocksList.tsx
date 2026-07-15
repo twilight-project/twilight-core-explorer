@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
+import { NewItemsBar } from '@/components/list/NewItemsBar';
 import { PaginatedTable, type Column } from '@/components/list/PaginatedTable';
 import { MonoCopy } from '@/components/ui/MonoCopy';
 import { OperatorLink } from '@/components/operator/OperatorLink';
@@ -12,6 +14,8 @@ type Block = BlocksResponse['data'][number];
 
 export function BlocksList() {
   const query = useBlocksList();
+  const queryClient = useQueryClient();
+  const newestLoadedHeight = query.data?.pages[0]?.data[0]?.height ?? null;
   const columns: Column<Block>[] = [
     {
       header: 'Height',
@@ -35,12 +39,20 @@ export function BlocksList() {
     },
   ];
   return (
-    <PaginatedTable
-      query={query}
-      columns={columns}
-      rowKey={(b) => b.height}
-      context="Blocks"
-      emptyMessage="No blocks indexed yet."
-    />
+    <div className="space-y-3">
+      <NewItemsBar
+        newestLoadedHeight={newestLoadedHeight}
+        label={(delta) => `${formatHeight(delta)} new block${delta === '1' ? '' : 's'} — refresh`}
+        // Keyset list: restart from page one at the new head (never refetch every loaded page).
+        onRefresh={() => void queryClient.resetQueries({ queryKey: ['blocks', 'list'] })}
+      />
+      <PaginatedTable
+        query={query}
+        columns={columns}
+        rowKey={(b) => b.height}
+        context="Blocks"
+        emptyMessage="No blocks indexed yet."
+      />
+    </div>
   );
 }

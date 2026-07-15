@@ -22,7 +22,12 @@ export const ERROR_CODES = {
   httpError: 'http_error',
   /** Synthetic: a required path parameter was missing before the request was issued. */
   missingPathParam: 'missing_path_param',
+  /** Synthetic: the API accepted the connection but did not answer within REQUEST_TIMEOUT_MS. */
+  timeout: 'timeout',
 } as const;
+
+/** A hung API must surface as an error, not an indefinite skeleton. */
+export const REQUEST_TIMEOUT_MS = 15_000;
 
 export class ApiError extends Error {
   readonly code: string;
@@ -40,6 +45,20 @@ export class ApiError extends Error {
 /** True when the failure is the API being unreachable (vs. a structured API error). */
 export function isApiUnavailable(err: unknown): boolean {
   return err instanceof ApiError && err.code === ERROR_CODES.networkUnavailable;
+}
+
+/**
+ * True for transient transport failures worth retrying (unreachable/hung/proxy errors).
+ * Structured API answers (not_found, invalid_*, not_ready) are definitive — retrying them
+ * only doubles the latency of the common "not indexed yet" case.
+ */
+export function isRetryable(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    (err.code === ERROR_CODES.networkUnavailable ||
+      err.code === ERROR_CODES.httpError ||
+      err.code === ERROR_CODES.timeout)
+  );
 }
 
 /** True when the API returned a structured not-found. */
@@ -77,19 +96,32 @@ async function request(
   concretePath: string,
   query?: Record<string, string | number | boolean | undefined>,
 ): Promise<unknown> {
+  // Distinguish "our timer fired" from a caller/browser abort or a plain network failure.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(buildUrl(concretePath, query), {
       method: 'GET',
       headers: { accept: 'application/json' },
+      signal: controller.signal,
     });
   } catch (cause) {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        ERROR_CODES.timeout,
+        `The Twilight API did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`,
+        0,
+      );
+    }
     throw new ApiError(
       ERROR_CODES.networkUnavailable,
       'The Twilight API is unreachable.',
       0,
       cause instanceof Error ? cause.message : String(cause),
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   const text = await res.text();

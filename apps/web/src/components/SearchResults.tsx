@@ -4,7 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { SearchResultsPicker } from './SearchResultsPicker';
 import { EmptyState, ErrorState, InvalidInput, LoadingState } from '@/components/states/States';
-import { useSearch } from '@/lib/api/queries';
+import { useSearch, useStatus } from '@/lib/api/queries';
+import { deriveHeightIndexingState } from '@/lib/freshness';
+import { formatHeight } from '@/lib/format/height';
 import { searchResultHref } from '@/lib/search';
 
 export function SearchResults() {
@@ -12,6 +14,7 @@ export function SearchResults() {
   const router = useRouter();
   const q = (params.get('q') ?? '').trim();
   const query = useSearch(q);
+  const status = useStatus();
 
   const data = query.data?.data;
   // Exactly one strong result -> direct navigation is allowed. Otherwise the user always chooses.
@@ -31,6 +34,25 @@ export function SearchResults() {
 
     const results = query.data.data;
     if (results.length === 0) {
+      // A height-like miss during backfill usually means "not indexed YET" — say so instead of
+      // a bare no-results (the height may exist on-chain past the indexer head).
+      const heightState = deriveHeightIndexingState(q, status.data?.data.indexer ?? null);
+      if (heightState.kind === 'pending') {
+        return (
+          <EmptyState
+            message={`Height ${formatHeight(q)} isn’t indexed yet — the indexer is at ${formatHeight(
+              heightState.lastIndexedHeight,
+            )} of ${formatHeight(heightState.latestChainHeight)}. It will appear as the backfill catches up.`}
+          />
+        );
+      }
+      if (heightState.kind === 'beyond-tip') {
+        return (
+          <EmptyState
+            message={`No results for “${q}” — the chain tip is ${formatHeight(heightState.latestChainHeight)}.`}
+          />
+        );
+      }
       return <EmptyState message={`No results for “${q}”.`} />;
     }
     if (onlyHref) {

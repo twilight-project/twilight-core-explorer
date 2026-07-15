@@ -3,6 +3,7 @@ import { Inter, Instrument_Serif, Roboto_Mono, Sora, Space_Grotesk } from 'next/
 import type { ReactNode } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { GlobalStatusBanner } from '@/components/freshness/GlobalStatusBanner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
 import './globals.css';
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="min-h-screen bg-background flex flex-col">
           <Providers>
             <Header />
+            <GlobalStatusBanner />
             <main
               id="main"
               tabIndex={-1}

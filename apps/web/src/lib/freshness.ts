@@ -28,6 +28,37 @@ export function deriveProjectionHealth(failures: StatusData['projectionFailures'
   return { failing: failures.unresolvedCount > 0, unresolvedCount: failures.unresolvedCount };
 }
 
+// Height indexing state: is a specific height already indexed, still pending backfill, or
+// beyond the chain tip entirely? Drives "not indexed yet" hints (search, block detail) so a
+// mid-backfill miss doesn't read as a hard "not found". BigInt/string math only.
+export type HeightIndexingState =
+  | { kind: 'unknown' }
+  | { kind: 'indexed' }
+  | { kind: 'pending'; lastIndexedHeight: string; latestChainHeight: string }
+  | { kind: 'beyond-tip'; latestChainHeight: string };
+
+export function deriveHeightIndexingState(
+  height: string,
+  indexer: StatusData['indexer'],
+): HeightIndexingState {
+  if (!/^\d+$/.test(height) || indexer === null) return { kind: 'unknown' };
+  const { lastIndexedHeight, latestChainHeight } = indexer;
+  if (
+    !lastIndexedHeight ||
+    !latestChainHeight ||
+    !/^\d+$/.test(lastIndexedHeight) ||
+    !/^\d+$/.test(latestChainHeight)
+  ) {
+    return { kind: 'unknown' };
+  }
+  const h = BigInt(height);
+  if (h <= BigInt(lastIndexedHeight)) return { kind: 'indexed' };
+  if (h <= BigInt(latestChainHeight)) {
+    return { kind: 'pending', lastIndexedHeight, latestChainHeight };
+  }
+  return { kind: 'beyond-tip', latestChainHeight };
+}
+
 // Sample freshness: compare an observed sample's height to the latest indexed height.
 // `unknown` = we have a sample height but no trustworthy latest height to compare against (status
 // pending/errored) — we must NOT claim "current" we cannot verify.

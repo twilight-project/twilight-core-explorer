@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { TxsAggregateStrip } from '@/components/txs/TxsAggregateStrip';
 import { TxsList } from '@/components/txs/TxsList';
+import { LiveLabel } from '@/components/freshness/LiveLabel';
 import { oneParam } from '@/lib/search-params';
 import { coerceStatus, TX_STATUS_OPTIONS } from '@/lib/status-filters';
 
@@ -36,7 +37,7 @@ export default function TxsPage({
           icon={ArrowLeftRight}
           iconTone="infra"
           title="All transactions"
-          action={<span className="font-mono text-xs text-text-muted">newest first · live</span>}
+          action={<LiveLabel />}
         />
         <CardBody>
           <TxsList status={status} />

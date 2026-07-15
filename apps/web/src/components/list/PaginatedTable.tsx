@@ -2,7 +2,14 @@
 
 import type { ReactNode } from 'react';
 import { Table, Td, Th, Tr } from '@/components/ui/Table';
-import { EmptyState, ErrorState, LoadingState, PaginationLoader } from '@/components/states/States';
+import { isApiUnavailable } from '@/lib/api/client';
+import {
+  ApiUnavailableNote,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PaginationLoader,
+} from '@/components/states/States';
 import type { ListEnvelope } from '@/lib/api/pagination';
 
 export type Column<T> = { header: string; cell: (row: T) => ReactNode; mono?: boolean };
@@ -16,6 +23,7 @@ type InfiniteListQuery<T> = {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: () => unknown;
+  refetch?: () => unknown;
 };
 
 // Minimal keyset-paginated table: flattens infinite-query pages and offers a Load-more button.
@@ -38,7 +46,17 @@ export function PaginatedTable<T>({
   emptyMessage?: string;
 }) {
   if (query.isPending) return <LoadingState rows={6} />;
-  if (query.isError) return <ErrorState error={query.error} context={context} />;
+  if (query.isError) {
+    if (isApiUnavailable(query.error)) {
+      return (
+        <ApiUnavailableNote
+          context={context}
+          onRetry={query.refetch ? () => void query.refetch?.() : undefined}
+        />
+      );
+    }
+    return <ErrorState error={query.error} context={context} />;
+  }
 
   const rows = query.data?.pages.flatMap((p) => p.data) ?? [];
   if (rows.length === 0) return <EmptyState message={emptyMessage} />;

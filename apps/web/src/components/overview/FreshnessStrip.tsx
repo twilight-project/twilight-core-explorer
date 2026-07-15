@@ -2,6 +2,7 @@
 
 import { clsx } from 'clsx';
 import { useProjections, useStatus } from '@/lib/api/queries';
+import { deriveIndexerFreshness } from '@/lib/freshness';
 import { formatHeight } from '@/lib/format/height';
 import { statusTone, type BadgeTone } from '@/lib/format/status';
 
@@ -50,7 +51,8 @@ export function FreshnessStrip() {
   const indexer = status.data?.data.indexer;
   const projList = projections.data?.data;
   const projErrors = projList ? projList.filter((p) => p.error !== null).length : 0;
-  const synced = indexer?.lagBlocks === '0';
+  // Single source of truth for "synced" — the shared 5-block threshold, not string equality.
+  const synced = deriveIndexerFreshness(indexer ?? null).kind === 'fresh';
 
   return (
     <div className="grid grid-cols-2 gap-grid sm:grid-cols-3 lg:grid-cols-5">

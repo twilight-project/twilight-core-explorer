@@ -252,21 +252,24 @@
   --card-hover: 248 246 240;
   --card-border: 214 209 196;
 
-  /* Ink-gold: the warm-gold identity carried at text-safe depth (≈5.2:1 on --background). */
-  --primary: 130 102 22;
-  --primary-light: 108 85 18;
-  --primary-dark: 92 72 15;
+  /* Ink-gold: the warm-gold identity carried at text-safe depth. Status/brand text also sits on
+     10%-tint surfaces (badges, the lag banner) over this paper ground, which RAISES the effective
+     background — every pair below clears AA on the tint blend too (guarded by theme-tokens.test.ts;
+     the live-browser axe run caught the first tuning at 4.48:1 on exactly that blend). */
+  --primary: 122 96 20;
+  --primary-light: 102 80 16;
+  --primary-dark: 87 68 14;
 
   --accent-blue: 29 100 189;
   --accent-orange: 180 83 9;
-  --accent-yellow: 146 96 6;
-  --accent-green: 15 122 87;
+  --accent-yellow: 138 90 5;
+  --accent-green: 13 107 76;
   --accent-red: 185 28 28;
 
-  --accent-gold: 130 102 22;
-  --accent-gold-light: 108 85 18;
-  --accent-gold-dark: 92 72 15;
-  --accent-amber: 146 96 6;
+  --accent-gold: 122 96 20;
+  --accent-gold-light: 102 80 16;
+  --accent-gold-dark: 87 68 14;
+  --accent-amber: 138 90 5;
   --accent-burgundy: 240 231 214;
 
   --text: 26 26 31;

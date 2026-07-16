@@ -21,7 +21,13 @@ export function ClaimingCard() {
           historical claim events only. Operators claim externally using the Twilight CLI.
         </p>
         <p className="mt-3 text-xs text-text-muted">Canonical command (documentation only):</p>
-        <pre className="mt-1 overflow-x-auto rounded-lg border border-card-border bg-background px-3 py-2 font-mono text-xs text-text">
+        {/* Horizontally scrollable on narrow viewports → must be keyboard-reachable (WCAG 2.1.1;
+            axe scrollable-region-focusable, caught by the e2e smoke tier on mobile). */}
+        <pre
+          tabIndex={0}
+          aria-label="Twilight CLI claim command"
+          className="mt-1 overflow-x-auto rounded-lg border border-card-border bg-background px-3 py-2 font-mono text-xs text-text"
+        >
           {CLAIM_COMMAND}
         </pre>
       </CardBody>

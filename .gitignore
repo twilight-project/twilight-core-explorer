@@ -57,3 +57,7 @@ junit.xml
 # Local reference repos and generated research artifacts
 reference/
 docs/research/artifacts/
+
+# Playwright (apps/web e2e smoke tier)
+apps/web/playwright-report/
+apps/web/test-results/

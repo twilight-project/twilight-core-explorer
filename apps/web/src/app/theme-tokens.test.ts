@@ -81,6 +81,16 @@ describe('theme token contrast (WCAG 1.4.3)', () => {
           const ratio = contrastRatio(tokenRgb(css, theme, token), tokenRgb(css, theme, surface));
           expect(ratio).toBeGreaterThanOrEqual(4.5);
         });
+        // Badges and the status banner render this token as text on ITS OWN 10% tint over the
+        // surface (`bg-<token>/10 text-<token>`). The blend shifts the effective background — on
+        // a light ground it lowers the ratio, and the live-browser axe run caught daylight's
+        // amber at 4.48:1 on exactly this pair. Guard the blended surface too.
+        it(`${theme}: --${token} on its 10% tint over --${surface} meets AA (>= 4.5:1)`, () => {
+          const fg = tokenRgb(css, theme, token);
+          const bg = tokenRgb(css, theme, surface);
+          const blend = fg.map((c, i) => 0.1 * c + 0.9 * (bg[i] ?? 0));
+          expect(contrastRatio(fg, blend)).toBeGreaterThanOrEqual(4.5);
+        });
       }
     }
   }

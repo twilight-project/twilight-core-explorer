@@ -18,7 +18,14 @@ export function SearchBar() {
   }
 
   return (
-    <form onSubmit={onSubmit} role="search" className="relative w-full max-w-md">
+    // Hashes/addresses are 40–64 chars: rest width fits the placeholder, and focus grows the bar
+    // (max-w-md → max-w-2xl) so what you type stays visible. Mono face: fixed-pitch hex/bech32 is
+    // far easier to visually verify than proportional sans.
+    <form
+      onSubmit={onSubmit}
+      role="search"
+      className="relative w-full max-w-md transition-[max-width] duration-200 focus-within:max-w-2xl"
+    >
       <Search
         size={16}
         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
@@ -29,7 +36,7 @@ export function SearchBar() {
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search height, hash, address, or CoreSlot…"
         aria-label="Search the explorer"
-        className="w-full rounded-xl border border-card-border bg-background-secondary py-2 pl-9 pr-3 text-sm text-text placeholder:text-text-muted focus:border-primary"
+        className="w-full rounded-xl border border-card-border bg-background-secondary py-2.5 pl-9 pr-3 font-mono text-sm text-text placeholder:font-sans placeholder:text-text-muted focus:border-primary"
       />
     </form>
   );

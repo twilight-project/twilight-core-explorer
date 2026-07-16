@@ -50,6 +50,23 @@ for (const { path, h1 } of ROUTES) {
   });
 }
 
+test('desktop: header search expands into a readable full-row overlay', async ({ page, isMobile }) => {
+  test.skip(!!isMobile, 'desktop only');
+  await mockApi(page);
+  await page.goto('/');
+  await page.getByText(/blocks behind chain tip/).waitFor();
+  await page.getByRole('button', { name: 'Search' }).click();
+  const input = page.getByRole('searchbox');
+  await expect(input).toBeVisible();
+  await input.fill('2C859B3C9B9DBFCD0C484FDE34C81D0810BE75759867E98654AF2AFA2984DCCB');
+  // The regression this guards: the old inline slot was ~50px wide beside the nav — typing was
+  // invisible. The overlay must span most of the header row.
+  const width = (await input.boundingBox())?.width ?? 0;
+  expect(width).toBeGreaterThan(600);
+  await input.press('Escape');
+  await expect(input).not.toBeVisible();
+});
+
 test('mobile: the hamburger disclosure opens the compact nav', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'mobile project only');
   await mockApi(page);

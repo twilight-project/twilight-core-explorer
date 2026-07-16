@@ -265,13 +265,16 @@ export function Header() {
       className="sticky top-0 z-40 border-b border-card-border bg-background/90 backdrop-blur"
     >
       <div className="mx-auto w-full lg:w-[1432px] px-4 sm:px-6 lg:px-[156px]">
-        <div className="flex h-16 items-center justify-between gap-4">
+        {/* `relative` anchors the search overlay, which expands across this whole row. */}
+        <div className="relative flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
             <span className="font-serif text-xl text-primary">Twilight</span>
             <span className="hidden text-sm text-text-muted sm:inline">Core Explorer</span>
           </Link>
-          <div className="hidden flex-1 justify-center lg:flex">
-            <SearchBar />
+          {/* Icon trigger only: beside the full nav this slot bottoms out around ~50px wide, so
+              the search input can never live INSIDE it — it overlays the row on demand instead. */}
+          <div className="hidden flex-1 justify-end lg:flex">
+            <SearchBar overlay />
           </div>
           <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary">
             {NAV.map((item, i) => (

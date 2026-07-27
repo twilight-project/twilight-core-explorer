@@ -41,13 +41,15 @@ export async function getNetworkRisk(prisma: PrismaClient) {
 }
 
 // The last `window` distinct committed heights that carry liveness evidence (newest-first). These are
-// the columns of the signing heatmap.
+// the columns of the signing heatmap. groupBy (NOT findMany+distinct): Prisma evaluates `distinct`
+// in the query engine after fetching every matching row — a full-table read per request once the
+// evidence table is millions of rows — while groupBy pushes GROUP BY…LIMIT into SQL, which Postgres
+// satisfies from the committedBlockHeight index with early termination (observed 28s → ms on devnet).
 export async function getRecentLivenessHeights(prisma: PrismaClient, window: number) {
-  const rows = await prisma.coreSlotLivenessEvidence.findMany({
-    distinct: ['committedBlockHeight'],
+  const rows = await prisma.coreSlotLivenessEvidence.groupBy({
+    by: ['committedBlockHeight'],
     orderBy: { committedBlockHeight: 'desc' },
     take: window,
-    select: { committedBlockHeight: true },
   });
   return rows.map((r) => r.committedBlockHeight);
 }

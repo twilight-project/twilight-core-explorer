@@ -359,6 +359,15 @@ export class MockPrisma {
         }
         return args.take ? rows.slice(0, args.take) : rows;
       },
+      // Mirrors Prisma groupBy for the heatmap heights query: distinct grouped values, ordered, limited.
+      groupBy: async (args = {}) => {
+        const field = args.by?.[0];
+        const values = new Set(this._livenessEvidence.map((r) => r[field].toString()));
+        let rows = [...values].map((v) => ({ [field]: BigInt(v) }));
+        if (args.orderBy?.[field] === 'desc') rows.sort((a, b) => descBig(a[field], b[field]));
+        else rows.sort((a, b) => -descBig(a[field], b[field]));
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
     };
 
     this.rewardEpochProjection = {

@@ -636,7 +636,12 @@ class MockRewardsPrisma {
       findMany: async (args) => {
         const w = args?.where ?? {};
         return this.slotRewards.filter((r) => {
-          if (w.slotId !== undefined && r.slotId !== w.slotId) return false;
+          if (w.slotId !== undefined) {
+            // Supports both the scalar form and the snapshot pre-read's { in: [...] } form.
+            if (typeof w.slotId === 'object' && w.slotId !== null && 'in' in w.slotId) {
+              if (!w.slotId.in.some((s) => s === r.slotId)) return false;
+            } else if (r.slotId !== w.slotId) return false;
+          }
           if (w.epochNumber?.gte !== undefined && r.epochNumber < w.epochNumber.gte) return false;
           if (w.epochNumber?.lte !== undefined && r.epochNumber > w.epochNumber.lte) return false;
           return true;

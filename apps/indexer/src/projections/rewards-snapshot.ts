@@ -33,7 +33,7 @@ export interface RewardsSnapshotChainClient {
 export interface RewardsSnapshotPrisma extends ProjectionCursorPrisma {
   coreSlotProjection: { findMany(args: unknown): Promise<{ slotId: bigint }[]> };
   slotRewardProjection: {
-    findUnique(args: unknown): Promise<SlotRewardRow | null>;
+    findMany(args: unknown): Promise<SlotRewardRow[]>;
     upsert(args: unknown): Promise<unknown>;
     updateMany(args: unknown): Promise<{ count: number }>;
   };
@@ -53,17 +53,25 @@ export interface RewardsSnapshotPrisma extends ProjectionCursorPrisma {
 }
 
 // The snapshot writes one observed row per (slot × epoch-reward) plus module-balance samples and the
-// claim reconcile, all in ONE transaction to keep the height-pinned sample atomic. On a large chain
-// that is thousands of upserts, which blows Prisma's DEFAULT 5s interactive-transaction timeout (seen
-// live on devnet: ~1,884 epochs × slots). Raise the per-transaction timeout (the proper "do less work"
-// fix — batched upserts — is a tracked Phase-14 optimization). maxWait covers connection-pool contention
-// with the concurrently-running ingest/projector loops.
-const REWARDS_SNAPSHOT_TX_TIMEOUT_MS = 120_000;
+// claim reconcile. On a large chain that is thousands of upserts — one interactive transaction around
+// all of them exceeds ANY reasonable Prisma timeout once the chain has enough epochs (live devnet:
+// ~1,884 epochs × slots timed out at 120s every tick and halted the cursor). The claimed-state merge
+// is pre-read in ONE query, then the pure upserts run in bounded chunks, each its own short
+// transaction. Sound because (a) the projection advisory lock serializes all projectors, so the
+// pre-read cannot go stale, (b) re-runs are idempotent and the merge is monotone (claimed only ever
+// strengthens to true), (c) the cursor advances only after everything lands — a crash mid-chunk
+// re-runs the same height, and (d) each row carries its own sampledAtHeight, which the product
+// already treats as a per-row property (13a J-004). Balance samples + the claim reconcile stay
+// atomic in the final transaction. maxWait covers pool contention with the ingest loop.
+const SLOT_REWARD_UPSERT_CHUNK = 500;
+const REWARDS_SNAPSHOT_TX_TIMEOUT_MS = 60_000;
 const REWARDS_SNAPSHOT_TX_MAX_WAIT_MS = 15_000;
 
 interface SlotRewardRow {
-  id: bigint;
+  slotId: bigint;
+  epochNumber: bigint;
   claimed: boolean;
+  claimedAtHeight: bigint | null;
 }
 
 interface RewardClaimRow {
@@ -158,14 +166,42 @@ export async function ingestRewardsSnapshot(
     return { height, slotRewardRows: 0, balanceSamples: 0, failed: true };
   }
 
-  // --- 2. WRITE everything in one transaction (every read succeeded). ------------------------
+  // --- 2. WRITE (every read succeeded). Slot-reward upserts run in bounded chunks; the
+  // balance samples + claim reconcile keep their single atomic transaction below.
   let slotRewardRows = 0;
   let balanceSamples = 0;
+
+  // Pre-read the existing claimed state in ONE query — replaces a findUnique per row. The
+  // projection advisory lock serializes every projector, so this map cannot go stale before
+  // the writes land.
+  const existingRows = await prisma.slotRewardProjection.findMany({
+    where: { slotId: { in: slotIds } },
+    select: { slotId: true, epochNumber: true, claimed: true, claimedAtHeight: true },
+  });
+  const existingByKey = new Map(
+    existingRows.map((r) => [`${r.slotId}:${r.epochNumber}`, r] as const),
+  );
+
+  const slotRewardWrites = slotRewards.map(({ slotId, reward, raw }) =>
+    buildSlotRewardUpsert({
+      slotId,
+      height,
+      reward,
+      raw,
+      existing: existingByKey.get(`${slotId}:${reward.epochNumber}`),
+    }));
+
+  for (let i = 0; i < slotRewardWrites.length; i += SLOT_REWARD_UPSERT_CHUNK) {
+    const chunk = slotRewardWrites.slice(i, i + SLOT_REWARD_UPSERT_CHUNK);
+    await prisma.$transaction(async (tx) => {
+      for (const write of chunk) {
+        await tx.slotRewardProjection.upsert(write);
+      }
+    }, { timeout: REWARDS_SNAPSHOT_TX_TIMEOUT_MS, maxWait: REWARDS_SNAPSHOT_TX_MAX_WAIT_MS });
+    slotRewardRows += chunk.length;
+  }
+
   await prisma.$transaction(async (tx) => {
-    for (const { slotId, reward, raw } of slotRewards) {
-      await upsertSlotReward(tx, { slotId, height, reward, raw });
-      slotRewardRows += 1;
-    }
     for (const balance of moduleBalanceEntries) {
       await upsertBalanceSample(tx, {
         height,
@@ -290,20 +326,24 @@ interface SlotRewardSnapshot {
   claimedAtHeight: bigint | null;
 }
 
-async function upsertSlotReward(
-  prisma: RewardsSnapshotPrisma,
-  args: { slotId: bigint; height: bigint; reward: SlotRewardSnapshot; raw: unknown },
-): Promise<void> {
-  const { slotId, height, reward } = args;
-  const existing = await prisma.slotRewardProjection.findUnique({
-    where: { slotId_epochNumber: { slotId, epochNumber: reward.epochNumber } },
-  });
+// Pure upsert-args builder: the claimed-state merge is resolved from the pre-read map, so the
+// write needs no read of its own and can run inside a bounded chunk transaction.
+function buildSlotRewardUpsert(args: {
+  slotId: bigint;
+  height: bigint;
+  reward: SlotRewardSnapshot;
+  raw: unknown;
+  existing: SlotRewardRow | undefined;
+}): Record<string, unknown> {
+  const { slotId, height, reward, existing } = args;
 
   // Reconciliation: never unset a claim already recorded (e.g. by the semantic claim
-  // projector). claimed becomes true if either the snapshot or a prior claim says so.
+  // projector). claimed becomes true if either the snapshot or a prior claim says so; a
+  // null claimedAtHeight from the snapshot never erases a previously recorded height.
   const claimed = reward.claimed || existing?.claimed === true;
+  const claimedAtHeight = reward.claimedAtHeight ?? existing?.claimedAtHeight ?? null;
 
-  await prisma.slotRewardProjection.upsert({
+  return {
     where: { slotId_epochNumber: { slotId, epochNumber: reward.epochNumber } },
     create: {
       slotId,
@@ -311,7 +351,7 @@ async function upsertSlotReward(
       amount: reward.amount,
       denom: reward.denom,
       claimed,
-      claimedAtHeight: reward.claimedAtHeight,
+      claimedAtHeight,
       sampledAtHeight: height,
       rawSnapshotJson: toJson(args.raw),
     },
@@ -319,11 +359,11 @@ async function upsertSlotReward(
       amount: reward.amount,
       denom: reward.denom,
       claimed,
-      ...(reward.claimedAtHeight !== null ? { claimedAtHeight: reward.claimedAtHeight } : {}),
+      claimedAtHeight,
       sampledAtHeight: height,
       rawSnapshotJson: toJson(args.raw),
     },
-  });
+  };
 }
 
 async function upsertBalanceSample(

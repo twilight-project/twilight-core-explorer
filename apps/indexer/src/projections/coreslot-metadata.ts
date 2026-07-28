@@ -52,6 +52,8 @@ export interface CoreSlotMetadataProjectionPrisma extends ProjectionCursorPrisma
     upsert(args: unknown): Promise<unknown>;
   };
   coreSlotProjection: {
+    // findUnique backs the genesis seed's repair path (fill-NULL-fields on existing rows).
+    findUnique(args: unknown): Promise<Record<string, unknown> | null>;
     upsert(args: unknown): Promise<unknown>;
   };
   projectionFailure: {

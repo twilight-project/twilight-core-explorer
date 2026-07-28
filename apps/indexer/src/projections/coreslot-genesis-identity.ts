@@ -29,7 +29,10 @@ import {
  */
 
 export interface CoreSlotGenesisIdentityPrisma {
-  coreSlotProjection: { upsert(args: unknown): Promise<unknown> };
+  coreSlotProjection: {
+    findUnique(args: unknown): Promise<Record<string, unknown> | null>;
+    upsert(args: unknown): Promise<unknown>;
+  };
   projectionFailure: { upsert(args: unknown): Promise<unknown> };
 }
 
@@ -111,16 +114,45 @@ export async function seedCoreSlotGenesisIdentity(
       lastSourceHeight: 1n,
       rawSnapshotJson: slot.raw ?? undefined,
     };
+    // Genesis identity is immutable and is only a BASELINE: on the reset+replay flow the
+    // table was cleared first, so the upsert takes the `create` path; later on-chain
+    // metadata/lifecycle/payout events upsert their own changes onto the same slotId.
+    //
+    // On a re-seed against an EXISTING row, the seed must never overwrite event-derived
+    // state — but it must also be able to REPAIR a row that events created before the
+    // baseline ever landed (seen on devnet: the first projector ticks ran while the chain
+    // node was unreachable, getGenesis failed, and the cursor moved past 1 — a later payout
+    // event then created slot 1's row with NULL status/consensusAddress). A baseline field
+    // that is NULL was provably never written by any event (event projectors only write
+    // non-null values), so filling exactly the NULL fields restores the missed baseline
+    // without touching anything the replay owns. updatedHeight/lastSourceHeight are event
+    // provenance — never regressed on repair.
+    const existing = await args.prisma.coreSlotProjection.findUnique({
+      where: { slotId: slot.slotId },
+    });
+    const repair: Record<string, unknown> = {};
+    if (existing) {
+      const baseline: Record<string, unknown> = {
+        status: slot.status,
+        operatorAddress: slot.operatorAddress,
+        payoutAddress: slot.payoutAddress,
+        consensusAddress: slot.consensusAddress,
+        consensusPubkeyJson: slot.consensusPubkeyJson ?? undefined,
+        rewardWeight: slot.rewardWeight,
+        consensusPower: slot.consensusPower,
+        metadataJson: slot.metadataJson ?? undefined,
+        createdHeight: slot.createdHeight,
+      };
+      for (const [field, value] of Object.entries(baseline)) {
+        if (existing[field] === null && value !== null && value !== undefined) {
+          repair[field] = value;
+        }
+      }
+    }
     await args.prisma.coreSlotProjection.upsert({
       where: { slotId: slot.slotId },
       create,
-      // Genesis identity is immutable and is only a BASELINE: on the reset+replay flow the
-      // table was cleared first, so this always takes the `create` path; later on-chain
-      // metadata/lifecycle/payout events upsert their own changes onto the same slotId. On an
-      // incremental re-seed (non-reset, startHeight<=1) the row already carries event-derived
-      // state, so the seed must NOT overwrite it — a no-op update preserves it (and avoids
-      // regressing updatedHeight back to the genesis baseline).
-      update: {},
+      update: repair,
     });
     slotsSeeded += 1;
   }

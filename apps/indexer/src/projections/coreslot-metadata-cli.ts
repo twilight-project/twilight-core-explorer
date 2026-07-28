@@ -1,6 +1,12 @@
+import { RestRpcChainClient } from '@twilight-explorer/chain-client';
+import { loadConfig } from '@twilight-explorer/config';
 import { createPrismaClient } from '@twilight-explorer/db';
 import { withProjectionAdvisoryLock } from './advisory-lock.js';
 import { getOrCreateProjectionCursor } from './cursor.js';
+import {
+  seedCoreSlotGenesisIdentity,
+  type CoreSlotGenesisIdentityPrisma,
+} from './coreslot-genesis-identity.js';
 import {
   projectCoreSlotMetadataRange,
   type CoreSlotMetadataProjectionPrisma,
@@ -21,8 +27,17 @@ async function main(): Promise<void> {
     throw new Error('DATABASE_URL is required for CoreSlot metadata projection');
   }
 
-  const chainId = process.env.CHAIN_ID ?? 'twilight-localnet-1';
+  const config = loadConfig(process.env);
+  const chainId = config.chainId;
   const prisma = createPrismaClient();
+  // The genesis identity seed reads the genesis document through ChainClient. Without a client
+  // here the forward (tick-loop) path could never seed genesis-created slots at all — they'd
+  // surface with NULL status/consensus until a full reset+rebuild (seen live on devnet).
+  const client = new RestRpcChainClient({
+    cometRpcUrl: config.cometRpcUrl,
+    restUrl: config.restUrl,
+    timeoutMs: config.requestTimeoutMs,
+  });
 
   try {
     await withProjectionAdvisoryLock(prisma, async () => {
@@ -40,13 +55,33 @@ async function main(): Promise<void> {
       const endHeight = parseOptionalHeight(process.env.END_HEIGHT)
         ?? await getMaxBlockHeight(prisma as unknown as BlockAggregatePrisma);
 
-      if (endHeight < startHeight) return;
+      // SEED_GENESIS=true forces a one-shot (re)seed/repair regardless of cursor position —
+      // the recovery lever for a deployment whose first ticks ran without chain connectivity.
+      const seedGenesis = process.env.SEED_GENESIS === 'true'
+        || process.env.RESET_PROJECTION === 'true'
+        || startHeight <= 1n;
+
+      if (endHeight < startHeight) {
+        // Nothing to replay, but the seed must not silently die with the early return —
+        // an empty DB's very first tick lands here (endHeight 0), which is exactly when
+        // the genesis baseline should be written.
+        if (seedGenesis) {
+          await seedCoreSlotGenesisIdentity({
+            prisma: prisma as unknown as CoreSlotGenesisIdentityPrisma,
+            chainId,
+            client,
+          });
+        }
+        return;
+      }
 
       await projectCoreSlotMetadataRange({
         prisma: prisma as unknown as CoreSlotMetadataProjectionPrisma,
         chainId,
         startHeight,
         endHeight,
+        client,
+        seedGenesis,
       });
     });
   } finally {

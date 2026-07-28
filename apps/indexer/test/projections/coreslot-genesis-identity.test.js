@@ -34,6 +34,7 @@ class MockSeedPrisma {
     this.slots = new Map();
     this.failures = new Map();
     this.coreSlotProjection = {
+      findUnique: async (args) => this.slots.get(args.where.slotId.toString()) ?? null,
       upsert: async (args) => {
         const key = args.where.slotId.toString();
         const existing = this.slots.get(key);
@@ -108,6 +109,28 @@ describe('CoreSlot genesis identity seed (F1)', () => {
     const row = p.slots.get('1');
     assert.equal(row.status, 'INACTIVE'); // not regressed to genesis ACTIVE
     assert.equal(row.updatedHeight, 42n); // not regressed to genesis baseline 1
+  });
+
+  it('re-seed REPAIRS baseline fields an event-created row never received (fill-NULL-only)', async () => {
+    const p = new MockSeedPrisma();
+    // The devnet failure mode: an event created the row BEFORE the baseline landed (the seed's
+    // first run failed while the chain node was unreachable) — status/consensus never filled.
+    p.slots.set('1', {
+      slotId: 1n,
+      status: null,
+      consensusAddress: null,
+      operatorAddress: 'twilight1eventwrote',
+      payoutAddress: 'twilight1eventwrote',
+      updatedHeight: 121776n,
+    });
+    const client = clientWith([genesisSlot(1, { pubkeyB64: PUB })]);
+    await seedCoreSlotGenesisIdentity({ prisma: p, chainId: CHAIN_ID, client });
+
+    const row = p.slots.get('1');
+    assert.notEqual(row.status, null); // repaired from genesis baseline
+    assert.notEqual(row.consensusAddress, null); // repaired from genesis baseline
+    assert.equal(row.operatorAddress, 'twilight1eventwrote'); // event-derived state untouched
+    assert.equal(row.updatedHeight, 121776n); // provenance not regressed
   });
 
   it('records invalid_slot_id and skips a slot missing its id (never fabricates)', async () => {

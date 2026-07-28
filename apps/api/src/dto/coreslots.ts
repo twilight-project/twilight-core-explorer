@@ -201,10 +201,18 @@ export interface HealthRow {
   summaryStatus: string | null;
 }
 
+// Stored statuses carry two spellings: event projectors persist the chain's raw enum
+// (`SLOT_STATUS_ACTIVE`) while the genesis identity seed persists the genesis document's bare
+// form (`ACTIVE`). The API is the normalization boundary: responses always expose the bare
+// form, and the list filter accepts it (matching both stored spellings).
+export function normalizeSlotStatus(status: string | null): string | null {
+  return status === null ? null : status.replace(/^SLOT_STATUS_/, '');
+}
+
 export function toCoreSlotListItem(row: CoreSlotRow): Static<typeof CoreSlotListItem> {
   return {
     slotId: row.slotId.toString(),
-    status: row.status,
+    status: normalizeSlotStatus(row.status),
     operatorAddress: row.operatorAddress,
     payoutAddress: row.payoutAddress,
     consensusAddress: row.consensusAddress,
@@ -223,7 +231,7 @@ export function toCoreSlotDetail(
 ): Static<typeof CoreSlotDetail> {
   const detail: Static<typeof CoreSlotDetail> = {
     slotId: row.slotId.toString(),
-    status: row.status,
+    status: normalizeSlotStatus(row.status),
     operatorAddress: row.operatorAddress,
     payoutAddress: row.payoutAddress,
     consensusAddress: row.consensusAddress,

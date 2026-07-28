@@ -21,7 +21,11 @@ export async function listCoreSlots(
 ) {
   return prisma.coreSlotProjection.findMany({
     where: {
-      ...(params.status !== undefined ? { status: params.status } : {}),
+      // Match both stored spellings: event projectors persist the chain enum
+      // (SLOT_STATUS_ACTIVE), the genesis seed persists the bare form (ACTIVE).
+      ...(params.status !== undefined
+        ? { status: { in: [params.status, `SLOT_STATUS_${params.status}`] } }
+        : {}),
       ...(params.operatorAddress !== undefined ? { operatorAddress: params.operatorAddress } : {}),
       ...(params.consensusAddress !== undefined ? { consensusAddress: params.consensusAddress } : {}),
       ...(params.payoutAddress !== undefined ? { payoutAddress: params.payoutAddress } : {}),

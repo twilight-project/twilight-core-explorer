@@ -40,6 +40,25 @@ describe('coreslots list/detail', () => {
     await app.close();
   });
 
+  it('status filter matches BOTH stored spellings and responses expose the bare form', async () => {
+    // Event projectors persist the chain enum (SLOT_STATUS_ACTIVE); the genesis identity seed
+    // persists the genesis document's bare form (ACTIVE). The web filter sends ?status=ACTIVE —
+    // before normalization it silently matched nothing (live devnet regression).
+    const app = await build({
+      coreSlots: [
+        coreSlot(1, { status: 'ACTIVE' }), // genesis-seeded spelling
+        coreSlot(2, { status: 'SLOT_STATUS_ACTIVE' }), // event-derived spelling
+        coreSlot(3, { status: 'SLOT_STATUS_INACTIVE' }),
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/coreslots?status=ACTIVE' });
+    assert.deepEqual(res.json().data.map((s) => s.slotId), ['1', '2']);
+    assert.deepEqual(res.json().data.map((s) => s.status), ['ACTIVE', 'ACTIVE']); // normalized out
+    const detail = await app.inject({ url: '/api/v1/coreslots/3' });
+    assert.equal(detail.json().data.status, 'INACTIVE'); // detail normalizes too
+    await app.close();
+  });
+
   it('detail includes semantic state + health quick fields', async () => {
     const app = await build({ coreSlots: [coreSlot(2)], healthSnapshots: [healthSnapshot(2)] });
     const res = await app.inject({ url: '/api/v1/coreslots/2' });

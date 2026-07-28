@@ -239,7 +239,13 @@ export class MockPrisma {
       findMany: async (args = {}) => {
         let r = [...this._coreSlots];
         const w = args.where ?? {};
-        if (w.status !== undefined) r = r.filter((s) => s.status === w.status);
+        if (w.status !== undefined) {
+          // Supports both the scalar form and the { in: [...] } dual-spelling status filter.
+          const wanted = typeof w.status === 'object' && w.status !== null && 'in' in w.status
+            ? w.status.in
+            : [w.status];
+          r = r.filter((s) => wanted.includes(s.status));
+        }
         if (w.operatorAddress !== undefined) r = r.filter((s) => s.operatorAddress === w.operatorAddress);
         if (w.consensusAddress !== undefined) r = r.filter((s) => s.consensusAddress === w.consensusAddress);
         if (w.payoutAddress !== undefined) r = r.filter((s) => s.payoutAddress === w.payoutAddress);

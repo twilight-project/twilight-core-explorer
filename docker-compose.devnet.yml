@@ -70,6 +70,10 @@ services:
       COMET_RPC_URL: ${COMET_RPC_URL}
       REST_URL: ${REST_URL}
       CHAIN_ID: ${CHAIN_ID}
+      # Heights ingested concurrently. The cursor stays a contiguous watermark regardless
+      # (ingest-range advances it only over the completed prefix); this only trades round-trip
+      # latency for node load. 1 restores the old strictly-sequential behavior.
+      INGEST_CONCURRENCY: ${INGEST_CONCURRENCY:-12}
       TICK_LOOP: "true"
       TICK_INTERVAL_SECONDS: ${INGEST_INTERVAL_SECONDS:-15}
     command: ["bash", "scripts/devnet/run-indexer-tick.sh"]

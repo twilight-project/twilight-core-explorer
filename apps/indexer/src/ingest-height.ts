@@ -25,6 +25,14 @@ export interface IngestHeightArgs {
   latestChainHeight?: bigint | undefined;
   client: ChainClient;
   prisma: IngestPrisma;
+  /**
+   * Skip the IndexerCursor write. `lastIndexedHeight` is a CONTIGUOUS watermark ("everything
+   * at or below this is indexed"), so when heights are ingested concurrently the individual
+   * height must NOT stamp it — a height finishing out of order would claim its unfinished
+   * predecessors. `ingestRange` owns the watermark in that mode and advances it only across
+   * the completed contiguous prefix.
+   */
+  skipCursorUpdate?: boolean | undefined;
 }
 
 export interface IngestHeightResult {
@@ -73,10 +81,16 @@ export async function ingestHeight(args: IngestHeightArgs): Promise<IngestHeight
   const { chainId, height, client, prisma } = args;
 
   try {
-    const block = await client.getBlock(height);
-    const blockResults = await client.getBlockResults(height);
-    const txs = await client.getTxsByHeight(height);
-    const existingBlock = await prisma.block.findUnique({ where: { height } });
+    // These four reads are independent, and on a remote node each costs a full round trip
+    // (~0.5 s to ap-southeast-1 from the explorer host). Serially that is ~1.5 s per block —
+    // ~35 h to backfill devnet-2's 84k blocks. Issued together it is one round trip.
+    // Promise.all rejects on the first failure, exactly like the sequential awaits did.
+    const [block, blockResults, txs, existingBlock] = await Promise.all([
+      client.getBlock(height),
+      client.getBlockResults(height),
+      client.getTxsByHeight(height),
+      prisma.block.findUnique({ where: { height } }),
+    ]);
 
     if (existingBlock?.hash && block.hash && existingBlock.hash !== block.hash) {
       await haltCursorHashMismatch(prisma, chainId, height, existingBlock.hash, block.hash);
@@ -124,7 +138,9 @@ export async function ingestHeight(args: IngestHeightArgs): Promise<IngestHeight
         });
       }
 
-      await updateCursorSuccess(tx, chainId, height, block.hash, args.latestChainHeight);
+      if (args.skipCursorUpdate !== true) {
+        await updateCursorSuccess(tx, chainId, height, block.hash, args.latestChainHeight);
+      }
     });
 
     return {

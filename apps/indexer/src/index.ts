@@ -4,7 +4,8 @@ import { createPrismaClient } from '@twilight-explorer/db';
 import { withIndexerAdvisoryLock } from './advisory-lock.js';
 import { assertChainIdMatches } from './chain-id-guard.js';
 import { getOrCreateCursor } from './cursor.js';
-import { ingestHeight, type IngestPrisma } from './ingest-height.js';
+import { type IngestPrisma } from './ingest-height.js';
+import { ingestRange, DEFAULT_INGEST_CONCURRENCY } from './ingest-range.js';
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -39,15 +40,15 @@ async function main(): Promise<void> {
 
       if (endHeight < startHeight) return;
 
-      for (let height = startHeight; height <= endHeight; height += 1n) {
-        await ingestHeight({
-          chainId: config.chainId,
-          height,
-          latestChainHeight,
-          client,
-          prisma: prisma as unknown as IngestPrisma,
-        });
-      }
+      await ingestRange({
+        chainId: config.chainId,
+        startHeight,
+        endHeight,
+        latestChainHeight,
+        client,
+        prisma: prisma as unknown as IngestPrisma,
+        concurrency: parsePositiveInt(process.env.INGEST_CONCURRENCY) ?? DEFAULT_INGEST_CONCURRENCY,
+      });
     });
   } finally {
     await prisma.$disconnect();
@@ -58,6 +59,12 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
+
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (!value?.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
 
 function parseOptionalHeight(value: string | undefined): bigint | undefined {
   if (!value?.trim()) return undefined;

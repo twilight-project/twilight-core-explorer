@@ -16,7 +16,7 @@ const ROUTES: { path: string; h1: RegExp }[] = [
   { path: '/network', h1: /validator set & network health/i },
   { path: '/liveness', h1: /liveness|signing/i },
   { path: '/rewards', h1: /rewards & emissions/i },
-  { path: '/rewards/claims', h1: /claim history/i },
+  { path: '/rewards/entitlements', h1: /entitlements/i },
   { path: '/supply', h1: /token supply/i },
   { path: '/diagnostics', h1: /diagnostics/i },
   { path: '/search?q=999999', h1: /search/i },

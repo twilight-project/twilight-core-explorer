@@ -1,5 +1,5 @@
 import { EpochsSection } from './sections/EpochsSection';
-import { ClaimsSection } from './sections/ClaimsSection';
+import { EntitlementsSection } from './sections/EntitlementsSection';
 import { BalancesSection } from './sections/BalancesSection';
 import { TreasurySection } from './sections/TreasurySection';
 import { ParamsSection } from './sections/ParamsSection';
@@ -14,7 +14,7 @@ export function RewardsView() {
   return (
     <div className="space-y-6">
       <EpochsSection />
-      <ClaimsSection />
+      <EntitlementsSection />
       <BalancesSection />
       <TreasurySection />
       <ParamsSection />

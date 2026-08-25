@@ -41,7 +41,7 @@ const FIXTURES: Record<string, unknown> = {
   '/api/v1/coreslots/{slotId}/key-rotations': page([]),
   '/api/v1/coreslots/{slotId}/windows': page([{ id: 'w1', consensusAddress: 'cons', operatorAddress: 'op', consensusPower: '10', validatorUpdateHeight: '1', effectiveFromHeight: '3', effectiveToHeight: null, status: 'open', openedByKind: 'genesis', closedByKind: null }]),
   '/api/v1/coreslots/{slotId}/proposed-blocks': page([{ height: '50', time: '1970-01-01T00:00:00.000Z', proposerAddress: 'cons', attributionStatus: 'attributed' }]),
-  '/api/v1/coreslots/{slotId}/rewards': page([{ epochNumber: '1', amount: '1000000', denom: 'utwlt', claimed: false, claimedAtHeight: null, claimTxHash: null, sampledAtHeight: '100', productionClaimReadiness: 'read_only_no_claim_action', claimSemantics: 'projection_observed_not_live_claimable' }]),
+  '/api/v1/coreslots/{slotId}/rewards': page([{ epochNumber: '1', entitlementAmount: '1000000', releasedAmount: '250000', denom: 'utwlt', payoutAddress: 'twilight1payout', totalBlocksActive: '360', slotStatusAtEpochClose: 'SLOT_STATUS_ACTIVE', rewardConfigVersion: '1', sampledAtHeight: '100', claimSemantics: 'projection_observed_not_live_claimable' }]),
 };
 
 function renderWithClient(ui: ReactElement) {
@@ -69,12 +69,12 @@ describe('CoreSlotDetail', () => {
     expect(screen.getByText('lifecycle')).toBeInTheDocument(); // authority event kind
     expect(screen.getByText('50')).toBeInTheDocument(); // proposed block height
     // Rewards caveat sourced from contract fields, visible:
-    expect(screen.getByText('read_only_no_claim_action')).toBeInTheDocument();
+    expect(screen.getByText('projection_observed_not_live_claimable')).toBeInTheDocument();
     expect(screen.getByText('projection_observed_not_live_claimable')).toBeInTheDocument();
     // 12c cross-link: rewards section links to the filtered claim history for this slot.
-    expect(screen.getByRole('link', { name: /view claim history/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /view all entitlements/i })).toHaveAttribute(
       'href',
-      '/rewards/claims?slotId=2',
+      '/rewards/entitlements?slotId=2',
     );
   });
 

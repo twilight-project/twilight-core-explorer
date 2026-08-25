@@ -28,21 +28,22 @@ const FIXTURES: Record<string, unknown> = {
       rewardSemantics: 'aggregate_projection',
     },
   ]),
-  '/api/v1/rewards/claims': page([
+  '/api/v1/rewards/entitlements': page([
     {
       id: '1',
       slotId: '1',
-      claimant: 'twilight1claimantxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-      payoutAddress: null,
-      startEpoch: '1',
-      endEpoch: '1',
-      amount: '1040475',
+      epochNumber: '1',
+      entitlementAmount: '1040475',
+      releasedAmount: '0',
       denom: 'utwlt',
-      height: '11',
-      txHash: 'ABCDEF1234567890ABCDEF',
-      msgIndex: 0,
-      productionClaimReadiness: 'read_only_no_claim_action',
-      claimSemantics: 'event_history_only',
+      payoutAddress: 'twilight1payoutxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      totalBlocksActive: '360',
+      slotStatusAtEpochClose: 'SLOT_STATUS_ACTIVE',
+      activationSequenceAtEpochClose: '1',
+      rewardConfigVersion: '1',
+      createdHeight: '11',
+      sampledAtHeight: '11',
+      claimSemantics: 'projection_observed_not_live_claimable',
     },
   ]),
   '/api/v1/rewards/balances': page([
@@ -94,9 +95,10 @@ describe('RewardsView (/rewards hub)', () => {
     expect(screen.queryByText(/rewardPool/)).toBeNull();
     expect(screen.queryByText(/carryOut/)).toBeNull();
 
-    // Claims: read-only + history caveat (the post-7.2 readiness literal).
-    expect(await screen.findByText('read_only_no_claim_action')).toBeInTheDocument();
-    expect(screen.getByText('event_history_only')).toBeInTheDocument();
+    // Entitlements: observed-sample caveat literal (contract-sourced).
+    expect(
+      (await screen.findAllByText('projection_observed_not_live_claimable')).length,
+    ).toBeGreaterThan(0);
 
     // Balances (sampled): the source:"sampled" caveat value is rendered (the 4th locked caveat).
     expect(await screen.findByText('fee_pool')).toBeInTheDocument();
@@ -105,10 +107,10 @@ describe('RewardsView (/rewards hub)', () => {
     expect(await screen.findByText('community-grant')).toBeInTheDocument();
     expect(await screen.findByText('activated')).toBeInTheDocument();
 
-    // Non-actionable Claiming card.
+    // Non-actionable release explainer.
     expect(
       screen.getByText(
-        'Claiming is not available from this explorer. This page displays observed rewards and historical claim events only. Operators claim externally using the Twilight CLI.',
+        /There is no claim action/,
       ),
     ).toBeInTheDocument();
   });
@@ -118,15 +120,15 @@ describe('RewardsView (/rewards hub)', () => {
     renderWithClient(<RewardsView />);
 
     expect(await screen.findByText('No finalized epochs yet.')).toBeInTheDocument();
-    expect(await screen.findByText('No claim events recorded.')).toBeInTheDocument();
+    expect(await screen.findByText('No entitlements recorded.')).toBeInTheDocument();
     expect(await screen.findByText('No balance samples recorded.')).toBeInTheDocument();
     // With zero rows there is no contract field to echo, so no per-section caveat renders.
     expect(screen.queryByText('aggregate_projection')).toBeNull();
-    expect(screen.queryByText('read_only_no_claim_action')).toBeNull();
+    expect(screen.queryByText('projection_observed_not_live_claimable')).toBeNull();
     expect(screen.queryByText('sampled')).toBeNull();
-    // ...but the always-present non-actionable Claiming card still states the read-only posture.
+    // ...but the always-present release explainer still states the read-only posture.
     expect(
-      screen.getByText(/Claiming is not available from this explorer/),
+      screen.getByText(/There is no claim action/),
     ).toBeInTheDocument();
   });
 

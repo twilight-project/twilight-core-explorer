@@ -17,11 +17,11 @@ export async function getEpoch(prisma: PrismaClient, epochNumber: bigint) {
   return prisma.rewardEpochProjection.findUnique({ where: { epochNumber } });
 }
 
-export async function listSlotRewards(
+export async function listSlotEntitlements(
   prisma: PrismaClient,
   params: { slotId: bigint; beforeEpoch: bigint | undefined; limit: number },
 ) {
-  return prisma.slotRewardProjection.findMany({
+  return prisma.slotEntitlementProjection.findMany({
     where: {
       slotId: params.slotId,
       ...(params.beforeEpoch !== undefined ? { epochNumber: { lt: params.beforeEpoch } } : {}),
@@ -31,43 +31,27 @@ export async function listSlotRewards(
   });
 }
 
-export interface ListClaimsParams {
-  beforeHeight: bigint | undefined;
-  beforeId: bigint | undefined;
+// Claims are retired (twilight-core aa568f61): entitlements are the reward unit now.
+export interface ListEpochEntitlementsParams {
+  epochNumber: bigint | undefined;
   slotId: bigint | undefined;
-  claimant: string | undefined;
-  txHash: string | undefined;
-  fromHeight: bigint | undefined;
-  toHeight: bigint | undefined;
+  payoutAddress: string | undefined;
+  beforeSlotId: bigint | undefined;
   limit: number;
 }
 
-export async function listClaims(prisma: PrismaClient, params: ListClaimsParams) {
-  const heightRange =
-    params.fromHeight !== undefined || params.toHeight !== undefined
-      ? {
-          height: {
-            ...(params.fromHeight !== undefined ? { gte: params.fromHeight } : {}),
-            ...(params.toHeight !== undefined ? { lte: params.toHeight } : {}),
-          },
-        }
-      : {};
-  return prisma.rewardClaimEvent.findMany({
+export async function listEpochEntitlements(
+  prisma: PrismaClient,
+  params: ListEpochEntitlementsParams,
+) {
+  return prisma.slotEntitlementProjection.findMany({
     where: {
+      ...(params.epochNumber !== undefined ? { epochNumber: params.epochNumber } : {}),
       ...(params.slotId !== undefined ? { slotId: params.slotId } : {}),
-      ...(params.claimant !== undefined ? { claimant: params.claimant } : {}),
-      ...(params.txHash !== undefined ? { txHash: params.txHash } : {}),
-      ...heightRange,
-      ...(params.beforeHeight !== undefined && params.beforeId !== undefined
-        ? {
-            OR: [
-              { height: { lt: params.beforeHeight } },
-              { height: params.beforeHeight, id: { lt: params.beforeId } },
-            ],
-          }
-        : {}),
+      ...(params.payoutAddress !== undefined ? { payoutAddress: params.payoutAddress } : {}),
+      ...(params.beforeSlotId !== undefined ? { slotId: { lt: params.beforeSlotId } } : {}),
     },
-    orderBy: [{ height: 'desc' }, { id: 'desc' }],
+    orderBy: [{ epochNumber: 'desc' }, { slotId: 'asc' }],
     take: params.limit,
   });
 }

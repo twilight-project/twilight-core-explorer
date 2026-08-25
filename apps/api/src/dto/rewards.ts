@@ -59,13 +59,14 @@ export const RewardEpochDetailResponse = Type.Object(
 export const SlotRewardItem = Type.Object(
   {
     epochNumber: HeightString,
-    amount: Type.String(),
+    entitlementAmount: Type.String(),
+    releasedAmount: Type.String(),
     denom: Type.String(),
-    claimed: Type.Boolean(),
-    claimedAtHeight: Nullable(HeightString),
-    claimTxHash: Nullable(Type.String()),
+    payoutAddress: Nullable(Type.String()),
+    totalBlocksActive: Nullable(HeightString),
+    slotStatusAtEpochClose: Nullable(Type.String()),
+    rewardConfigVersion: Nullable(HeightString),
     sampledAtHeight: Nullable(HeightString),
-    productionClaimReadiness: Type.Literal(PRODUCTION_CLAIM_READINESS),
     claimSemantics: Type.Literal(CLAIM_SEMANTICS_OBSERVED),
   },
   { $id: 'SlotRewardItem' },
@@ -75,29 +76,30 @@ export const SlotRewardListResponse = Type.Object(
   { $id: 'SlotRewardListResponse' },
 );
 
-// ---------- claims ----------
+// ---------- entitlements (replaces the retired claim surface) ----------
 
-export const ClaimItem = Type.Object(
+export const EntitlementItem = Type.Object(
   {
     id: HeightString,
     slotId: HeightString,
-    claimant: Nullable(Type.String()),
+    epochNumber: HeightString,
+    entitlementAmount: Type.String(),
+    releasedAmount: Type.String(),
+    denom: Type.String(),
     payoutAddress: Nullable(Type.String()),
-    startEpoch: Nullable(HeightString),
-    endEpoch: Nullable(HeightString),
-    amount: Nullable(Type.String()),
-    denom: Nullable(Type.String()),
-    height: HeightString,
-    txHash: Type.String(),
-    msgIndex: Nullable(Type.Integer()),
-    productionClaimReadiness: Type.Literal(PRODUCTION_CLAIM_READINESS),
-    claimSemantics: Type.Literal(CLAIM_SEMANTICS_HISTORY),
+    totalBlocksActive: Nullable(HeightString),
+    slotStatusAtEpochClose: Nullable(Type.String()),
+    activationSequenceAtEpochClose: Nullable(HeightString),
+    rewardConfigVersion: Nullable(HeightString),
+    createdHeight: Nullable(HeightString),
+    sampledAtHeight: HeightString,
+    claimSemantics: Type.Literal(CLAIM_SEMANTICS_OBSERVED),
   },
-  { $id: 'ClaimItem' },
+  { $id: 'EntitlementItem' },
 );
-export const ClaimListResponse = Type.Object(
-  { data: Type.Array(ClaimItem), page: PageInfoSchema },
-  { $id: 'ClaimListResponse' },
+export const EntitlementListResponse = Type.Object(
+  { data: Type.Array(EntitlementItem), page: PageInfoSchema },
+  { $id: 'EntitlementListResponse' },
 );
 
 // ---------- rewards balances ----------
@@ -168,15 +170,13 @@ export const EpochDetailQuery = Type.Object(
   { additionalProperties: false },
 );
 export const SlotRewardsQuery = Type.Object({ limit: LIMIT, cursor: CURSOR }, { additionalProperties: false });
-export const ClaimsQuery = Type.Object(
+export const EntitlementsQuery = Type.Object(
   {
     limit: LIMIT,
     cursor: CURSOR,
+    epoch: DIGITS,
     slotId: DIGITS,
-    claimant: Type.Optional(Type.String()),
-    txHash: Type.Optional(Type.String()),
-    fromHeight: DIGITS,
-    toHeight: DIGITS,
+    payoutAddress: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
@@ -244,57 +244,63 @@ export function toEpochDetail(r: EpochRow, includeRaw: boolean): Static<typeof R
 
 export interface SlotRewardRow {
   epochNumber: bigint;
-  amount: string;
+  entitlementAmount: string;
+  releasedAmount: string;
   denom: string;
-  claimed: boolean;
-  claimedAtHeight: bigint | null;
-  claimTxHash: string | null;
+  payoutAddress: string | null;
+  totalBlocksActive: bigint | null;
+  slotStatusAtEpochClose: string | null;
+  rewardConfigVersion: bigint | null;
   sampledAtHeight: bigint | null;
 }
 
 export function toSlotRewardItem(r: SlotRewardRow): Static<typeof SlotRewardItem> {
   return {
     epochNumber: r.epochNumber.toString(),
-    amount: r.amount,
+    entitlementAmount: r.entitlementAmount,
+    releasedAmount: r.releasedAmount,
     denom: r.denom,
-    claimed: r.claimed,
-    claimedAtHeight: bigToString(r.claimedAtHeight),
-    claimTxHash: r.claimTxHash,
+    payoutAddress: r.payoutAddress,
+    totalBlocksActive: bigToString(r.totalBlocksActive),
+    slotStatusAtEpochClose: r.slotStatusAtEpochClose,
+    rewardConfigVersion: bigToString(r.rewardConfigVersion),
     sampledAtHeight: bigToString(r.sampledAtHeight),
-    productionClaimReadiness: PRODUCTION_CLAIM_READINESS,
     claimSemantics: CLAIM_SEMANTICS_OBSERVED,
   };
 }
 
-export interface ClaimRow {
+export interface EntitlementRow {
   id: bigint;
   slotId: bigint;
-  claimant: string | null;
+  epochNumber: bigint;
+  entitlementAmount: string;
+  releasedAmount: string;
+  denom: string;
   payoutAddress: string | null;
-  startEpoch: bigint | null;
-  endEpoch: bigint | null;
-  amount: string | null;
-  denom: string | null;
-  height: bigint;
-  txHash: string;
-  msgIndex: number | null;
+  totalBlocksActive: bigint | null;
+  slotStatusAtEpochClose: string | null;
+  activationSequenceAtEpochClose: bigint | null;
+  rewardConfigVersion: bigint | null;
+  createdHeight: bigint | null;
+  sampledAtHeight: bigint;
 }
 
-export function toClaimItem(r: ClaimRow): Static<typeof ClaimItem> {
+export function toEntitlementItem(r: EntitlementRow): Static<typeof EntitlementItem> {
   return {
     id: r.id.toString(),
     slotId: r.slotId.toString(),
-    claimant: r.claimant,
-    payoutAddress: r.payoutAddress,
-    startEpoch: bigToString(r.startEpoch),
-    endEpoch: bigToString(r.endEpoch),
-    amount: r.amount,
+    epochNumber: r.epochNumber.toString(),
+    entitlementAmount: r.entitlementAmount,
+    releasedAmount: r.releasedAmount,
     denom: r.denom,
-    height: r.height.toString(),
-    txHash: r.txHash,
-    msgIndex: r.msgIndex,
-    productionClaimReadiness: PRODUCTION_CLAIM_READINESS,
-    claimSemantics: CLAIM_SEMANTICS_HISTORY,
+    payoutAddress: r.payoutAddress,
+    totalBlocksActive: bigToString(r.totalBlocksActive),
+    slotStatusAtEpochClose: r.slotStatusAtEpochClose,
+    activationSequenceAtEpochClose: bigToString(r.activationSequenceAtEpochClose),
+    rewardConfigVersion: bigToString(r.rewardConfigVersion),
+    createdHeight: bigToString(r.createdHeight),
+    sampledAtHeight: r.sampledAtHeight.toString(),
+    claimSemantics: CLAIM_SEMANTICS_OBSERVED,
   };
 }
 

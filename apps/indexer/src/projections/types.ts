@@ -196,21 +196,18 @@ export const REWARDS_PROJECTIONS = [
 export const BALANCE_SNAPSHOT_PROJECTION = 'balance_snapshot_v1';
 export const SUPPLY_SAMPLE_KIND = 'supply';
 
-export const REWARDS_CLAIM_TYPE_URL = '/twilight.rewards.v1.MsgClaimRewards';
 export const REWARDS_UPDATE_PARAMS_TYPE_URL =
   '/twilight.rewards.v1.MsgUpdateRewardsParams';
 export const REWARDS_PAUSE_TYPE_URL = '/twilight.rewards.v1.MsgPauseRewards';
 export const REWARDS_RESUME_TYPE_URL = '/twilight.rewards.v1.MsgResumeRewards';
 
 export const REWARDS_MESSAGE_TYPE_URLS = [
-  REWARDS_CLAIM_TYPE_URL,
   REWARDS_UPDATE_PARAMS_TYPE_URL,
   REWARDS_PAUSE_TYPE_URL,
   REWARDS_RESUME_TYPE_URL,
 ] as const;
 
 export const EPOCH_FINALIZED_EVENT_TYPE = 'epoch_finalized';
-export const REWARD_CLAIMED_EVENT_TYPE = 'reward_claimed';
 export const PARAMS_UPDATE_QUEUED_EVENT_TYPE = 'params_update_queued';
 export const PARAMS_ACTIVATED_EVENT_TYPE = 'params_activated';
 export const REWARDS_PAUSED_EVENT_TYPE = 'rewards_paused';
@@ -219,7 +216,6 @@ export const TREASURY_PAID_EVENT_TYPE = 'treasury_paid';
 
 export const REWARDS_EVENT_TYPES = [
   EPOCH_FINALIZED_EVENT_TYPE,
-  REWARD_CLAIMED_EVENT_TYPE,
   PARAMS_UPDATE_QUEUED_EVENT_TYPE,
   PARAMS_ACTIVATED_EVENT_TYPE,
   REWARDS_PAUSED_EVENT_TYPE,

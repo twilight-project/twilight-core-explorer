@@ -49,7 +49,7 @@ async function main(): Promise<void> {
       } else {
         console.log(
           `[rewards-snapshot] sampled at height ${result.height}: `
-            + `${result.slotRewardRows} slot reward rows, ${result.balanceSamples} balance samples`,
+            + `${result.balanceSamples} balance samples`,
         );
       }
     });

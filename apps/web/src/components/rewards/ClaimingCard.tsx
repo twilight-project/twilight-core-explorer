@@ -2,34 +2,31 @@ import { HandCoins } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 
 /**
- * Non-actionable Claiming info card (Phase 12 §4 — locked posture/copy).
+ * Non-actionable "how rewards are released" info card.
  *
- * The explorer performs NO claim action. This card MUST stay non-actionable: no claim button,
- * no disabled claim button, no wallet prompt, no dApp/web link, no "claim now" language. Claiming
- * is CLI-only; the canonical command is shown as documentation-only monospace text (selectable,
- * not a control).
+ * The explorer performs NO reward action. This card MUST stay non-actionable: no button, no
+ * disabled button, no wallet prompt, no dApp link, no "claim now"/"settle now" language.
+ *
+ * Content note (devnet-2 V2 switchover): this card used to document a `twilightd rewards claim`
+ * command. The chain DELETED manual claiming (twilight-core aa568f61) — that command no longer
+ * exists, so showing it was actively misleading. Release now happens through x/mining
+ * settlement, driven by each slot's settlement address.
  */
-const CLAIM_COMMAND = 'twilightd rewards claim <slotId> <startEpoch> <endEpoch> --from <operator>';
-
 export function ClaimingCard() {
   return (
     <Card>
-      <CardHeader icon={HandCoins} iconTone="rewards" title="Claiming" />
+      <CardHeader icon={HandCoins} iconTone="rewards" title="How rewards are released" />
       <CardBody>
         <p className="text-sm text-text-muted">
-          Claiming is not available from this explorer. This page displays observed rewards and
-          historical claim events only. Operators claim externally using the Twilight CLI.
+          There is no claim action — on this explorer or on the chain. When a reward epoch closes,
+          each active CoreSlot receives an immutable <span className="font-medium">entitlement</span>.
+          That entitlement is released through <span className="font-medium">x/mining settlement</span>:
+          the slot&apos;s settlement address submits chunks of participant payouts, and finalizing
+          the settlement pays any remainder to the operator&apos;s payout address.
         </p>
-        <p className="mt-3 text-xs text-text-muted">Canonical command (documentation only):</p>
-        {/* Horizontally scrollable on narrow viewports → must be keyboard-reachable (WCAG 2.1.1;
-            axe scrollable-region-focusable, caught by the e2e smoke tier on mobile). */}
-        <pre
-          tabIndex={0}
-          aria-label="Twilight CLI claim command"
-          className="mt-1 overflow-x-auto rounded-lg border border-card-border bg-background px-3 py-2 font-mono text-xs text-text"
-        >
-          {CLAIM_COMMAND}
-        </pre>
+        <p className="mt-3 text-sm text-text-muted">
+          This page shows the resulting entitlements and settlements as observed projections.
+        </p>
       </CardBody>
     </Card>
   );

@@ -5666,7 +5666,7 @@
     },
     "/api/v1/coreslots/{slotId}/rewards": {
       "get": {
-        "summary": "Reward history for a CoreSlot (observed projection, not live claimable)",
+        "summary": "Per-epoch entitlement history for a CoreSlot (observed projection)",
         "tags": [
           "rewards"
         ],
@@ -5717,13 +5717,14 @@
                         "type": "object",
                         "required": [
                           "epochNumber",
-                          "amount",
+                          "entitlementAmount",
+                          "releasedAmount",
                           "denom",
-                          "claimed",
-                          "claimedAtHeight",
-                          "claimTxHash",
+                          "payoutAddress",
+                          "totalBlocksActive",
+                          "slotStatusAtEpochClose",
+                          "rewardConfigVersion",
                           "sampledAtHeight",
-                          "productionClaimReadiness",
                           "claimSemantics"
                         ],
                         "properties": {
@@ -5732,16 +5733,26 @@
                             "description": "Decimal height/id as string",
                             "type": "string"
                           },
-                          "amount": {
+                          "entitlementAmount": {
+                            "type": "string"
+                          },
+                          "releasedAmount": {
                             "type": "string"
                           },
                           "denom": {
                             "type": "string"
                           },
-                          "claimed": {
-                            "type": "boolean"
+                          "payoutAddress": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
-                          "claimedAtHeight": {
+                          "totalBlocksActive": {
                             "anyOf": [
                               {
                                 "pattern": "^\\d+$",
@@ -5753,9 +5764,21 @@
                               }
                             ]
                           },
-                          "claimTxHash": {
+                          "slotStatusAtEpochClose": {
                             "anyOf": [
                               {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "rewardConfigVersion": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
                                 "type": "string"
                               },
                               {
@@ -5773,12 +5796,6 @@
                               {
                                 "type": "null"
                               }
-                            ]
-                          },
-                          "productionClaimReadiness": {
-                            "type": "string",
-                            "enum": [
-                              "read_only_no_claim_action"
                             ]
                           },
                           "claimSemantics": {
@@ -5890,9 +5907,9 @@
         }
       }
     },
-    "/api/v1/rewards/claims": {
+    "/api/v1/rewards/entitlements": {
       "get": {
-        "summary": "Reward claim history (event history only; not live claimable)",
+        "summary": "Per-slot, per-epoch reward entitlements (observed projection)",
         "tags": [
           "rewards"
         ],
@@ -5922,6 +5939,15 @@
               "type": "string"
             },
             "in": "query",
+            "name": "epoch",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
             "name": "slotId",
             "required": false
           },
@@ -5930,33 +5956,7 @@
               "type": "string"
             },
             "in": "query",
-            "name": "claimant",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "name": "txHash",
-            "required": false
-          },
-          {
-            "schema": {
-              "pattern": "^\\d+$",
-              "type": "string"
-            },
-            "in": "query",
-            "name": "fromHeight",
-            "required": false
-          },
-          {
-            "schema": {
-              "pattern": "^\\d+$",
-              "type": "string"
-            },
-            "in": "query",
-            "name": "toHeight",
+            "name": "payoutAddress",
             "required": false
           }
         ],
@@ -5979,16 +5979,17 @@
                         "required": [
                           "id",
                           "slotId",
-                          "claimant",
-                          "payoutAddress",
-                          "startEpoch",
-                          "endEpoch",
-                          "amount",
+                          "epochNumber",
+                          "entitlementAmount",
+                          "releasedAmount",
                           "denom",
-                          "height",
-                          "txHash",
-                          "msgIndex",
-                          "productionClaimReadiness",
+                          "payoutAddress",
+                          "totalBlocksActive",
+                          "slotStatusAtEpochClose",
+                          "activationSequenceAtEpochClose",
+                          "rewardConfigVersion",
+                          "createdHeight",
+                          "sampledAtHeight",
                           "claimSemantics"
                         ],
                         "properties": {
@@ -6002,15 +6003,19 @@
                             "description": "Decimal height/id as string",
                             "type": "string"
                           },
-                          "claimant": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
+                          "epochNumber": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "entitlementAmount": {
+                            "type": "string"
+                          },
+                          "releasedAmount": {
+                            "type": "string"
+                          },
+                          "denom": {
+                            "type": "string"
                           },
                           "payoutAddress": {
                             "anyOf": [
@@ -6022,7 +6027,7 @@
                               }
                             ]
                           },
-                          "startEpoch": {
+                          "totalBlocksActive": {
                             "anyOf": [
                               {
                                 "pattern": "^\\d+$",
@@ -6034,7 +6039,17 @@
                               }
                             ]
                           },
-                          "endEpoch": {
+                          "slotStatusAtEpochClose": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "activationSequenceAtEpochClose": {
                             "anyOf": [
                               {
                                 "pattern": "^\\d+$",
@@ -6046,9 +6061,11 @@
                               }
                             ]
                           },
-                          "amount": {
+                          "rewardConfigVersion": {
                             "anyOf": [
                               {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
                                 "type": "string"
                               },
                               {
@@ -6056,9 +6073,11 @@
                               }
                             ]
                           },
-                          "denom": {
+                          "createdHeight": {
                             "anyOf": [
                               {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
                                 "type": "string"
                               },
                               {
@@ -6066,38 +6085,19 @@
                               }
                             ]
                           },
-                          "height": {
+                          "sampledAtHeight": {
                             "pattern": "^\\d+$",
                             "description": "Decimal height/id as string",
                             "type": "string"
                           },
-                          "txHash": {
-                            "type": "string"
-                          },
-                          "msgIndex": {
-                            "anyOf": [
-                              {
-                                "type": "integer"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "productionClaimReadiness": {
-                            "type": "string",
-                            "enum": [
-                              "read_only_no_claim_action"
-                            ]
-                          },
                           "claimSemantics": {
                             "type": "string",
                             "enum": [
-                              "event_history_only"
+                              "projection_observed_not_live_claimable"
                             ]
                           }
                         },
-                        "title": "ClaimItem"
+                        "title": "EntitlementItem"
                       }
                     },
                     "page": {

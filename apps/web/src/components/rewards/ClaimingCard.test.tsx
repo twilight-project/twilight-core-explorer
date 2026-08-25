@@ -2,28 +2,24 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ClaimingCard } from './ClaimingCard';
 
-describe('ClaimingCard (non-actionable, Phase 12 §4)', () => {
-  it('shows the locked read-only copy + the CLI command as documentation', () => {
+describe('ClaimingCard (non-actionable release explainer)', () => {
+  it('explains entitlement -> settlement release without offering an action', () => {
     render(<ClaimingCard />);
-    expect(
-      screen.getByText(
-        'Claiming is not available from this explorer. This page displays observed rewards and historical claim events only. Operators claim externally using the Twilight CLI.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/twilightd rewards claim <slotId> <startEpoch> <endEpoch> --from <operator>/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/There is no claim action/)).toBeInTheDocument();
+    expect(screen.getByText(/x\/mining settlement/)).toBeInTheDocument();
   });
 
-  it('is strictly non-actionable: no button, no link, no wallet prompt, no "claim now"', () => {
+  it('never renders an actionable control', () => {
     render(<ClaimingCard />);
-    // No interactive controls of any kind in the card.
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.queryByRole('link')).toBeNull();
-    expect(screen.queryByRole('textbox')).toBeNull();
-    // No claim-action affordances or language.
-    expect(screen.queryByRole('button', { name: /claim/i })).toBeNull();
-    expect(screen.queryByText(/claim now/i)).toBeNull();
-    expect(screen.queryByText(/connect wallet/i)).toBeNull();
+  });
+
+  it('does not advertise the retired claim CLI command', () => {
+    // twilight-core aa568f61 deleted MsgClaimRewards; `twilightd rewards claim` no longer
+    // exists, so documenting it would send operators to a command that cannot work.
+    const { container } = render(<ClaimingCard />);
+    expect(container.textContent).not.toMatch(/twilightd rewards claim/);
+    expect(container.textContent).not.toMatch(/claim now/i);
   });
 });

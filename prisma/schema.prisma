@@ -8,8 +8,8 @@ datasource db {
 }
 
 model Block {
-  height             BigInt   @id
-  hash               String?  @unique
+  height             BigInt    @id
+  hash               String?   @unique
   time               DateTime?
   chainId            String?
   proposerAddress    String?
@@ -19,7 +19,7 @@ model Block {
   lastBlockHash      String?
   txCount            Int
   rawJson            Json
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   @@index([time])
   @@index([proposerAddress])
@@ -90,14 +90,14 @@ model Event {
 }
 
 model Account {
-  address        String   @id
+  address         String   @id
   firstSeenHeight BigInt?
   lastSeenHeight  BigInt?
-  txCount        Int      @default(0)
-  accountKind    String?
-  rawAccountJson Json?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  txCount         Int      @default(0)
+  accountKind     String?
+  rawAccountJson  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([lastSeenHeight])
   @@index([accountKind])
@@ -117,7 +117,7 @@ model IndexerCursor {
 }
 
 model DecodeFailure {
-  id          BigInt   @id @default(autoincrement())
+  id          BigInt    @id @default(autoincrement())
   height      BigInt
   txHash      String?
   msgIndex    Int?
@@ -128,9 +128,9 @@ model DecodeFailure {
   rawJson     Json?
   rawBase64   String?
   decodeError String
-  resolved    Boolean  @default(false)
+  resolved    Boolean   @default(false)
   resolvedAt  DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([height])
   @@index([txHash])
@@ -217,24 +217,24 @@ model BlockProposerAttribution {
 // flag-2 signed observations); an absent operator is anonymous in the commit, so misses are never
 // read off a flag. Rebuildable from CoreSlotConsensusWindow + OperatorSigningEvidence.
 model CoreSlotLivenessEvidence {
-  id                      BigInt   @id @default(autoincrement())
-  evidenceKey             String   @unique
-  committedBlockHeight    BigInt
-  sourceBlockHeight       BigInt?
-  slotId                  BigInt
-  operatorAddress         String?
-  consensusAddress        String?
-  consensusPower          BigInt?
-  consensusWindowId       BigInt?
-  status                  String
-  missCause               String?
-  observedSignatureKey    String?
-  observedBlockIdFlag     String?
-  observedBlockIdFlagCode Int?
-  observedSigned          Boolean?
+  id                        BigInt   @id @default(autoincrement())
+  evidenceKey               String   @unique
+  committedBlockHeight      BigInt
+  sourceBlockHeight         BigInt?
+  slotId                    BigInt
+  operatorAddress           String?
+  consensusAddress          String?
+  consensusPower            BigInt?
+  consensusWindowId         BigInt?
+  status                    String
+  missCause                 String?
+  observedSignatureKey      String?
+  observedBlockIdFlag       String?
+  observedBlockIdFlagCode   Int?
+  observedSigned            Boolean?
   observedAttributionStatus String?
-  createdAt               DateTime @default(now())
-  updatedAtDb             DateTime @updatedAt
+  createdAt                 DateTime @default(now())
+  updatedAtDb               DateTime @updatedAt
 
   @@index([committedBlockHeight])
   @@index([slotId])
@@ -329,24 +329,24 @@ model CoreSlotHealthSnapshot {
 // Phase 8c-3: single deterministic latest network halt-risk snapshot derived from the active
 // CoreSlotHealthSnapshot set (equal-power v1). Explorer/operator heuristic, NOT a consensus rule.
 model NetworkLivenessRiskSnapshot {
-  id                   BigInt   @id @default(autoincrement())
-  riskKey              String   @unique
-  policyVersion        String
+  id                    BigInt   @id @default(autoincrement())
+  riskKey               String   @unique
+  policyVersion         String
   latestCommittedHeight BigInt?
-  activeSlotCount      Int
-  healthySlotCount     Int
-  degradedSlotCount    Int
-  downSlotCount        Int
-  incompleteSlotCount  Int
-  unknownSlotCount     Int
-  availableSlotCount   Int
-  unavailableSlotCount Int
-  availablePowerBps    Int?
-  unavailablePowerBps  Int?
-  haltRiskLevel        String
-  haltRiskReason       String?
-  createdAt            DateTime @default(now())
-  updatedAtDb          DateTime @updatedAt
+  activeSlotCount       Int
+  healthySlotCount      Int
+  degradedSlotCount     Int
+  downSlotCount         Int
+  incompleteSlotCount   Int
+  unknownSlotCount      Int
+  availableSlotCount    Int
+  unavailableSlotCount  Int
+  availablePowerBps     Int?
+  unavailablePowerBps   Int?
+  haltRiskLevel         String
+  haltRiskReason        String?
+  createdAt             DateTime @default(now())
+  updatedAtDb           DateTime @updatedAt
 
   @@index([haltRiskLevel])
 }
@@ -365,8 +365,8 @@ model ProjectionCursor {
 }
 
 model ProjectionFailure {
-  id              BigInt   @id @default(autoincrement())
-  failureKey      String?  @unique
+  id              BigInt    @id @default(autoincrement())
+  failureKey      String?   @unique
   projectionName  String
   module          String?
   sourceHeight    BigInt
@@ -381,9 +381,9 @@ model ProjectionFailure {
   rawMessageJson  Json?
   rawEventJson    Json?
   error           String
-  resolved        Boolean  @default(false)
+  resolved        Boolean   @default(false)
   resolvedAt      DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([projectionName])
   @@index([module])
@@ -395,30 +395,40 @@ model ProjectionFailure {
 }
 
 model CoreSlotProjection {
-  slotId              BigInt   @id
-  status              String?
-  operatorAddress     String?
-  payoutAddress       String?
-  consensusAddress    String?
-  consensusPubkeyJson Json?
-  metadataJson        Json?
-  rewardWeight        String?
-  consensusPower      BigInt?
-  createdHeight       BigInt?
-  updatedHeight       BigInt
-  removedHeight       BigInt?
-  rawSnapshotJson     Json?
-  lastSourceHeight    BigInt
-  lastSourceTxHash    String?
-  lastSourceMsgIndex  Int?
-  lastSourceMessageId BigInt?
-  lastSourceEventId   BigInt?
-  createdAt           DateTime @default(now())
-  updatedAtDb         DateTime @updatedAt
+  slotId                          BigInt   @id
+  status                          String?
+  operatorAddress                 String?
+  payoutAddress                   String?
+  consensusAddress                String?
+  consensusPubkeyJson             Json?
+  metadataJson                    Json?
+  rewardWeight                    String?
+  consensusPower                  BigInt?
+  createdHeight                   BigInt?
+  updatedHeight                   BigInt
+  removedHeight                   BigInt?
+  // V2 structural slot state (devnet-2). settlementAddress is the address authorized to
+  // submit x/mining settlement chunks for this slot; the selection-policy fields track the
+  // participant-selection policy currently in force (full history in
+  // CoreSlotSelectionPolicyChange).
+  settlementAddress               String?
+  activationSequence              BigInt?
+  activationEffectiveHeight       BigInt?
+  currentSelectionPolicyVersion   BigInt?
+  lastSelectionPolicyUpdateHeight BigInt?
+  rawSnapshotJson                 Json?
+  lastSourceHeight                BigInt
+  lastSourceTxHash                String?
+  lastSourceMsgIndex              Int?
+  lastSourceMessageId             BigInt?
+  lastSourceEventId               BigInt?
+  createdAt                       DateTime @default(now())
+  updatedAtDb                     DateTime @updatedAt
 
   @@index([status])
   @@index([operatorAddress])
   @@index([consensusAddress])
+  @@index([settlementAddress])
   @@index([updatedHeight])
 }
 
@@ -592,10 +602,14 @@ model CoreSlotConsensusKeyRotation {
 // Two categories, kept strictly separate:
 //   - Rebuildable semantic rows (projection rewards_semantic_v1) derived only from
 //     generic indexed Message/Event/Transaction rows: RewardEpochProjection,
-//     RewardClaimEvent, RewardsParamsChange, RewardsTreasuryPayment.
-//   - Observed-sample rows (projection rewards_snapshot_v1) captured from live
-//     ChainClient snapshots and tied to the height at which they were sampled:
-//     SlotRewardProjection (sampledAtHeight), RewardsBalanceSample.
+//     RewardsParamsChange, RewardsTreasuryPayment.
+//   - Observed-sample rows captured from live ChainClient snapshots and tied to the
+//     height at which they were sampled: SlotEntitlementProjection
+//     (rewards_entitlements_v1) and RewardsBalanceSample (rewards_snapshot_v1).
+//
+// The V2 economic switchover retired manual claiming entirely (twilight-core aa568f61),
+// so there is no claim projection: entitlements are the reward unit and x/mining
+// settlements are how they are released.
 // ---------------------------------------------------------------------------
 
 // Aggregate/finalization context from epoch_finalized. NOT claim truth.
@@ -621,57 +635,37 @@ model RewardEpochProjection {
   @@index([height])
 }
 
-// Observed sample of a slot's per-epoch reward, tied to the height it was sampled at.
-// Claimed truth has two sources reconciled here: the snapshot's own claimed flag
-// (observed at sampledAtHeight) and claim provenance written by RewardClaimEvent.
-model SlotRewardProjection {
-  id              BigInt   @id @default(autoincrement())
-  slotId          BigInt
-  epochNumber     BigInt
-  amount          String
-  denom           String
-  claimed         Boolean  @default(false)
-  claimedAtHeight BigInt?
-  claimTxHash     String?
-  claimMsgIndex   Int?
-  claimEventId    BigInt?
-  sampledAtHeight BigInt?
-  rawSnapshotJson Json?
-  rawClaimJson    Json?
-  createdAt       DateTime @default(now())
-  updatedAtDb     DateTime @updatedAt
+// Observed sample of a slot's per-epoch ENTITLEMENT — the V2 unit of reward truth.
+//
+// This replaces the retired SlotRewardProjection/RewardClaimEvent pair: twilight-core
+// aa568f61 deleted MsgClaimRewards, the reward_claimed event, and the two REST routes the
+// old snapshot read. An entitlement is created silently when x/rewards finalizes an epoch
+// (only epoch_finalized is emitted), so it CANNOT be derived from generic rows — it is an
+// observed sample and carries the height it was sampled at, never a rebuildable projection.
+// releasedAmount is monotonic and moves as x/mining settles the entitlement.
+model SlotEntitlementProjection {
+  id                             BigInt   @id @default(autoincrement())
+  slotId                         BigInt
+  epochNumber                    BigInt
+  totalBlocksActive              BigInt?
+  entitlementAmount              String
+  releasedAmount                 String
+  denom                          String
+  payoutAddress                  String?
+  rewardConfigVersion            BigInt?
+  slotStatusAtEpochClose         String?
+  activationSequenceAtEpochClose BigInt?
+  createdHeight                  BigInt?
+  sampledAtHeight                BigInt
+  rawSnapshotJson                Json?
+  createdAt                      DateTime @default(now())
+  updatedAtDb                    DateTime @updatedAt
 
   @@unique([slotId, epochNumber])
   @@index([slotId])
   @@index([epochNumber])
-  @@index([claimed])
-  @@index([claimTxHash])
+  @@index([payoutAddress])
   @@index([sampledAtHeight])
-}
-
-// Rebuildable claim history from MsgClaimRewards + reward_claimed.
-model RewardClaimEvent {
-  id              BigInt   @id @default(autoincrement())
-  slotId          BigInt
-  claimant        String?
-  payoutAddress   String?
-  startEpoch      BigInt?
-  endEpoch        BigInt?
-  amount          String?
-  denom           String?
-  height          BigInt
-  txHash          String
-  msgIndex        Int?
-  sourceMessageId BigInt?
-  sourceEventId   BigInt?  @unique
-  rawMessageJson  Json?
-  rawEventJson    Json?
-  createdAt       DateTime @default(now())
-
-  @@index([slotId])
-  @@index([height])
-  @@index([txHash])
-  @@index([claimant])
 }
 
 // Rebuildable rewards params/pause/resume history.
@@ -752,4 +746,165 @@ model AccountBalanceCurrent {
 
   @@index([address])
   @@index([sampledAtHeight])
+}
+
+// ---------------------------------------------------------------------------
+// Mining (x/mining) — the settlement / payout-distribution workflow (devnet-2 V2).
+//
+// Despite the module name there is no proof-of-work here. x/rewards finalizes an epoch and
+// creates an immutable SlotEntitlement; x/mining materializes one Settlement per entitlement,
+// the slot's settlement address submits chunks of participant payouts, and finalization
+// releases any remainder to the operator's payout address.
+//
+// Two categories, kept strictly separate (same discipline as rewards above):
+//   - Rebuildable semantic rows (mining_semantic_v1), derived only from generic
+//     Message/Event/Transaction rows: MiningSettlementChunk, MiningSettlementFinalization.
+//   - Observed-sample rows (mining_settlement_state_v1): MiningSettlementProjection.
+//     Settlement CREATION is silent — x/mining's EndBlocker emits no events at all — so
+//     current settlement state can only be read back from the chain and is honestly tied to
+//     the height/clock it was sampled at.
+// ---------------------------------------------------------------------------
+
+// Rebuildable: one row per accepted MsgSubmitSettlementChunk.
+// The event carries only aggregates (recipient_count, chunk_total); the individual payout
+// lines exist ONLY in the tx body, so payoutsJson is populated from the decoded message.
+model MiningSettlementChunk {
+  id              BigInt   @id @default(autoincrement())
+  slotId          BigInt
+  epochNumber     BigInt
+  chunkIndex      BigInt
+  nextChunkIndex  BigInt?
+  recipientCount  Int?
+  chunkTotal      String?
+  denom           String?
+  height          BigInt
+  txHash          String
+  msgIndex        Int?
+  sourceEventId   BigInt?  @unique
+  sourceMessageId BigInt?
+  payoutsJson     Json?
+  rawEventJson    Json?
+  rawMessageJson  Json?
+  createdAt       DateTime @default(now())
+
+  @@index([slotId])
+  @@index([epochNumber])
+  @@index([height])
+  @@index([txHash])
+  @@index([slotId, epochNumber])
+}
+
+// Rebuildable: one row per mining_settlement_finalized event.
+// finalizationReason is the chain enum's .String() name, kept verbatim.
+model MiningSettlementFinalization {
+  id                 BigInt   @id @default(autoincrement())
+  slotId             BigInt
+  epochNumber        BigInt
+  finalizationReason String?
+  releasedRemainder  String?
+  denom              String?
+  finalizedHeight    BigInt?
+  height             BigInt
+  txHash             String
+  msgIndex           Int?
+  sourceEventId      BigInt?  @unique
+  sourceMessageId    BigInt?
+  rawEventJson       Json?
+  rawMessageJson     Json?
+  createdAt          DateTime @default(now())
+
+  @@index([slotId])
+  @@index([epochNumber])
+  @@index([height])
+  @@index([txHash])
+  @@index([slotId, epochNumber])
+}
+
+// Observed sample of a settlement's current state, keyed (slotId, epochNumber).
+// Most of these fields are DERIVED by the chain (remainingAmount, ceiling, deadlineClock,
+// permissionlessFinalizationNow) and are not stored on-chain, so they are only ever true as
+// of sampledAtHeight / sampledSettlementClock. Note the settlement clock is NOT a block
+// height: it only ticks while reward release is enabled.
+model MiningSettlementProjection {
+  id                             BigInt   @id @default(autoincrement())
+  slotId                         BigInt
+  epochNumber                    BigInt
+  distributionModeVersion        BigInt?
+  settlementMode                 String?
+  settlementParamsVersion        BigInt?
+  nextChunkIndex                 BigInt?
+  finalized                      Boolean  @default(false)
+  finalizedHeight                BigInt?
+  finalizationReason             String?
+  entitlementAmount              String?
+  releasedAmount                 String?
+  remainingAmount                String?
+  participantDistributionCeiling String?
+  payoutAddress                  String?
+  createdSettlementClock         BigInt?
+  deadlineClock                  BigInt?
+  permissionlessFinalizationNow  Boolean?
+  sampledAtHeight                BigInt
+  sampledSettlementClock         BigInt?
+  rawSnapshotJson                Json?
+  createdAt                      DateTime @default(now())
+  updatedAtDb                    DateTime @updatedAt
+
+  @@unique([slotId, epochNumber])
+  @@index([slotId])
+  @@index([epochNumber])
+  @@index([finalized])
+  @@index([payoutAddress])
+  @@index([sampledAtHeight])
+}
+
+// ---------------------------------------------------------------------------
+// CoreSlot V2 structural state (devnet-2): settlement address + selection policy.
+// Both are rebuildable from generic rows (coreslot_semantic domain).
+// ---------------------------------------------------------------------------
+
+// Rebuildable: one row per MsgUpdateSettlementAddress / coreslot_settlement_updated.
+// The event deliberately omits the address itself (only slot_id + operator_address), so the
+// new value comes from the decoded message body — exactly like coreslot_payout_updated.
+model CoreSlotSettlementAddressChange {
+  id                BigInt   @id @default(autoincrement())
+  slotId            BigInt
+  operatorAddress   String?
+  settlementAddress String?
+  height            BigInt
+  txHash            String
+  msgIndex          Int?
+  sourceMessageId   BigInt?  @unique
+  sourceEventId     BigInt?  @unique
+  rawMessageJson    Json?
+  rawEventJson      Json?
+  createdAt         DateTime @default(now())
+
+  @@index([slotId])
+  @@index([height])
+  @@index([txHash])
+}
+
+// Rebuildable: one row per MsgUpdateSelectionPolicy / coreslot_selection_policy_updated.
+model CoreSlotSelectionPolicyChange {
+  id                      BigInt   @id @default(autoincrement())
+  slotId                  BigInt
+  policyVersion           BigInt?
+  selectionRateBps        Int?
+  maxSelectedParticipants BigInt?
+  effectiveHeight         BigInt?
+  operatorAddress         String?
+  height                  BigInt
+  txHash                  String
+  msgIndex                Int?
+  sourceMessageId         BigInt?  @unique
+  sourceEventId           BigInt?  @unique
+  rawMessageJson          Json?
+  rawEventJson            Json?
+  createdAt               DateTime @default(now())
+
+  @@index([slotId])
+  @@index([height])
+  @@index([txHash])
+  @@index([policyVersion])
 }

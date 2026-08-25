@@ -487,7 +487,7 @@ export function useOperatorDirectory(slotIds: string[]) {
 // --- Rewards (Phase 12b: read-only economic surfaces) ---
 export type RewardsEpochsResponse = JsonOf<'/api/v1/rewards/epochs'>;
 export type RewardEpochResponse = JsonOf<'/api/v1/rewards/epochs/{epoch}'>;
-export type RewardsClaimsResponse = JsonOf<'/api/v1/rewards/claims'>;
+export type RewardsEntitlementsResponse = JsonOf<'/api/v1/rewards/entitlements'>;
 export type RewardsBalancesResponse = JsonOf<'/api/v1/rewards/balances'>;
 export type RewardsParamsResponse = JsonOf<'/api/v1/rewards/params'>;
 export type RewardsTreasuryResponse = JsonOf<'/api/v1/rewards/treasury-payments'>;
@@ -519,38 +519,25 @@ export function useRewardEpochRaw(epoch: string, enabled: boolean) {
   });
 }
 
-/** Claims filters (all server-side ClaimsQuery params). undefined values are omitted. */
-export interface ClaimsFilter {
+/** Entitlement filters (server-side EntitlementsQuery params). undefined values are omitted. */
+export interface EntitlementsFilter {
+  epoch?: string | undefined;
   slotId?: string | undefined;
-  claimant?: string | undefined;
-  txHash?: string | undefined;
-  fromHeight?: string | undefined;
-  toHeight?: string | undefined;
+  payoutAddress?: string | undefined;
 }
 
-export function useRewardsClaims(filter: ClaimsFilter = {}) {
-  const { slotId, claimant, txHash, fromHeight, toHeight } = filter;
+export function useRewardsEntitlements(filter: EntitlementsFilter = {}) {
+  const { epoch, slotId, payoutAddress } = filter;
   return useInfiniteQuery({
     // Every filter member joins the queryKey so a change re-keys the keyset list (page one).
-    queryKey: [
-      'rewards',
-      'claims',
-      'list',
-      slotId ?? null,
-      claimant ?? null,
-      txHash ?? null,
-      fromHeight ?? null,
-      toHeight ?? null,
-    ],
+    queryKey: ['rewards', 'entitlements', 'list', epoch ?? null, slotId ?? null, payoutAddress ?? null],
     queryFn: ({ pageParam }) =>
-      apiGet('/api/v1/rewards/claims', {
+      apiGet('/api/v1/rewards/entitlements', {
         limit: LIST_PAGE,
         cursor: pageParam,
+        epoch,
         slotId,
-        claimant,
-        txHash,
-        fromHeight,
-        toHeight,
+        payoutAddress,
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,

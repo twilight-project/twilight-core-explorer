@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import {
-  ClaimListResponse,
-  ClaimsQuery,
+  EntitlementListResponse,
+  EntitlementsQuery,
   EpochDetailQuery,
   EpochParams,
   EpochsQuery,
@@ -16,7 +16,7 @@ import {
   SlotRewardsQuery,
   TreasuryPaymentListResponse,
   TreasuryQuery,
-  toClaimItem,
+  toEntitlementItem,
   toEpochDetail,
   toEpochListItem,
   toParamsChangeItem,
@@ -40,11 +40,11 @@ import { parseSlotId } from '../lib/slot-id.js';
 import { getCoreSlot } from '../repositories/coreslots-repository.js';
 import {
   getEpoch,
-  listClaims,
+  listEpochEntitlements,
   listEpochs,
   listParamsChanges,
   listRewardsBalances,
-  listSlotRewards,
+  listSlotEntitlements,
   listTreasuryPayments,
 } from '../repositories/rewards-repository.js';
 
@@ -114,7 +114,7 @@ export async function rewardsRoutes(fastify: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['rewards'],
-        summary: 'Reward history for a CoreSlot (observed projection, not live claimable)',
+        summary: 'Per-epoch entitlement history for a CoreSlot (observed projection)',
         params: SlotParams,
         querystring: SlotRewardsQuery,
         response: { 200: SlotRewardListResponse, 400: ErrorResponse, 404: ErrorResponse },
@@ -128,7 +128,7 @@ export async function rewardsRoutes(fastify: FastifyInstance): Promise<void> {
       }
       const limit = request.query.limit ?? DEFAULT_LIMIT;
       const beforeEpoch = request.query.cursor !== undefined ? decodeCursor(request.query.cursor) : undefined;
-      const fetched = await listSlotRewards(app.prisma, { slotId, beforeEpoch, limit: limit + 1 });
+      const fetched = await listSlotEntitlements(app.prisma, { slotId, beforeEpoch, limit: limit + 1 });
       const hasMore = fetched.length > limit;
       const rows = hasMore ? fetched.slice(0, limit) : fetched;
       const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
@@ -137,41 +137,35 @@ export async function rewardsRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  // ---- claims (history only) ----
+  // ---- entitlements (replaces the retired claim history) ----
+  // twilight-core aa568f61 deleted MsgClaimRewards and the reward_claimed event, so there is
+  // no claim history to serve. A per-(slot, epoch) entitlement is the reward unit now.
   app.get(
-    '/rewards/claims',
+    '/rewards/entitlements',
     {
       schema: {
         tags: ['rewards'],
-        summary: 'Reward claim history (event history only; not live claimable)',
-        querystring: ClaimsQuery,
-        response: { 200: ClaimListResponse, 400: ErrorResponse },
+        summary: 'Per-slot, per-epoch reward entitlements (observed projection)',
+        querystring: EntitlementsQuery,
+        response: { 200: EntitlementListResponse, 400: ErrorResponse },
       },
     },
     async (request) => {
       const limit = request.query.limit ?? DEFAULT_LIMIT;
-      let beforeHeight: bigint | undefined;
-      let beforeId: bigint | undefined;
-      if (request.query.cursor !== undefined) {
-        const [h, i] = decodeKeyset(request.query.cursor, 2);
-        beforeHeight = decodeBigIntPart(h as string);
-        beforeId = decodeBigIntPart(i as string);
-      }
-      const fetched = await listClaims(app.prisma, {
-        beforeHeight,
-        beforeId,
+      const beforeSlotId =
+        request.query.cursor !== undefined ? decodeCursor(request.query.cursor) : undefined;
+      const fetched = await listEpochEntitlements(app.prisma, {
+        epochNumber: filterUint64(request.query.epoch),
         slotId: filterUint64(request.query.slotId),
-        claimant: request.query.claimant,
-        txHash: request.query.txHash,
-        fromHeight: filterUint64(request.query.fromHeight),
-        toHeight: filterUint64(request.query.toHeight),
+        payoutAddress: request.query.payoutAddress,
+        beforeSlotId,
         limit: limit + 1,
       });
       const hasMore = fetched.length > limit;
       const rows = hasMore ? fetched.slice(0, limit) : fetched;
       const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
-      const nextCursor = hasMore && last ? encodeKeyset([last.height, last.id]) : null;
-      return { data: rows.map(toClaimItem), page: { limit, nextCursor } };
+      const nextCursor = hasMore && last ? encodeCursor(last.slotId) : null;
+      return { data: rows.map(toEntitlementItem), page: { limit, nextCursor } };
     },
   );
 

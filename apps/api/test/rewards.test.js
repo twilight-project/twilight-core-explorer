@@ -5,8 +5,7 @@ import {
   MockPrisma,
   testConfig,
   epoch,
-  slotReward,
-  claim,
+  entitlement,
   rewardsBalance,
   paramsChange,
   treasuryPayment,
@@ -61,41 +60,48 @@ describe('coreslot rewards', () => {
     await app.close();
   });
 
-  it('returns slot rewards with observed-claim caveat fields', async () => {
+  it('returns per-epoch entitlements newest-first with the observed-sample caveat', async () => {
     const app = await build({
       coreSlots: [coreSlot(2)],
-      slotRewards: [slotReward(2, 1), slotReward(2, 2, { claimed: true, claimedAtHeight: 100n, claimTxHash: 'TX' })],
+      entitlements: [entitlement(1, 2, 1), entitlement(2, 2, 2, { releasedAmount: '250' })],
     });
     const res = await app.inject({ url: '/api/v1/coreslots/2/rewards' });
     assert.deepEqual(res.json().data.map((r) => r.epochNumber), ['2', '1']);
     const item = res.json().data[0];
-    assert.equal(item.claimed, true);
-    assert.equal(item.claimedAtHeight, '100');
-    assert.equal(item.productionClaimReadiness, 'read_only_no_claim_action');
+    // Release is what x/mining settlement has paid out so far, not a claim flag.
+    assert.equal(item.entitlementAmount, '250');
+    assert.equal(item.releasedAmount, '250');
+    assert.equal(item.slotStatusAtEpochClose, 'SLOT_STATUS_ACTIVE');
     assert.equal(item.claimSemantics, 'projection_observed_not_live_claimable');
     await app.close();
   });
 });
 
-describe('rewards claims', () => {
-  it('orders height/id DESC, composite cursor, history-only caveat, slotId filter', async () => {
-    const app = await build({ claims: [claim(1, 2, 10), claim(2, 2, 10), claim(3, 3, 11)] });
-    const res = await app.inject({ url: '/api/v1/rewards/claims?limit=2' });
-    assert.deepEqual(res.json().data.map((c) => c.id), ['3', '2']); // h11/id3, h10/id2
-    assert.equal(res.json().data[0].productionClaimReadiness, 'read_only_no_claim_action');
-    assert.equal(res.json().data[0].claimSemantics, 'event_history_only');
-    const res2 = await app.inject({
-      url: `/api/v1/rewards/claims?limit=2&cursor=${encodeURIComponent(res.json().page.nextCursor)}`,
+describe('rewards entitlements', () => {
+  it('orders epoch DESC then slot ASC, paginates by slot cursor, and filters', async () => {
+    const app = await build({
+      entitlements: [entitlement(1, 2, 10), entitlement(2, 2, 9), entitlement(3, 3, 11)],
     });
-    assert.deepEqual(res2.json().data.map((c) => c.id), ['1']);
-    const f = await app.inject({ url: '/api/v1/rewards/claims?slotId=3' });
-    assert.deepEqual(f.json().data.map((c) => c.id), ['3']);
+    const res = await app.inject({ url: '/api/v1/rewards/entitlements?limit=2' });
+    assert.deepEqual(res.json().data.map((c) => c.id), ['3', '1']); // epoch 11, then epoch 10
+    assert.equal(res.json().data[0].claimSemantics, 'projection_observed_not_live_claimable');
+
+    const byEpoch = await app.inject({ url: '/api/v1/rewards/entitlements?epoch=9' });
+    assert.deepEqual(byEpoch.json().data.map((c) => c.id), ['2']);
+
+    const bySlot = await app.inject({ url: '/api/v1/rewards/entitlements?slotId=3' });
+    assert.deepEqual(bySlot.json().data.map((c) => c.id), ['3']);
+
+    const byPayout = await app.inject({
+      url: '/api/v1/rewards/entitlements?payoutAddress=twilight1payout',
+    });
+    assert.equal(byPayout.json().data.length, 3);
     await app.close();
   });
 
   it('rejects an out-of-int64 slotId filter with 400', async () => {
-    const app = await build({ claims: [] });
-    const res = await app.inject({ url: '/api/v1/rewards/claims?slotId=9223372036854775808' });
+    const app = await build({ entitlements: [] });
+    const res = await app.inject({ url: '/api/v1/rewards/entitlements?slotId=9223372036854775808' });
     assert.equal(res.statusCode, 400);
     await app.close();
   });
@@ -147,9 +153,9 @@ describe('rewards list endpoints — pagination edge cases', () => {
     {
       name: 'coreslot rewards',
       url: '/api/v1/coreslots/2/rewards',
-      data: { coreSlots: [coreSlot(2)], slotRewards: [slotReward(2, 1), slotReward(2, 2)] },
+      data: { coreSlots: [coreSlot(2)], entitlements: [entitlement(1, 2, 1), entitlement(2, 2, 2)] },
     },
-    { name: 'claims', url: '/api/v1/rewards/claims', data: { claims: [claim(1, 2, 10), claim(2, 2, 11)] } },
+    { name: 'entitlements', url: '/api/v1/rewards/entitlements', data: { entitlements: [entitlement(1, 2, 10), entitlement(2, 2, 11)] } },
     {
       name: 'balances',
       url: '/api/v1/rewards/balances',

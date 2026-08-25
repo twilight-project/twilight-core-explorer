@@ -5,46 +5,36 @@ import {
 } from './cursor.js';
 import {
   REWARDS_NATIVE_DENOM,
-  REWARDS_SEMANTIC_PROJECTION,
   REWARDS_SNAPSHOT_PROJECTION,
   withProjectionFailureKey,
   type ProjectionFailureInput,
 } from './types.js';
 
 /**
- * Observed-sample ingestion for rewards (projection rewards_snapshot_v1).
+ * Observed-sample ingestion for rewards module balances (projection rewards_snapshot_v1).
  *
  * Unlike the rebuildable rewards_semantic_v1 projection, these rows are NOT derived from
  * indexed generic rows: they are point-in-time snapshots read from the live chain via
  * ChainClient and are tied to the height at which they were sampled (`sampledAtHeight`). They
- * are observed samples, not rebuildable semantic truth, and must be treated as such by
- * downstream consumers.
+ * are observed samples, not rebuildable semantic truth.
+ *
+ * Scope note (devnet-2 V2 switchover): this projection used to also enumerate per-slot rewards
+ * via `getSlotRewards` and reconcile claim provenance. The chain deleted both the claim path
+ * and the `/slots/{id}/rewards` + `/slots/{id}/claimable` routes (twilight-core aa568f61), so
+ * that half is gone. Per-slot, per-epoch reward truth now lives in the entitlement projection
+ * (`rewards_entitlements_v1`); this one keeps the module-balance and cumulative-emitted
+ * samples, which are still served and still cannot be derived from generic rows.
  */
 export interface RewardsSnapshotChainClient {
-  getSlotRewards(
-    slotId: bigint,
-    pagination?: { key?: string | undefined },
-    height?: bigint,
-  ): Promise<{ raw: unknown }>;
   getModuleBalances(height?: bigint): Promise<{ raw: unknown }>;
   getCumulativeEmitted(height?: bigint): Promise<{ raw: unknown }>;
 }
 
 export interface RewardsSnapshotPrisma extends ProjectionCursorPrisma {
-  coreSlotProjection: { findMany(args: unknown): Promise<{ slotId: bigint }[]> };
-  slotRewardProjection: {
-    findMany(args: unknown): Promise<SlotRewardRow[]>;
-    upsert(args: unknown): Promise<unknown>;
-    updateMany(args: unknown): Promise<{ count: number }>;
-  };
-  // Read-only here — used by the post-snapshot reconcile to look up a claim by its source event.
-  rewardClaimEvent: { findUnique(args: unknown): Promise<RewardClaimRow | null> };
   rewardsBalanceSample: { upsert(args: unknown): Promise<unknown> };
   projectionFailure: {
     upsert(args: unknown): Promise<unknown>;
     deleteMany(args: unknown): Promise<unknown>;
-    findMany(args: unknown): Promise<MissingRecordsFailureRow[]>;
-    update(args: unknown): Promise<unknown>;
   };
   $transaction<T>(
     fn: (tx: RewardsSnapshotPrisma) => Promise<T>,
@@ -52,55 +42,19 @@ export interface RewardsSnapshotPrisma extends ProjectionCursorPrisma {
   ): Promise<T>;
 }
 
-// The snapshot writes one observed row per (slot × epoch-reward) plus module-balance samples and the
-// claim reconcile. On a large chain that is thousands of upserts — one interactive transaction around
-// all of them exceeds ANY reasonable Prisma timeout once the chain has enough epochs (live devnet:
-// ~1,884 epochs × slots timed out at 120s every tick and halted the cursor). The claimed-state merge
-// is pre-read in ONE query, then the pure upserts run in bounded chunks, each its own short
-// transaction. Sound because (a) the projection advisory lock serializes all projectors, so the
-// pre-read cannot go stale, (b) re-runs are idempotent and the merge is monotone (claimed only ever
-// strengthens to true), (c) the cursor advances only after everything lands — a crash mid-chunk
-// re-runs the same height, and (d) each row carries its own sampledAtHeight, which the product
-// already treats as a per-row property (13a J-004). Balance samples + the claim reconcile stay
-// atomic in the final transaction. maxWait covers pool contention with the ingest loop.
-const SLOT_REWARD_UPSERT_CHUNK = 500;
+// maxWait covers connection-pool contention with the concurrently-running ingest loop.
 const REWARDS_SNAPSHOT_TX_TIMEOUT_MS = 60_000;
 const REWARDS_SNAPSHOT_TX_MAX_WAIT_MS = 15_000;
-
-interface SlotRewardRow {
-  slotId: bigint;
-  epochNumber: bigint;
-  claimed: boolean;
-  claimedAtHeight: bigint | null;
-}
-
-interface RewardClaimRow {
-  slotId: bigint;
-  startEpoch: bigint | null;
-  endEpoch: bigint | null;
-  height: bigint;
-  txHash: string;
-  msgIndex: number | null;
-  sourceEventId: bigint | null;
-  rawEventJson: unknown; // the reward_claimed event's raw json — stamped onto rawClaimJson for rebuild parity
-}
-
-interface MissingRecordsFailureRow {
-  id: bigint;
-  sourceEventId: bigint | null;
-}
 
 export interface IngestRewardsSnapshotArgs {
   prisma: RewardsSnapshotPrisma;
   client: RewardsSnapshotChainClient;
   chainId: string;
   height: bigint;
-  slotIds?: bigint[] | undefined;
 }
 
 export interface IngestRewardsSnapshotResult {
   height: bigint;
-  slotRewardRows: number;
   balanceSamples: number;
   // true when a chain read failed: the cursor was halted and no success was recorded.
   failed: boolean;
@@ -110,9 +64,6 @@ export async function ingestRewardsSnapshot(
   args: IngestRewardsSnapshotArgs,
 ): Promise<IngestRewardsSnapshotResult> {
   const { prisma, client, chainId, height } = args;
-
-  const slotIds = args.slotIds
-    ?? (await prisma.coreSlotProjection.findMany({ select: { slotId: true } })).map((r) => r.slotId);
 
   // Clear this height's prior unresolved failures so a re-run re-derives them cleanly (idempotent,
   // mirroring the per-height projectors) — e.g. a module_balance_sample_unavailable left by an
@@ -124,28 +75,11 @@ export async function ingestRewardsSnapshot(
   // --- 1. READ all chain state first; write nothing yet. ------------------------------------
   // True read-before-write (like balance-snapshot): if ANY read fails we halt + record and leave
   // the DB untouched for this height — no partial sample is ever visible. Reads are pure.
-  let slotRewards: Array<{ slotId: bigint; reward: SlotRewardSnapshot; raw: unknown }>;
   let moduleBalanceEntries: BalanceEntry[];
   let moduleBalancesRaw: unknown;
   let cumulativeAmount: { denom: string; amount: string } | null;
   let cumulativeRaw: unknown;
   try {
-    slotRewards = [];
-    for (const slotId of slotIds) {
-      // Paginate until the chain's pagination.next_key is exhausted so a slot with many
-      // epochs of rewards is not silently truncated to the first page.
-      let key: string | undefined;
-      let guard = 0;
-      do {
-        const snapshot = await client.getSlotRewards(slotId, key ? { key } : undefined, height);
-        for (const reward of extractSlotRewards(snapshot.raw)) {
-          slotRewards.push({ slotId, reward, raw: snapshot.raw });
-        }
-        key = extractNextKey(snapshot.raw);
-        guard += 1;
-      } while (key && guard < 10_000);
-    }
-
     const moduleBalances = await client.getModuleBalances(height);
     moduleBalancesRaw = moduleBalances.raw;
     moduleBalanceEntries = extractBalances(moduleBalances.raw);
@@ -163,44 +97,11 @@ export async function ingestRewardsSnapshot(
       failureKind: 'rewards_snapshot_chain_read_failed',
       error: formatError(error),
     });
-    return { height, slotRewardRows: 0, balanceSamples: 0, failed: true };
+    return { height, balanceSamples: 0, failed: true };
   }
 
-  // --- 2. WRITE (every read succeeded). Slot-reward upserts run in bounded chunks; the
-  // balance samples + claim reconcile keep their single atomic transaction below.
-  let slotRewardRows = 0;
+  // --- 2. WRITE (every read succeeded), atomically. -----------------------------------------
   let balanceSamples = 0;
-
-  // Pre-read the existing claimed state in ONE query — replaces a findUnique per row. The
-  // projection advisory lock serializes every projector, so this map cannot go stale before
-  // the writes land.
-  const existingRows = await prisma.slotRewardProjection.findMany({
-    where: { slotId: { in: slotIds } },
-    select: { slotId: true, epochNumber: true, claimed: true, claimedAtHeight: true },
-  });
-  const existingByKey = new Map(
-    existingRows.map((r) => [`${r.slotId}:${r.epochNumber}`, r] as const),
-  );
-
-  const slotRewardWrites = slotRewards.map(({ slotId, reward, raw }) =>
-    buildSlotRewardUpsert({
-      slotId,
-      height,
-      reward,
-      raw,
-      existing: existingByKey.get(`${slotId}:${reward.epochNumber}`),
-    }));
-
-  for (let i = 0; i < slotRewardWrites.length; i += SLOT_REWARD_UPSERT_CHUNK) {
-    const chunk = slotRewardWrites.slice(i, i + SLOT_REWARD_UPSERT_CHUNK);
-    await prisma.$transaction(async (tx) => {
-      for (const write of chunk) {
-        await tx.slotRewardProjection.upsert(write);
-      }
-    }, { timeout: REWARDS_SNAPSHOT_TX_TIMEOUT_MS, maxWait: REWARDS_SNAPSHOT_TX_MAX_WAIT_MS });
-    slotRewardRows += chunk.length;
-  }
-
   await prisma.$transaction(async (tx) => {
     for (const balance of moduleBalanceEntries) {
       await upsertBalanceSample(tx, {
@@ -238,64 +139,10 @@ export async function ingestRewardsSnapshot(
       });
       balanceSamples += 1;
     }
-
-    // --- 3. Reconcile pending rewards-semantic claim failures (forward-incremental safety) -------
-    // Forward-incremental indexing projects `reward_claimed` (rewards_semantic) BEFORE this snapshot
-    // lands the observed SlotRewardProjection rows, so applyClaim records a `missing_reward_records`
-    // failure with no rows to reconcile. Now that the rows exist, stamp the claimed range + resolve the
-    // failure here — the snapshot is the event that makes the claim reconcilable. (A periodic full
-    // rebuild self-heals via rewards-semantic's per-height deleteMany; a forward-only deploy needs this.)
-    await reconcilePendingClaims(tx);
   }, { timeout: REWARDS_SNAPSHOT_TX_TIMEOUT_MS, maxWait: REWARDS_SNAPSHOT_TX_MAX_WAIT_MS });
 
   await updateProjectionCursorSuccess(prisma, REWARDS_SNAPSHOT_PROJECTION, chainId, height);
-  return { height, slotRewardRows, balanceSamples, failed: false };
-}
-
-// Resolve any rewards-semantic `missing_reward_records` failure whose claim is now covered by observed
-// SlotRewardProjection rows; returns the count resolved. Cross-projection by design: the snapshot is what
-// makes the claim reconcilable, so it owns clearing the false alarm. Never resolves while rows are still
-// absent (correctness-over-guessing holds — the claim stays an open failure until the data exists).
-// Exported + deliberately chain-read-free so the `project:rewards-reconcile` CLI can run it standalone
-// (break-glass: clear lingering failures from already-present rows when REST is down / without a new sample).
-export async function reconcilePendingClaims(tx: RewardsSnapshotPrisma): Promise<number> {
-  const failures = await tx.projectionFailure.findMany({
-    where: {
-      projectionName: REWARDS_SEMANTIC_PROJECTION,
-      failureKind: 'missing_reward_records',
-      resolved: false,
-    },
-  });
-  if (failures.length === 0) return 0;
-  const resolvedAt = new Date(); // one timestamp for the whole reconcile pass
-  let resolved = 0;
-  for (const failure of failures) {
-    if (failure.sourceEventId === null) continue;
-    const claim = await tx.rewardClaimEvent.findUnique({ where: { sourceEventId: failure.sourceEventId } });
-    if (!claim || claim.startEpoch === null || claim.endEpoch === null) continue;
-    // Stamp every observed row of the claim range in ONE updateMany (identical provenance per row, mirroring
-    // applyClaim: '' tx hash → null, rawClaimJson from the claim's raw event). The returned count tells us
-    // whether any rows exist yet — keeping the snapshot transaction + advisory-lock hold short even for a
-    // large backlog or a wide claim range (vs an await-per-row loop).
-    const { count } = await tx.slotRewardProjection.updateMany({
-      where: { slotId: claim.slotId, epochNumber: { gte: claim.startEpoch, lte: claim.endEpoch } },
-      data: {
-        claimed: true,
-        claimedAtHeight: claim.height,
-        claimTxHash: claim.txHash || null,
-        claimMsgIndex: claim.msgIndex,
-        claimEventId: claim.sourceEventId,
-        rawClaimJson: claim.rawEventJson,
-      },
-    });
-    if (count === 0) continue; // still missing — keep the failure open (no fabrication)
-    await tx.projectionFailure.update({
-      where: { id: failure.id },
-      data: { resolved: true, resolvedAt },
-    });
-    resolved += 1;
-  }
-  return resolved;
+  return { height, balanceSamples, failed: false };
 }
 
 async function createFailure(
@@ -316,54 +163,6 @@ async function createFailure(
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-interface SlotRewardSnapshot {
-  epochNumber: bigint;
-  amount: string;
-  denom: string;
-  claimed: boolean;
-  claimedAtHeight: bigint | null;
-}
-
-// Pure upsert-args builder: the claimed-state merge is resolved from the pre-read map, so the
-// write needs no read of its own and can run inside a bounded chunk transaction.
-function buildSlotRewardUpsert(args: {
-  slotId: bigint;
-  height: bigint;
-  reward: SlotRewardSnapshot;
-  raw: unknown;
-  existing: SlotRewardRow | undefined;
-}): Record<string, unknown> {
-  const { slotId, height, reward, existing } = args;
-
-  // Reconciliation: never unset a claim already recorded (e.g. by the semantic claim
-  // projector). claimed becomes true if either the snapshot or a prior claim says so; a
-  // null claimedAtHeight from the snapshot never erases a previously recorded height.
-  const claimed = reward.claimed || existing?.claimed === true;
-  const claimedAtHeight = reward.claimedAtHeight ?? existing?.claimedAtHeight ?? null;
-
-  return {
-    where: { slotId_epochNumber: { slotId, epochNumber: reward.epochNumber } },
-    create: {
-      slotId,
-      epochNumber: reward.epochNumber,
-      amount: reward.amount,
-      denom: reward.denom,
-      claimed,
-      claimedAtHeight,
-      sampledAtHeight: height,
-      rawSnapshotJson: toJson(args.raw),
-    },
-    update: {
-      amount: reward.amount,
-      denom: reward.denom,
-      claimed,
-      claimedAtHeight,
-      sampledAtHeight: height,
-      rawSnapshotJson: toJson(args.raw),
-    },
-  };
 }
 
 async function upsertBalanceSample(
@@ -396,33 +195,6 @@ async function upsertBalanceSample(
 }
 
 // --- tolerant extraction (defensive; live REST shapes confirmed via fixtures/smoke) -------
-
-function extractSlotRewards(raw: unknown): SlotRewardSnapshot[] {
-  const root = asRecord(raw);
-  const list = readArray(root.rewards) ?? readArray(root.slot_rewards) ?? readArray(raw) ?? [];
-  const out: SlotRewardSnapshot[] = [];
-  for (const item of list) {
-    const record = asRecord(item);
-    const epochNumber = parseBigInt(
-      readString(record.epoch_number) ?? readString(record.epoch) ?? readString(record.epochNumber),
-    );
-    const amount = readString(record.amount) ?? readString(record.reward) ?? null;
-    if (epochNumber === undefined || amount === null) continue;
-    out.push({
-      epochNumber,
-      amount,
-      denom: readString(record.denom) ?? REWARDS_NATIVE_DENOM,
-      claimed: readBool(record.claimed),
-      // The chain returns claimed_at_height "0" for UNCLAIMED rewards; a real claim height is
-      // always > 0. Map 0 (and unparseable) to null so an unclaimed reward never exposes a
-      // claimedAtHeight that reads like a real block height.
-      claimedAtHeight: claimedAtHeightOrNull(
-        readString(record.claimed_at_height) ?? readString(record.claimedAtHeight),
-      ),
-    });
-  }
-  return out;
-}
 
 interface BalanceEntry {
   address: string | null;

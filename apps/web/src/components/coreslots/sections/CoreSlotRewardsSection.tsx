@@ -21,18 +21,26 @@ export function CoreSlotRewardsSection({ slotId }: { slotId: string }) {
   const columns: Column<Reward>[] = [
     { header: 'Epoch', mono: true, cell: (r) => r.epochNumber },
     {
-      header: 'Amount',
+      header: 'Entitlement',
       mono: true,
       cell: (r) => {
-        const a = formatAmount(r.amount, r.denom);
+        const a = formatAmount(r.entitlementAmount, r.denom);
         return `${a.display} ${a.symbol}`;
       },
     },
     {
-      header: 'Claimed (observed)',
+      header: 'Released',
+      mono: true,
+      cell: (r) => {
+        const a = formatAmount(r.releasedAmount, r.denom);
+        return `${a.display} ${a.symbol}`;
+      },
+    },
+    {
+      header: 'Status at epoch close',
       cell: (r) =>
-        r.claimed ? (
-          <Badge tone="neutral">observed @ {formatHeight(r.claimedAtHeight)}</Badge>
+        r.slotStatusAtEpochClose ? (
+          <Badge tone="neutral">{r.slotStatusAtEpochClose.replace(/^SLOT_STATUS_/, '')}</Badge>
         ) : (
           <span className="text-text-muted">—</span>
         ),
@@ -45,22 +53,24 @@ export function CoreSlotRewardsSection({ slotId }: { slotId: string }) {
       <CardHeader
         icon={Coins}
         iconTone="rewards"
-        title="Rewards (observed projection)"
+        title="Entitlements (observed projection)"
         action={
           <Link
-            href={`/rewards/claims?slotId=${encodeURIComponent(slotId)}`}
+            href={`/rewards/entitlements?slotId=${encodeURIComponent(slotId)}`}
             className="text-primary hover:text-primary-light"
           >
-            View claim history →
+            View all entitlements →
           </Link>
         }
       />
       <CardBody>
         {firstRow ? (
           <RewardCaveat>
-            Observed/historical projection — <span className="font-medium">not live-claimable</span>.
-            claimSemantics: <span className="font-mono">{firstRow.claimSemantics}</span>; production claim
-            readiness: <span className="font-mono">{firstRow.productionClaimReadiness}</span>.
+            Observed sample (<span className="font-mono">{firstRow.claimSemantics}</span>) — an
+            entitlement is created when the epoch closes, and{' '}
+            <span className="font-medium">released</span> tracks what x/mining settlement has paid
+            out so far. Sampled at height{' '}
+            <span className="font-mono">{formatHeight(firstRow.sampledAtHeight)}</span>.
           </RewardCaveat>
         ) : null}
         <PaginatedTable

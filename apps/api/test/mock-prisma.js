@@ -37,8 +37,7 @@ export class MockPrisma {
     this._healthSnapshots = data.healthSnapshots ?? [];
     this._networkRisk = data.networkRisk ?? null;
     this._epochs = data.epochs ?? [];
-    this._slotRewards = data.slotRewards ?? [];
-    this._claims = data.claims ?? [];
+    this._entitlements = data.entitlements ?? [];
     this._rewardsBalances = data.rewardsBalances ?? [];
     this._paramsChanges = data.paramsChanges ?? [];
     this._treasuryPayments = data.treasuryPayments ?? [];
@@ -387,35 +386,29 @@ export class MockPrisma {
       findUnique: async (args) => this._epochs.find((e) => e.epochNumber === args.where.epochNumber) ?? null,
     };
 
-    this.slotRewardProjection = {
+    this.slotEntitlementProjection = {
       findMany: async (args = {}) => {
-        let r = this._slotRewards.filter((s) => s.slotId === args.where.slotId);
-        const lt = args.where?.epochNumber?.lt;
-        if (lt !== undefined) r = r.filter((s) => s.epochNumber < lt);
-        r.sort((a, b) => descBig(a.epochNumber, b.epochNumber));
-        return args.take ? r.slice(0, args.take) : r;
-      },
-    };
-
-    this.rewardClaimEvent = {
-      findMany: async (args = {}) => {
-        let r = [...this._claims];
+        let r = [...this._entitlements];
         const w = args.where ?? {};
-        if (w.slotId !== undefined) r = r.filter((c) => c.slotId === w.slotId);
-        if (w.claimant !== undefined) r = r.filter((c) => c.claimant === w.claimant);
-        if (w.txHash !== undefined) r = r.filter((c) => c.txHash === w.txHash);
-        if (w.height?.gte !== undefined) r = r.filter((c) => c.height >= w.height.gte);
-        if (w.height?.lte !== undefined) r = r.filter((c) => c.height <= w.height.lte);
-        if (w.OR) {
-          r = r.filter((c) =>
-            w.OR.some((cl) => {
-              if (cl.height && typeof cl.height === 'object' && cl.height.lt !== undefined) return c.height < cl.height.lt;
-              if (cl.id?.lt !== undefined) return c.height === cl.height && c.id < cl.id.lt;
-              return false;
-            }),
-          );
+        if (w.slotId !== undefined) {
+          if (typeof w.slotId === 'object' && w.slotId !== null && w.slotId.lt !== undefined) {
+            r = r.filter((e) => e.slotId < w.slotId.lt);
+          } else {
+            r = r.filter((e) => e.slotId === w.slotId);
+          }
         }
-        r.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : descBig(a.id, b.id)));
+        if (w.epochNumber !== undefined) {
+          if (typeof w.epochNumber === 'object' && w.epochNumber !== null && w.epochNumber.lt !== undefined) {
+            r = r.filter((e) => e.epochNumber < w.epochNumber.lt);
+          } else {
+            r = r.filter((e) => e.epochNumber === w.epochNumber);
+          }
+        }
+        if (w.payoutAddress !== undefined) r = r.filter((e) => e.payoutAddress === w.payoutAddress);
+        r.sort((a, b) =>
+          a.epochNumber !== b.epochNumber
+            ? descBig(a.epochNumber, b.epochNumber)
+            : (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));
         return args.take ? r.slice(0, args.take) : r;
       },
     };
@@ -790,33 +783,21 @@ export function epoch(epochNumber, overrides = {}) {
   };
 }
 
-export function slotReward(slotId, epochNumber, overrides = {}) {
-  return {
-    slotId: BigInt(slotId),
-    epochNumber: BigInt(epochNumber),
-    amount: '250',
-    denom: 'utwlt',
-    claimed: false,
-    claimedAtHeight: null,
-    claimTxHash: null,
-    sampledAtHeight: 3196n,
-    ...overrides,
-  };
-}
-
-export function claim(id, slotId, height, overrides = {}) {
+export function entitlement(id, slotId, epochNumber, overrides = {}) {
   return {
     id: BigInt(id),
     slotId: BigInt(slotId),
-    claimant: 'twilight1claimant',
-    payoutAddress: 'twilight1payout',
-    startEpoch: 1n,
-    endEpoch: 2n,
-    amount: '500',
+    epochNumber: BigInt(epochNumber),
+    entitlementAmount: '250',
+    releasedAmount: '0',
     denom: 'utwlt',
-    height: BigInt(height),
-    txHash: `CLAIMTX${id}`,
-    msgIndex: 0,
+    payoutAddress: 'twilight1payout',
+    totalBlocksActive: 360n,
+    slotStatusAtEpochClose: 'SLOT_STATUS_ACTIVE',
+    activationSequenceAtEpochClose: 1n,
+    rewardConfigVersion: 1n,
+    createdHeight: 3196n,
+    sampledAtHeight: 3196n,
     ...overrides,
   };
 }

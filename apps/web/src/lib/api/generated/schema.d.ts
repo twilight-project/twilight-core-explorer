@@ -2230,7 +2230,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Reward history for a CoreSlot (observed projection, not live claimable) */
+        /** Per-epoch entitlement history for a CoreSlot (observed projection) */
         get: {
             parameters: {
                 query?: {
@@ -2255,14 +2255,14 @@ export interface paths {
                             data: {
                                 /** @description Decimal height/id as string */
                                 epochNumber: string;
-                                amount: string;
+                                entitlementAmount: string;
+                                releasedAmount: string;
                                 denom: string;
-                                claimed: boolean;
-                                claimedAtHeight: string | null;
-                                claimTxHash: string | null;
+                                payoutAddress: string | null;
+                                totalBlocksActive: string | null;
+                                slotStatusAtEpochClose: string | null;
+                                rewardConfigVersion: string | null;
                                 sampledAtHeight: string | null;
-                                /** @enum {string} */
-                                productionClaimReadiness: "read_only_no_claim_action";
                                 /** @enum {string} */
                                 claimSemantics: "projection_observed_not_live_claimable";
                             }[];
@@ -2317,24 +2317,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/rewards/claims": {
+    "/api/v1/rewards/entitlements": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Reward claim history (event history only; not live claimable) */
+        /** Per-slot, per-epoch reward entitlements (observed projection) */
         get: {
             parameters: {
                 query?: {
                     limit?: number;
                     cursor?: string;
+                    epoch?: string;
                     slotId?: string;
-                    claimant?: string;
-                    txHash?: string;
-                    fromHeight?: string;
-                    toHeight?: string;
+                    payoutAddress?: string;
                 };
                 header?: never;
                 path?: never;
@@ -2354,20 +2352,21 @@ export interface paths {
                                 id: string;
                                 /** @description Decimal height/id as string */
                                 slotId: string;
-                                claimant: string | null;
-                                payoutAddress: string | null;
-                                startEpoch: string | null;
-                                endEpoch: string | null;
-                                amount: string | null;
-                                denom: string | null;
                                 /** @description Decimal height/id as string */
-                                height: string;
-                                txHash: string;
-                                msgIndex: number | null;
+                                epochNumber: string;
+                                entitlementAmount: string;
+                                releasedAmount: string;
+                                denom: string;
+                                payoutAddress: string | null;
+                                totalBlocksActive: string | null;
+                                slotStatusAtEpochClose: string | null;
+                                activationSequenceAtEpochClose: string | null;
+                                rewardConfigVersion: string | null;
+                                createdHeight: string | null;
+                                /** @description Decimal height/id as string */
+                                sampledAtHeight: string;
                                 /** @enum {string} */
-                                productionClaimReadiness: "read_only_no_claim_action";
-                                /** @enum {string} */
-                                claimSemantics: "event_history_only";
+                                claimSemantics: "projection_observed_not_live_claimable";
                             }[];
                             page: {
                                 limit: number;

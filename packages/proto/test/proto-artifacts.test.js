@@ -20,6 +20,17 @@ describe('Twilight proto artifacts', () => {
     const serialized = JSON.stringify(manifest);
 
     assert.match(serialized, /\/twilight\.coreslot\.v1\.MsgUpdateOperatorMetadata/);
-    assert.match(serialized, /\/twilight\.rewards\.v1\.MsgClaimRewards/);
+    // V2 additions: the settlement address + selection policy writers, and x/mining.
+    assert.match(serialized, /\/twilight\.coreslot\.v1\.MsgUpdateSettlementAddress/);
+    assert.match(serialized, /\/twilight\.coreslot\.v1\.MsgUpdateSelectionPolicy/);
+    assert.match(serialized, /\/twilight\.mining\.v1\.MsgSubmitSettlementChunk/);
+    assert.match(serialized, /\/twilight\.mining\.v1\.MsgFinalizeSettlement/);
+  });
+
+  it('no longer ships the retired rewards claim path', () => {
+    // The chain deleted MsgClaimRewards ("retire the legacy claim path"). Asserting its
+    // ABSENCE keeps a stale descriptor from silently reviving the dead claim surface.
+    const serialized = JSON.stringify(loadTwilightMsgTypeUrls());
+    assert.doesNotMatch(serialized, /MsgClaimRewards/);
   });
 });

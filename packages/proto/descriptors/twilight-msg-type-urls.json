@@ -28,13 +28,18 @@
       "/twilight.coreslot.v1.MsgRotateConsensusKey",
       "/twilight.coreslot.v1.MsgUpdatePayoutAddress",
       "/twilight.coreslot.v1.MsgUpdateOperatorMetadata",
+      "/twilight.coreslot.v1.MsgUpdateSettlementAddress",
+      "/twilight.coreslot.v1.MsgUpdateSelectionPolicy",
       "/twilight.coreslot.v1.MsgUpdateParams"
     ],
     "rewards": [
-      "/twilight.rewards.v1.MsgClaimRewards",
       "/twilight.rewards.v1.MsgUpdateRewardsParams",
       "/twilight.rewards.v1.MsgPauseRewards",
       "/twilight.rewards.v1.MsgResumeRewards"
+    ],
+    "mining": [
+      "/twilight.mining.v1.MsgSubmitSettlementChunk",
+      "/twilight.mining.v1.MsgFinalizeSettlement"
     ]
   }
 }

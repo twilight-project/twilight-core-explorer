@@ -21,6 +21,7 @@ export function typeUrlToModule(typeUrl: string): string | undefined {
   const lookupName = typeUrlToLookupName(typeUrl);
   if (lookupName.startsWith('twilight.coreslot.v1.')) return 'coreslot';
   if (lookupName.startsWith('twilight.rewards.v1.')) return 'rewards';
+  if (lookupName.startsWith('twilight.mining.v1.')) return 'mining';
   if (lookupName.startsWith('cosmos.bank.v1beta1.')) return 'bank';
   if (lookupName.startsWith('cosmos.auth.v1beta1.')) return 'auth';
   if (lookupName.startsWith('cosmos.tx.v1beta1.')) return 'tx';
@@ -36,6 +37,7 @@ export function isTwilightMsgTypeUrl(typeUrl: string): boolean {
   const lookupName = typeUrlToLookupName(typeUrl);
   return (
     lookupName.startsWith('twilight.coreslot.v1.Msg') ||
-    lookupName.startsWith('twilight.rewards.v1.Msg')
+    lookupName.startsWith('twilight.rewards.v1.Msg') ||
+    lookupName.startsWith('twilight.mining.v1.Msg')
   );
 }

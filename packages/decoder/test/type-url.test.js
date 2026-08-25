@@ -26,11 +26,23 @@ describe('type URL helpers', () => {
 
   it('classifies known module/type names', () => {
     assert.equal(typeUrlToModule('/twilight.coreslot.v1.MsgUpdateOperatorMetadata'), 'coreslot');
-    assert.equal(typeUrlToModule('/twilight.rewards.v1.MsgClaimRewards'), 'rewards');
+    assert.equal(typeUrlToModule('/twilight.rewards.v1.MsgPauseRewards'), 'rewards');
     assert.equal(typeUrlToModule('/cosmos.bank.v1beta1.MsgSend'), 'bank');
     assert.equal(typeUrlToModule('/cosmos.auth.v1beta1.BaseAccount'), 'auth');
-    assert.equal(typeUrlToTypeName('/twilight.rewards.v1.MsgClaimRewards'), 'MsgClaimRewards');
+    assert.equal(typeUrlToTypeName('/twilight.rewards.v1.MsgPauseRewards'), 'MsgPauseRewards');
     assert.equal(isTwilightMsgTypeUrl('/twilight.coreslot.v1.MsgUpdateOperatorMetadata'), true);
     assert.equal(isTwilightMsgTypeUrl('/cosmos.bank.v1beta1.MsgSend'), false);
+  });
+
+  it('classifies the x/mining module', () => {
+    // Without this branch, mining messages/events are stamped with no module and every
+    // mining projector query returns nothing — silently.
+    assert.equal(typeUrlToModule('/twilight.mining.v1.MsgSubmitSettlementChunk'), 'mining');
+    assert.equal(typeUrlToModule('/twilight.mining.v1.MsgFinalizeSettlement'), 'mining');
+    assert.equal(
+      typeUrlToTypeName('/twilight.mining.v1.MsgFinalizeSettlement'),
+      'MsgFinalizeSettlement',
+    );
+    assert.equal(isTwilightMsgTypeUrl('/twilight.mining.v1.MsgSubmitSettlementChunk'), true);
   });
 });

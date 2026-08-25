@@ -87,9 +87,17 @@ project_tick() {
   # rewards: process new claims FIRST, then snapshot+reconcile (clears transient missing_reward_records),
   # then balance snapshot.
   P rewards
-  if [[ -n "$TIP" ]]; then
-    SAMPLE_HEIGHT="$TIP" P rewards-snapshot
-    SAMPLE_HEIGHT="$TIP" P balance-snapshot
+  # RE-READ the tip here rather than reusing the one from the top of the tick. These are the
+  # only height-PINNED reads (x-cosmos-block-height), and the node prunes state to the last
+  # ~100 blocks — about 9.5 minutes at this chain's ~5.7s blocks. A full projection pass takes
+  # longer than that during a backfill, so the opening tip is already outside the window by the
+  # time we get here and every sample 500s, halting both cursors. Observed live: both halted at
+  # height 85,295 with the tip at 86,389.
+  local SNAP_TIP; SNAP_TIP="$(tip)"; [[ "$SNAP_TIP" =~ ^[0-9]+$ ]] || SNAP_TIP=""
+  if [[ -n "$SNAP_TIP" ]]; then
+    echo "-- snapshots pinned at fresh tip=$SNAP_TIP (opening tip was ${TIP:-unknown})"
+    SAMPLE_HEIGHT="$SNAP_TIP" P rewards-snapshot
+    SAMPLE_HEIGHT="$SNAP_TIP" P balance-snapshot
   else
     echo "WARN: skipping rewards/balance snapshots — need a live SAMPLE_HEIGHT (tip unreadable)"
   fi

@@ -84,6 +84,43 @@ describe('txs list', () => {
   });
 });
 
+describe('txs typeGroup filter', () => {
+  // The filter is a CLOSED enum split across three files (this DTO, the route's prefix map,
+  // and the web filter options). devnet-2 shipped x/mining and the enum was not extended, so
+  // /txs?typeGroup=mining answered 400 on the live deployment. Pin every module family.
+  for (const group of ['coreslot', 'rewards', 'mining', 'bank']) {
+    it(`accepts typeGroup=${group}`, async () => {
+      const app = await buildServer({ config: testConfig, prisma: new MockPrisma({ txs: [] }) });
+      const res = await app.inject({ url: `/api/v1/txs?typeGroup=${group}` });
+      assert.equal(res.statusCode, 200, `typeGroup=${group} must be accepted`);
+      await app.close();
+    });
+  }
+
+  it('actually filters by module family (mining vs coreslot)', async () => {
+    const prisma = new MockPrisma({
+      txs: [tx('MINETX', 100n, 0), tx('SLOTTX', 101n, 0)],
+      messages: [
+        msg('MINETX', 0, { typeUrl: '/twilight.mining.v1.MsgSubmitSettlementChunk', module: 'mining' }),
+        msg('SLOTTX', 0, { typeUrl: '/twilight.coreslot.v1.MsgUpdatePayoutAddress' }),
+      ],
+    });
+    const app = await buildServer({ config: testConfig, prisma });
+    const mining = await app.inject({ url: '/api/v1/txs?typeGroup=mining' });
+    assert.deepEqual(mining.json().data.map((t) => t.hash), ['MINETX']);
+    const coreslot = await app.inject({ url: '/api/v1/txs?typeGroup=coreslot' });
+    assert.deepEqual(coreslot.json().data.map((t) => t.hash), ['SLOTTX']);
+    await app.close();
+  });
+
+  it('still rejects an unknown group', async () => {
+    const app = await buildServer({ config: testConfig, prisma: new MockPrisma({ txs: [] }) });
+    const res = await app.inject({ url: '/api/v1/txs?typeGroup=staking' });
+    assert.equal(res.statusCode, 400);
+    await app.close();
+  });
+});
+
 describe('tx detail', () => {
   it('returns tx with materialized messages, events, block time; raw excluded by default', async () => {
     const app = await build({

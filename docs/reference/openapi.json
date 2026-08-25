@@ -1138,6 +1138,12 @@
                 {
                   "type": "string",
                   "enum": [
+                    "mining"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
                     "bank"
                   ]
                 }

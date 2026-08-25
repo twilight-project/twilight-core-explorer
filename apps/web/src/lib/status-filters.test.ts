@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CORESLOT_STATUS_OPTIONS,
   TX_STATUS_OPTIONS,
+  TX_TYPE_GROUP_OPTIONS,
   coerceStatus,
 } from './status-filters';
 
@@ -39,5 +40,19 @@ describe('coerceStatus (URL ingress boundary)', () => {
     expect(coerceStatus('active', TX_STATUS_OPTIONS)).toBeUndefined(); // coreslot value on txs
     expect(coerceStatus('', CORESLOT_STATUS_OPTIONS)).toBeUndefined();
     expect(coerceStatus(undefined, TX_STATUS_OPTIONS)).toBeUndefined();
+  });
+});
+
+describe('TX_TYPE_GROUP_OPTIONS ↔ API enum lockstep', () => {
+  // These options are the client half of a CLOSED server-side enum. If the API gains a module
+  // family and this list does not, the filter silently cannot reach it; if this list gains one
+  // the API does not have, selecting it 400s. devnet-2 shipped x/mining and hit the first case.
+  it('covers exactly the module families the API accepts', () => {
+    expect(TX_TYPE_GROUP_OPTIONS.map((o) => o.value).sort()).toEqual([
+      'bank',
+      'coreslot',
+      'mining',
+      'rewards',
+    ]);
   });
 });

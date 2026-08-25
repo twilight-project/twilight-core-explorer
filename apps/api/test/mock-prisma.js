@@ -473,10 +473,29 @@ export class MockPrisma {
     };
   }
 
-  async $queryRaw(strings) {
+  async $queryRaw(query) {
     if (this._dbDown) throw new Error('connection refused');
-    const sql = Array.isArray(strings) ? strings.join(' ') : String(strings);
+    // Prisma.sql passes a Sql instance ({ strings, values }); the health probe passes a plain
+    // template-strings array.
+    const sql = Array.isArray(query)
+      ? query.join(' ')
+      : Array.isArray(query?.strings)
+        ? query.strings.join(' ')
+        : String(query);
+    const values = Array.isArray(query?.values) ? query.values : [];
     if (sql.includes('_prisma_migrations')) return [{ failed: this._failedMigrations }];
+
+    // The typeGroup filter drops to raw SQL (no Prisma relation between ExplorerTransaction
+    // and Message). Emulate it so the filter is actually exercised, not stubbed.
+    if (sql.includes('"ExplorerTransaction"') && sql.includes('"typeUrl" LIKE')) {
+      const like = values.find((v) => typeof v === 'string' && v.endsWith('%'));
+      const prefix = typeof like === 'string' ? like.slice(0, -1) : '';
+      const rows = this._txs.filter((t) =>
+        this._messages.some((m) => m.txHash === t.hash && String(m.typeUrl).startsWith(prefix)));
+      rows.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : b.index - a.index));
+      const limit = values.find((v) => typeof v === 'number');
+      return typeof limit === 'number' ? rows.slice(0, limit) : rows;
+    }
     return [{ ok: 1 }];
   }
 

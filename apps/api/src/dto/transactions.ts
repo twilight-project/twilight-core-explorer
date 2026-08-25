@@ -79,7 +79,12 @@ export const TxsQuery = Type.Object(
     // Message-type GROUP (module family), matched against Message.typeUrl prefixes server-side.
     // A closed enum — not a raw prefix — so the URL surface stays bounded and validated.
     typeGroup: Type.Optional(
-      Type.Union([Type.Literal('coreslot'), Type.Literal('rewards'), Type.Literal('bank')]),
+      Type.Union([
+        Type.Literal('coreslot'),
+        Type.Literal('rewards'),
+        Type.Literal('mining'),
+        Type.Literal('bank'),
+      ]),
     ),
   },
   { additionalProperties: false },

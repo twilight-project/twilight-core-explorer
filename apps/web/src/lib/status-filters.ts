@@ -25,6 +25,7 @@ export const TX_STATUS_OPTIONS: StatusOption[] = [
 export const TX_TYPE_GROUP_OPTIONS: StatusOption[] = [
   { value: 'coreslot', label: 'CoreSlot' },
   { value: 'rewards', label: 'Rewards' },
+  { value: 'mining', label: 'Mining' },
   { value: 'bank', label: 'Bank' },
 ];
 

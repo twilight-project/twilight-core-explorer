@@ -32,9 +32,10 @@ import {
 
 // typeGroup enum → Message.typeUrl prefix. Server-owned constants (the LIKE pattern is never
 // user input); "claims" stays part of the rewards module family on this chain.
-const TYPE_GROUP_PREFIX: Record<'coreslot' | 'rewards' | 'bank', string> = {
+const TYPE_GROUP_PREFIX: Record<'coreslot' | 'rewards' | 'mining' | 'bank', string> = {
   coreslot: '/twilight.coreslot.',
   rewards: '/twilight.rewards.',
+  mining: '/twilight.mining.',
   bank: '/cosmos.bank.',
 };
 

@@ -443,7 +443,7 @@ export interface paths {
                     cursor?: string;
                     height?: string;
                     status?: string;
-                    typeGroup?: "coreslot" | "rewards" | "bank";
+                    typeGroup?: "coreslot" | "rewards" | "mining" | "bank";
                 };
                 header?: never;
                 path?: never;

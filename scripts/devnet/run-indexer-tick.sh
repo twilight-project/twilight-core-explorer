@@ -78,6 +78,10 @@ project_tick() {
   P coreslot-health
   P proposer-attribution
 
+  # mining: settlement chunk/finalization semantics. Independent of the rewards projectors
+  # (its events are tx-bound), so ordering against them does not matter.
+  P mining
+
   # rewards: process new claims FIRST, then snapshot+reconcile (clears transient missing_reward_records),
   # then balance snapshot.
   P rewards

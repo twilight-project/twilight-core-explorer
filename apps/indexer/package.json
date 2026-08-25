@@ -60,7 +60,10 @@
     "project:proposer-attribution": "node dist/projections/proposer-attribution-cli.js",
     "project:proposer-attribution:dev": "npm run build && node dist/projections/proposer-attribution-cli.js",
     "project:proposer-attribution:reset": "node dist/projections/reset-proposer-attribution-cli.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "project:mining": "node dist/projections/mining-semantic-cli.js",
+    "project:mining:dev": "npm run build && node dist/projections/mining-semantic-cli.js",
+    "project:mining:reset": "node dist/projections/reset-mining-cli.js"
   },
   "dependencies": {
     "@twilight-explorer/chain-client": "0.0.0",

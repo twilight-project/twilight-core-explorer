@@ -190,6 +190,45 @@ export const REWARDS_PROJECTIONS = [
   REWARDS_SNAPSHOT_PROJECTION,
 ] as const;
 
+// --- Mining (x/mining) projections (devnet-2 V2) --------------------------
+//
+// x/mining is the SETTLEMENT / payout-distribution workflow layered on rewards entitlements —
+// despite the module name there is no proof-of-work. Two categories, kept strictly separate:
+//   - mining_semantic_v1: rebuildable from generic Message/Event/Transaction rows.
+//   - mining_settlement_state_v1: observed sample. Settlement CREATION is silent (x/mining's
+//     EndBlocker emits NOTHING at all), so current settlement state can only be read back from
+//     the chain and is tied to the height/clock it was sampled at.
+export const MINING_SEMANTIC_PROJECTION = 'mining_semantic_v1';
+export const MINING_SETTLEMENT_STATE_PROJECTION = 'mining_settlement_state_v1';
+
+// Mining is its own domain — NOT part of the CoreSlot or rewards combined rebuilds.
+export const MINING_PROJECTIONS = [
+  MINING_SEMANTIC_PROJECTION,
+  MINING_SETTLEMENT_STATE_PROJECTION,
+] as const;
+
+export const MINING_SUBMIT_CHUNK_TYPE_URL =
+  '/twilight.mining.v1.MsgSubmitSettlementChunk';
+export const MINING_FINALIZE_SETTLEMENT_TYPE_URL =
+  '/twilight.mining.v1.MsgFinalizeSettlement';
+
+export const MINING_MESSAGE_TYPE_URLS = [
+  MINING_SUBMIT_CHUNK_TYPE_URL,
+  MINING_FINALIZE_SETTLEMENT_TYPE_URL,
+] as const;
+
+export const MINING_CHUNK_SUBMITTED_EVENT_TYPE = 'mining_settlement_chunk_submitted';
+export const MINING_SETTLEMENT_FINALIZED_EVENT_TYPE = 'mining_settlement_finalized';
+
+export const MINING_EVENT_TYPES = [
+  MINING_CHUNK_SUBMITTED_EVENT_TYPE,
+  MINING_SETTLEMENT_FINALIZED_EVENT_TYPE,
+] as const;
+
+// Entitlements are the V2 reward unit. Created silently when x/rewards finalizes an epoch
+// (only epoch_finalized is emitted), so this is an OBSERVED SAMPLE, not rebuildable.
+export const REWARDS_ENTITLEMENTS_PROJECTION = 'rewards_entitlements_v1';
+
 // Phase 9d-0: observed account-balance + bank-supply sampling. Supply rows reuse
 // RewardsBalanceSample with sampleKind = SUPPLY_SAMPLE_KIND; account balances go to
 // AccountBalanceCurrent. Both are live ChainClient samples tied to a height.
@@ -271,8 +310,10 @@ export type ProjectionFailureKind =
   | 'effective_height_invalid'
   | 'invalid_epoch'
   | 'invalid_amount'
-  | 'missing_reward_records'
-  | 'claim_correlation_failed'
+  | 'settlement_correlation_failed'
+  | 'invalid_chunk_index'
+  | 'mining_settlement_chain_read_failed'
+  | 'entitlements_chain_read_failed'
   | 'missing_block_raw'
   | 'missing_last_commit'
   | 'missing_signatures'

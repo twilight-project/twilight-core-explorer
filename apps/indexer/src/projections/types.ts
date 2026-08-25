@@ -146,13 +146,27 @@ export const CORESLOT_KEY_ROTATION_TYPE_URL =
 export const CORESLOT_KEY_ROTATION_REQUESTED_EVENT_TYPE =
   'coreslot_key_rotation_requested';
 export const CORESLOT_KEY_ROTATED_EVENT_TYPE = 'coreslot_key_rotated';
-export const CORESLOT_ROTATION_CANCELLED_EVENT_TYPE =
-  'coreslot_rotation_cancelled';
+// The chain renamed this event `…_cancelled` -> `…_canceled` (one L) in twilight-core
+// 33653660. Matching only the old spelling meant cancellations were silently never
+// recorded. Accept BOTH: the current spelling is canonical, the legacy one is kept so
+// devnet-1-era indexed rows still project identically on a rebuild.
+export const CORESLOT_ROTATION_CANCELED_EVENT_TYPE = 'coreslot_rotation_canceled';
+/** @deprecated pre-33653660 spelling; still matched for historical rows. */
+export const CORESLOT_ROTATION_CANCELLED_EVENT_TYPE = 'coreslot_rotation_cancelled';
+
+export const CORESLOT_ROTATION_CANCEL_EVENT_TYPES = [
+  CORESLOT_ROTATION_CANCELED_EVENT_TYPE,
+  CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
+] as const;
+
+export function isRotationCancelEventType(type: string): boolean {
+  return (CORESLOT_ROTATION_CANCEL_EVENT_TYPES as readonly string[]).includes(type);
+}
 
 export const CORESLOT_KEY_ROTATION_EVENT_TYPES = [
   CORESLOT_KEY_ROTATION_REQUESTED_EVENT_TYPE,
   CORESLOT_KEY_ROTATED_EVENT_TYPE,
-  CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
+  ...CORESLOT_ROTATION_CANCEL_EVENT_TYPES,
 ] as const;
 
 export const CORESLOT_KEY_ROTATION_STATUS = {

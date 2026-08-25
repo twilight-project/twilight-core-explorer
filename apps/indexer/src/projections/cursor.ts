@@ -34,11 +34,49 @@ function toCursorHeight(value: unknown): bigint {
   return 0n;
 }
 
+export class ProjectionChainIdMismatchError extends Error {
+  constructor(configured: string, indexed: string) {
+    super(
+      `Projection CHAIN_ID "${configured}" does not match the indexed chain "${indexed}". `
+      + 'Refusing to run: projections would be written under the wrong chain. Set CHAIN_ID '
+      + 'to the indexed chain, or wipe the database if the chain was redeployed.',
+    );
+    this.name = 'ProjectionChainIdMismatchError';
+  }
+}
+
+/**
+ * Projection counterpart to the ingest path's `assertChainIdMatches`.
+ *
+ * Only ingest verifies CHAIN_ID against the node; every projection CLI just reads
+ * `CHAIN_ID ?? 'twilight-localnet-1'`. A wrong value there silently writes ProjectionCursor
+ * rows under a chain that does not exist, and the projection appears to "never progress".
+ * Ingest is the guarded authority, so compare against the chain it actually indexed.
+ *
+ * Tolerates a prisma stub without `indexerCursor` (the projection unit tests inject narrow
+ * mocks) and an empty table (a fresh DB has not ingested anything yet).
+ */
+export async function assertProjectionChainId(
+  prisma: unknown,
+  chainId: string,
+): Promise<void> {
+  const client = prisma as {
+    indexerCursor?: { findFirst?: (args: unknown) => Promise<{ chainId?: unknown } | null> };
+  };
+  if (typeof client.indexerCursor?.findFirst !== 'function') return;
+
+  const row = await client.indexerCursor.findFirst({ orderBy: { updatedAt: 'desc' } });
+  const indexed = row?.chainId;
+  if (typeof indexed !== 'string' || indexed === '') return;
+  if (indexed !== chainId) throw new ProjectionChainIdMismatchError(chainId, indexed);
+}
+
 export async function getOrCreateProjectionCursor(
   prisma: ProjectionCursorPrisma,
   projectionName: string,
   chainId: string,
 ): Promise<unknown> {
+  await assertProjectionChainId(prisma, chainId);
   return prisma.projectionCursor.upsert({
     where: { projectionName_chainId: { projectionName, chainId } },
     create: {

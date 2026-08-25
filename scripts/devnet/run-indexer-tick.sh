@@ -71,6 +71,8 @@ project_tick() {
   P coreslot-params
   P coreslot-key-rotation
   P coreslot-temporal-map
+  # V2 structural state: settlement address + selection policy history.
+  P coreslot-structural
   P block-signatures
   P operator-signing-evidence
   P coreslot-liveness

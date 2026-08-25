@@ -138,6 +138,29 @@ export const CORESLOT_METADATA_EVENT_TYPE = 'coreslot_metadata_updated';
 export const CORESLOT_PAYOUT_TYPE_URL =
   '/twilight.coreslot.v1.MsgUpdatePayoutAddress';
 export const CORESLOT_PAYOUT_EVENT_TYPE = 'coreslot_payout_updated';
+// CoreSlot V2 structural state (devnet-2). Like coreslot_payout_updated, the settlement event
+// deliberately omits the ADDRESS itself (only slot_id + operator_address), so the new value
+// must come from the decoded message body.
+export const CORESLOT_SETTLEMENT_ADDRESS_TYPE_URL =
+  '/twilight.coreslot.v1.MsgUpdateSettlementAddress';
+export const CORESLOT_SETTLEMENT_UPDATED_EVENT_TYPE = 'coreslot_settlement_updated';
+export const CORESLOT_SELECTION_POLICY_TYPE_URL =
+  '/twilight.coreslot.v1.MsgUpdateSelectionPolicy';
+export const CORESLOT_SELECTION_POLICY_UPDATED_EVENT_TYPE =
+  'coreslot_selection_policy_updated';
+
+export const CORESLOT_STRUCTURAL_PROJECTION = 'coreslot_structural_v1';
+
+export const CORESLOT_STRUCTURAL_TYPE_URLS = [
+  CORESLOT_SETTLEMENT_ADDRESS_TYPE_URL,
+  CORESLOT_SELECTION_POLICY_TYPE_URL,
+] as const;
+
+export const CORESLOT_STRUCTURAL_EVENT_TYPES = [
+  CORESLOT_SETTLEMENT_UPDATED_EVENT_TYPE,
+  CORESLOT_SELECTION_POLICY_UPDATED_EVENT_TYPE,
+] as const;
+
 export const CORESLOT_PARAMS_TYPE_URL = '/twilight.coreslot.v1.MsgUpdateParams';
 export const CORESLOT_PARAMS_EVENT_TYPE = 'coreslot_params_updated';
 

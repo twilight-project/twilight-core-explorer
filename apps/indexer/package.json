@@ -63,7 +63,10 @@
     "lint": "eslint src --ext .ts",
     "project:mining": "node dist/projections/mining-semantic-cli.js",
     "project:mining:dev": "npm run build && node dist/projections/mining-semantic-cli.js",
-    "project:mining:reset": "node dist/projections/reset-mining-cli.js"
+    "project:mining:reset": "node dist/projections/reset-mining-cli.js",
+    "project:coreslot-structural": "node dist/projections/coreslot-structural-cli.js",
+    "project:coreslot-structural:dev": "npm run build && node dist/projections/coreslot-structural-cli.js",
+    "project:coreslot-structural:reset": "node dist/projections/reset-coreslot-structural-cli.js"
   },
   "dependencies": {
     "@twilight-explorer/chain-client": "0.0.0",

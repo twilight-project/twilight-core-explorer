@@ -519,6 +519,31 @@ export function useRewardEpochRaw(epoch: string, enabled: boolean) {
   });
 }
 
+// --- Mining settlement payouts (the end-user reward record) ---
+// Participants are paid directly inside a settlement chunk rather than claiming, so an
+// address's reward history is its set of payout lines.
+export type SettlementPayoutsResponse = JsonOf<'/api/v1/mining/payouts'>;
+export type PayoutSummaryResponse = JsonOf<'/api/v1/accounts/{address}/payout-summary'>;
+
+export function useAccountPayouts(address: string) {
+  return useInfiniteQuery({
+    queryKey: ['mining', 'payouts', 'account', address],
+    queryFn: ({ pageParam }) =>
+      apiGet('/api/v1/mining/payouts', { limit: LIST_PAGE, cursor: pageParam, recipient: address }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
+    enabled: address.length > 0,
+  });
+}
+
+export function useAccountPayoutSummary(address: string) {
+  return useQuery({
+    queryKey: ['mining', 'payout-summary', address],
+    queryFn: () => apiGetPath('/api/v1/accounts/{address}/payout-summary', { address }),
+    enabled: address.length > 0,
+  });
+}
+
 /** Entitlement filters (server-side EntitlementsQuery params). undefined values are omitted. */
 export interface EntitlementsFilter {
   epoch?: string | undefined;

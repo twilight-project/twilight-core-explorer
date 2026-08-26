@@ -58,6 +58,7 @@ describe('Mining semantic projection', () => {
     p.seedChunk({ height: 100n, slotId: 1n, epoch: 5n, chunkIndex: 0n, failed: true });
     await projectMiningSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 100n });
     assert.equal(p.chunks.length, 0);
+    assert.equal(p.payouts.length, 0);
     assert.equal(p.finalizations.length, 0);
   });
 
@@ -110,6 +111,45 @@ describe('Mining semantic projection', () => {
     assert.equal(p.cursors.get(MINING_SEMANTIC_PROJECTION), 42n);
   });
 
+  it('8b. unnests each payout line into its own recipient-keyed row', async () => {
+    // This is the end-user reward record: participants never claim, they are paid inside the
+    // chunk. JSON on the chunk row cannot be indexed by recipient, so the lines get their own
+    // rows — that is what makes "what has this address received" a plain lookup.
+    const p = new MockMiningPrisma();
+    p.seedChunk({ height: 700n, slotId: 1n, epoch: 15n, chunkIndex: 0n });
+    await projectMiningSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 700n });
+
+    assert.equal(p.payouts.length, 1);
+    const row = p.payouts[0];
+    assert.equal(row.recipient, RECIPIENT);
+    assert.equal(row.amount, '10000000');
+    assert.equal(row.slotId, 1n);
+    assert.equal(row.epochNumber, 15n);
+    assert.equal(row.height, 700n);
+    assert.equal(row.payoutIndex, 0);
+  });
+
+  it('8c. a chunk with NO correlated message produces no payout rows (never invented)', async () => {
+    const p = new MockMiningPrisma();
+    p.seedChunk({ height: 710n, slotId: 1n, epoch: 16n, chunkIndex: 0n, withMessage: false });
+    await projectMiningSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 710n });
+    assert.equal(p.chunks.length, 1, 'the chunk aggregate still lands');
+    assert.equal(p.payouts.length, 0, 'but no payout lines are fabricated');
+  });
+
+  it('8d. a replay that sees fewer payout lines does not leave stale rows behind', async () => {
+    const p = new MockMiningPrisma();
+    p.seedChunk({ height: 720n, slotId: 1n, epoch: 17n, chunkIndex: 0n });
+    await projectMiningSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 720n });
+    assert.equal(p.payouts.length, 1);
+
+    // Simulate the message becoming uncorrelatable on a rebuild: the delete-then-insert for
+    // this chunk must clear the previous run's rows rather than orphaning them.
+    p.messages.length = 0;
+    await projectMiningSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 720n });
+    assert.equal(p.payouts.length, 0, 'stale payout rows from the prior run are gone');
+  });
+
   it('9. reset clears mining rows but preserves generic + other-domain rows', async () => {
     const p = new MockMiningPrisma();
     p.seedChunk({ height: 600n, slotId: 1n, epoch: 13n, chunkIndex: 0n });
@@ -120,6 +160,7 @@ describe('Mining semantic projection', () => {
     await resetMiningProjections(p);
 
     assert.equal(p.chunks.length, 0);
+    assert.equal(p.payouts.length, 0);
     assert.equal(p.finalizations.length, 0);
     assert.equal(p.events.length > 0, true, 'generic Event rows survive a projection reset');
     assert.equal(p.messages.length > 0, true, 'generic Message rows survive a projection reset');
@@ -159,6 +200,7 @@ class MockMiningPrisma {
     this.messages = [];
     this.events = [];
     this.chunks = [];
+    this.payouts = [];
     this.finalizations = [];
     this.settlements = [];
     this.failures = [];
@@ -191,6 +233,15 @@ class MockMiningPrisma {
     this.miningSettlementChunk = {
       upsert: async (args) => upsertBy(this.chunks, 'sourceEventId', args),
       deleteMany: async () => { this.chunks.length = 0; },
+    };
+    this.miningSettlementPayout = {
+      upsert: async (args) => upsertBy(this.payouts, 'payoutKey', args),
+      deleteMany: async (args = {}) => {
+        const id = args.where?.sourceEventId;
+        for (let i = this.payouts.length - 1; i >= 0; i -= 1) {
+          if (id === undefined || this.payouts[i].sourceEventId === id) this.payouts.splice(i, 1);
+        }
+      },
     };
     this.miningSettlementFinalization = {
       upsert: async (args) => upsertBy(this.finalizations, 'sourceEventId', args),

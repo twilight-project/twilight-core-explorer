@@ -908,3 +908,39 @@ model CoreSlotSelectionPolicyChange {
   @@index([txHash])
   @@index([policyVersion])
 }
+
+// Rebuildable: ONE ROW PER RECIPIENT PAYOUT inside a settlement chunk.
+//
+// This is the end-user-facing reward record on this chain. Participants never "claim" —
+// x/mining settlement pays them directly inside MsgSubmitSettlementChunk, so a user's reward
+// history IS their set of payout lines. Those lines live only in the transaction body (the
+// chunk event carries aggregates alone), and MiningSettlementChunk.payoutsJson keeps them
+// verbatim — but JSON is not indexable by recipient, so it cannot answer "what has this
+// address received" without scanning every chunk. This table is that same data unnested, so
+// the account page can key off `recipient`.
+//
+// payoutKey is a deterministic synthetic key (`<sourceEventId>:<payoutIndex>`) — the compound
+// alternative spans nullable columns, which Prisma cannot use as an upsert selector.
+model MiningSettlementPayout {
+  id            BigInt   @id @default(autoincrement())
+  payoutKey     String   @unique
+  slotId        BigInt
+  epochNumber   BigInt
+  chunkIndex    BigInt
+  payoutIndex   Int
+  recipient     String
+  amount        String
+  denom         String
+  height        BigInt
+  txHash        String
+  msgIndex      Int?
+  sourceEventId BigInt?
+  createdAt     DateTime @default(now())
+
+  @@index([recipient])
+  @@index([slotId])
+  @@index([epochNumber])
+  @@index([height])
+  @@index([txHash])
+  @@index([recipient, height])
+}

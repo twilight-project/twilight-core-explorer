@@ -58,6 +58,10 @@ export interface MiningSemanticProjectionPrisma extends ProjectionCursorPrisma {
   message: { findMany(args: unknown): Promise<MessageSource[]> };
   event: { findMany(args: unknown): Promise<EventSource[]> };
   miningSettlementChunk: { upsert(args: unknown): Promise<unknown> };
+  miningSettlementPayout: {
+    upsert(args: unknown): Promise<unknown>;
+    deleteMany(args: unknown): Promise<unknown>;
+  };
   miningSettlementFinalization: { upsert(args: unknown): Promise<unknown> };
   projectionFailure: {
     upsert(args: unknown): Promise<unknown>;
@@ -240,6 +244,54 @@ async function projectChunkSubmitted(
     },
   });
   counters.rowsWritten += 1;
+
+  // Unnest the payout lines into their own rows. This is the end-user reward record on this
+  // chain: participants never claim, they are paid directly inside the chunk, so a user's
+  // reward history is exactly their set of payout lines. Keeping them only as JSON on the
+  // chunk made "what has this address received" unanswerable without a full scan.
+  //
+  // Delete-then-insert for THIS chunk keeps a replay exact: if a rerun ever saw fewer payout
+  // lines than before (e.g. the message became correlatable/uncorrelatable), stale rows from
+  // the previous run must not survive.
+  await tx.miningSettlementPayout.deleteMany({ where: { sourceEventId: event.id } });
+  if (payouts) {
+    for (const [payoutIndex, entry] of payouts.entries()) {
+      const line = asRecord(entry);
+      const recipient = readString(line.recipient);
+      const amount = readString(line.amount);
+      if (recipient === undefined || amount === undefined) {
+        await createFailure(tx, {
+          sourceHeight: event.height,
+          sourceEventId: event.id,
+          eventType: event.type,
+          failureKind: 'missing_required_payload',
+          rawEventJson: buildRawEventJson(event),
+          error:
+            `Payout ${payoutIndex} in the chunk at height ${event.height} is missing a `
+            + 'recipient or amount; not recorded rather than guessed.',
+        });
+        counters.failuresCreated += 1;
+        continue;
+      }
+      const payoutKey = `${event.id}:${payoutIndex}`;
+      const row = {
+        payoutKey,
+        slotId,
+        epochNumber,
+        chunkIndex,
+        payoutIndex,
+        recipient,
+        amount,
+        denom: REWARDS_NATIVE_DENOM,
+        height: event.height,
+        txHash: event.txHash ?? '',
+        msgIndex: event.msgIndex,
+        sourceEventId: event.id,
+      };
+      await tx.miningSettlementPayout.upsert({ where: { payoutKey }, create: row, update: row });
+      counters.rowsWritten += 1;
+    }
+  }
 
   if (!message) {
     await createFailure(tx, {

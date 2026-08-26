@@ -38,6 +38,7 @@ export class MockPrisma {
     this._networkRisk = data.networkRisk ?? null;
     this._epochs = data.epochs ?? [];
     this._entitlements = data.entitlements ?? [];
+    this._payouts = data.payouts ?? [];
     this._rewardsBalances = data.rewardsBalances ?? [];
     this._paramsChanges = data.paramsChanges ?? [];
     this._treasuryPayments = data.treasuryPayments ?? [];
@@ -386,6 +387,29 @@ export class MockPrisma {
       findUnique: async (args) => this._epochs.find((e) => e.epochNumber === args.where.epochNumber) ?? null,
     };
 
+    this.miningSettlementPayout = {
+      findMany: async (args = {}) => {
+        let r = [...this._payouts];
+        const w = args.where ?? {};
+        if (w.recipient !== undefined) r = r.filter((x) => x.recipient === w.recipient);
+        if (w.slotId !== undefined) r = r.filter((x) => x.slotId === w.slotId);
+        if (w.epochNumber !== undefined) r = r.filter((x) => x.epochNumber === w.epochNumber);
+        if (w.OR) {
+          r = r.filter((x) =>
+            w.OR.some((c) => {
+              if (c.height && typeof c.height === 'object' && c.height.lt !== undefined) {
+                return x.height < c.height.lt;
+              }
+              if (c.id?.lt !== undefined) return x.height === c.height && x.id < c.id.lt;
+              return false;
+            }),
+          );
+        }
+        r.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : descBig(a.id, b.id)));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
     this.slotEntitlementProjection = {
       findMany: async (args = {}) => {
         let r = [...this._entitlements];
@@ -473,7 +497,7 @@ export class MockPrisma {
     };
   }
 
-  async $queryRaw(query) {
+  async $queryRaw(query, ...rest) {
     if (this._dbDown) throw new Error('connection refused');
     // Prisma.sql passes a Sql instance ({ strings, values }); the health probe passes a plain
     // template-strings array.
@@ -482,11 +506,25 @@ export class MockPrisma {
       : Array.isArray(query?.strings)
         ? query.strings.join(' ')
         : String(query);
-    const values = Array.isArray(query?.values) ? query.values : [];
+    // Two call shapes: a tagged template (strings array + REST values, which is how the
+    // repositories call it) and a Prisma.sql instance ({ strings, values }).
+    const values = rest.length > 0 ? rest : Array.isArray(query?.values) ? query.values : [];
     if (sql.includes('_prisma_migrations')) return [{ failed: this._failedMigrations }];
 
     // The typeGroup filter drops to raw SQL (no Prisma relation between ExplorerTransaction
     // and Message). Emulate it so the filter is actually exercised, not stubbed.
+    if (sql.includes('"MiningSettlementPayout"')) {
+      const recipient = values.find((v) => typeof v === 'string');
+      const rows = this._payouts.filter((x) => x.recipient === recipient);
+      // Sum as BigInt, mirroring the database's numeric sum — these are int64-scale strings.
+      const total = rows.reduce((acc, x) => acc + BigInt(x.amount), 0n);
+      return [{
+        count: BigInt(rows.length),
+        total: rows.length ? total.toString() : null,
+        denom: rows[0]?.denom ?? null,
+      }];
+    }
+
     if (sql.includes('"ExplorerTransaction"') && sql.includes('"typeUrl" LIKE')) {
       const like = values.find((v) => typeof v === 'string' && v.endsWith('%'));
       const prefix = typeof like === 'string' ? like.slice(0, -1) : '';
@@ -817,6 +855,24 @@ export function entitlement(id, slotId, epochNumber, overrides = {}) {
     rewardConfigVersion: 1n,
     createdHeight: 3196n,
     sampledAtHeight: 3196n,
+    ...overrides,
+  };
+}
+
+export function payout(id, recipient, height, overrides = {}) {
+  return {
+    id: BigInt(id),
+    payoutKey: `${id}:0`,
+    slotId: 1n,
+    epochNumber: 62n,
+    chunkIndex: 0n,
+    payoutIndex: 0,
+    recipient,
+    amount: '10000000',
+    denom: 'utwlt',
+    height: BigInt(height),
+    txHash: `PAYTX${id}`,
+    msgIndex: 0,
     ...overrides,
   };
 }

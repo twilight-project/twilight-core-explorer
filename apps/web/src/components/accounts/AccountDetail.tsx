@@ -11,6 +11,7 @@ import { DetailShell } from '@/components/detail/DetailShell';
 import { RawSection } from '@/components/detail/RawSection';
 import { ErrorState, LoadingState } from '@/components/states/States';
 import { BalancesSection } from './BalancesSection';
+import { RewardsReceivedSection } from './RewardsReceivedSection';
 import { useAccount, useAccountRaw } from '@/lib/api/queries';
 import { formatHeight } from '@/lib/format/height';
 
@@ -82,6 +83,8 @@ export function AccountDetail({ address }: { address: string }) {
           <BalancesSection address={a.address} />
         </CardBody>
       </Card>
+
+      <RewardsReceivedSection address={a.address} />
 
       <RawSection expanded={rawOpen} onToggle={() => setRawOpen((o) => !o)} query={raw} />
     </DetailShell>

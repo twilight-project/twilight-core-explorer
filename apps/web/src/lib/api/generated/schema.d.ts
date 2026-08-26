@@ -2623,6 +2623,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mining/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Settlement payouts to participants (one row per recipient line) */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    cursor?: string;
+                    recipient?: string;
+                    slotId?: string;
+                    epoch?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Decimal height/id as string */
+                                id: string;
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                /** @description Decimal height/id as string */
+                                epochNumber: string;
+                                /** @description Decimal height/id as string */
+                                chunkIndex: string;
+                                payoutIndex: number;
+                                recipient: string;
+                                amount: string;
+                                denom: string;
+                                /** @description Decimal height/id as string */
+                                height: string;
+                                txHash: string;
+                                msgIndex: number | null;
+                            }[];
+                            page: {
+                                limit: number;
+                                nextCursor: string | null;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/accounts/{address}/payout-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Total settlement rewards received by an address */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    address: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** SettlementPayoutSummary */
+                            data: {
+                                recipient: string;
+                                /** @description Decimal height/id as string */
+                                payoutCount: string;
+                                totalAmount: string;
+                                denom: string | null;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/supply": {
         parameters: {
             query?: never;

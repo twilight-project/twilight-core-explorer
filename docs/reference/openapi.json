@@ -6716,6 +6716,310 @@
         }
       }
     },
+    "/api/v1/mining/payouts": {
+      "get": {
+        "summary": "Settlement payouts to participants (one row per recipient line)",
+        "tags": [
+          "mining"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "recipient",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "slotId",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "epoch",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "page"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "slotId",
+                          "epochNumber",
+                          "chunkIndex",
+                          "payoutIndex",
+                          "recipient",
+                          "amount",
+                          "denom",
+                          "height",
+                          "txHash",
+                          "msgIndex"
+                        ],
+                        "properties": {
+                          "id": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "slotId": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "epochNumber": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "chunkIndex": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "payoutIndex": {
+                            "type": "integer"
+                          },
+                          "recipient": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "string"
+                          },
+                          "denom": {
+                            "type": "string"
+                          },
+                          "height": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "txHash": {
+                            "type": "string"
+                          },
+                          "msgIndex": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "title": "SettlementPayoutItem"
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "limit": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{address}/payout-summary": {
+      "get": {
+        "summary": "Total settlement rewards received by an address",
+        "tags": [
+          "mining"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "recipient",
+                        "payoutCount",
+                        "totalAmount",
+                        "denom"
+                      ],
+                      "properties": {
+                        "recipient": {
+                          "type": "string"
+                        },
+                        "payoutCount": {
+                          "pattern": "^\\d+$",
+                          "description": "Decimal height/id as string",
+                          "type": "string"
+                        },
+                        "totalAmount": {
+                          "type": "string"
+                        },
+                        "denom": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "title": "SettlementPayoutSummary"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/supply": {
       "get": {
         "summary": "Total sampled supply (latest or at a specific height)",

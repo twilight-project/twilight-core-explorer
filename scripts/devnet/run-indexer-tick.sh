@@ -87,6 +87,9 @@ project_tick() {
   # rewards: process new claims FIRST, then snapshot+reconcile (clears transient missing_reward_records),
   # then balance snapshot.
   P rewards
+  # entitlements: an OBSERVED SAMPLE (creation is silent - only epoch_finalized is emitted).
+  # Not height-pinned, so unlike the snapshots below it is immune to state pruning.
+  P entitlements
   # RE-READ the tip here rather than reusing the one from the top of the tick. These are the
   # only height-PINNED reads (x-cosmos-block-height), and the node prunes state to the last
   # ~100 blocks — about 9.5 minutes at this chain's ~5.7s blocks. A full projection pass takes

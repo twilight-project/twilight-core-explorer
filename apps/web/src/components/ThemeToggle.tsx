@@ -4,32 +4,20 @@ import { clsx } from 'clsx';
 import { Palette } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-// Runtime brand controls: two independent, tokenized axes.
-//  - Theme (brand identity — color + shape + elevation + heading tracking + display/metric face):
-//    the converged "Twilight Operations Console" set. `auction` = the warm-gold operator console
-//    (default; id kept for compatibility, labelled "Console"); `gold-orbit` = premium glow gold;
-//    `minimal-operator` = blue-signal high-contrast engineering variant; `legacy` = older
-//    violet-on-navy alt. Each theme owns its shape/elevation/type tokens, not just color.
-//  - Density (spacing/type scale): `compact` = faithful to the handoff's dense console (default);
-//    `airy` = the roomier treatment. Orthogonal to theme: magnitude, not character.
-// Both persist in localStorage and are applied pre-paint by the inline script in layout.tsx.
+// Theme switch: one ground, two grounds. `dark` is the operator console (default), `light` is the
+// same voice and shape language on paper — only the palette depth differs. Persisted in
+// localStorage and applied pre-paint by the inline script in layout.tsx, which also migrates any
+// id stored before the set was reduced to these two.
+//
+// The former `density` axis (compact/airy) was removed: the dense console spacing is now the only
+// scale, so its tokens are plain constants in globals.css rather than a runtime switch.
 const THEMES = [
-  { id: 'auction', label: 'Console' },
-  { id: 'daylight', label: 'Daylight' },
-  { id: 'gold-orbit', label: 'Orbit' },
-  { id: 'minimal-operator', label: 'Minimal' },
-  { id: 'legacy', label: 'Legacy' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'light', label: 'Light' },
 ] as const;
 type ThemeId = (typeof THEMES)[number]['id'];
 
-const DENSITIES = [
-  { id: 'compact', label: 'Compact' },
-  { id: 'airy', label: 'Airy' },
-] as const;
-type DensityId = (typeof DENSITIES)[number]['id'];
-
 export const THEME_STORAGE_KEY = 'tw-theme';
-export const DENSITY_STORAGE_KEY = 'tw-density';
 
 function Group<T extends string>({
   label,
@@ -70,14 +58,12 @@ function Group<T extends string>({
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeId>('auction');
-  const [density, setDensity] = useState<DensityId>('compact');
+  const [theme, setTheme] = useState<ThemeId>('dark');
   // On phones the full chip panel would sit on top of content — collapse it behind a button.
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setTheme((document.documentElement.dataset.theme as ThemeId) || 'auction');
-    setDensity((document.documentElement.dataset.density as DensityId) || 'compact');
+    setTheme((document.documentElement.dataset.theme as ThemeId) || 'dark');
   }, []);
 
   function pickTheme(id: ThemeId) {
@@ -90,16 +76,6 @@ export function ThemeToggle() {
     setTheme(id);
   }
 
-  function pickDensity(id: DensityId) {
-    document.documentElement.dataset.density = id;
-    try {
-      window.localStorage.setItem(DENSITY_STORAGE_KEY, id);
-    } catch {
-      /* localStorage unavailable — session-only switch is fine */
-    }
-    setDensity(id);
-  }
-
   return (
     <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-1.5">
       <div
@@ -110,17 +86,10 @@ export function ThemeToggle() {
       >
         <Group
           label="Theme"
-          ariaLabel="Brand theme"
+          ariaLabel="Color theme"
           items={THEMES}
           active={theme}
           onPick={pickTheme}
-        />
-        <Group
-          label="Density"
-          ariaLabel="Layout density"
-          items={DENSITIES}
-          active={density}
-          onPick={pickDensity}
         />
       </div>
       <button

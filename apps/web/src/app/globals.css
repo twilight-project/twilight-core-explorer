@@ -3,23 +3,23 @@
 @tailwind utilities;
 
 /*
-  Theme Bridge (extracted/adapted from reference/twilight-explorer/packages/web).
-  Tailwind colors resolve via CSS variables; the `auction` theme is the default Twilight look.
-  Switch with `data-theme` on <html>.
+  Theme bridge. Tailwind colors resolve via CSS variables, switched with `data-theme` on <html>.
+  Two themes only — `dark` (the default operator console) and `light` (its paper counterpart).
+  They share one voice and shape language; only the ground and palette depth differ.
 */
 
 :root {
   /* Semantic font ROLES resolve onto the faces loaded by next/font in layout.tsx (each bound to a
      unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
      its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
-     if a face fails to load. --font-serif here is the auction/legacy default (Instrument Serif). */
+     if a face fails to load. */
   --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter,
     sans-serif;
   --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     'Roboto Mono', monospace;
-  /* Hero-numeral role (KPI/stat values). Defaults to mono so auction/legacy numbers are unchanged;
-     a theme repoints it to its display face for brand-voiced big numbers. */
+  /* Hero-numeral role (KPI/stat values). Mono by default — operator honesty: heights and amounts
+     stay monospaced so digits align and cannot be misread. */
   --font-metric: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
   /* KPI category legend. Every category hue except violet already exists as a per-theme --accent-*
@@ -28,13 +28,8 @@
   --accent-violet: 167 139 250;
 }
 
-/* Default theme — "Twilight Console" (warm-gold operator console, the brand-brief v1 recommendation).
-   NOTE: the id is kept as `auction` for compatibility — it is the load-bearing default referenced by
-   layout.tsx (SSR default), .env.example, and the ops runbooks. Rather than flip that surface, the
-   default was retuned IN PLACE from the original loud multi-gold look to the disciplined single-gold
-   console. The toggle now labels this chip "Console". (A later cosmetic rename auction→console across
-   layout/env/docs is a clean mechanical follow-up if desired.) */
-[data-theme='auction'] {
+/* Dark — the default operator console: warm gold on a near-black ground. */
+[data-theme='dark'] {
   --page: 10 8 5;
   --background: 10 8 5;
   --background-secondary: 15 13 9;
@@ -81,167 +76,11 @@
   /* --font-metric inherits the :root mono default — heights/amounts stay monospaced */
 }
 
-/* Legacy theme (alternate mempool-style violet-on-navy) */
-[data-theme='legacy'] {
-  --page: 17 19 31;
-  --background: 17 19 31;
-  --background-secondary: 26 29 46;
-  --background-tertiary: 36 40 59;
-  --background-primary: 17 19 31;
-
-  --card: 26 29 46;
-  --card-hover: 36 40 59;
-  --card-border: 51 65 85;
-
-  /* WCAG 1.4.3: link/info text on navy — the old 124 58 237 was ≈3.3:1 on --background; the
-     violet identity now leads with the lighter tint (≈6.8:1) and keeps the deep violet as -dark. */
-  --primary: 167 139 250;
-  --primary-light: 196 181 253;
-  --primary-dark: 124 58 237;
-
-  --accent-blue: 59 130 246;
-  --accent-green: 34 197 94;
-  --accent-yellow: 234 179 8;
-  /* WCAG 1.4.3: was 239 68 68 ≈ 4.4:1 on --card; red-400 keeps the semantic red at ≈6:1. */
-  --accent-red: 248 113 113;
-  --accent-orange: 249 115 22;
-
-  --accent-gold: 167 139 250;
-  --accent-gold-light: 196 181 253;
-  --accent-gold-dark: 124 58 237;
-  --accent-amber: 234 179 8;
-  --accent-burgundy: 249 115 22;
-
-  --text: 255 255 255;
-  --text-secondary: 148 163 184;
-  /* WCAG 1.4.3: ~5.5:1 on the legacy --background (was 100 116 139 ≈ 3.9:1). */
-  --text-muted: 130 144 163;
-
-  --border: 51 65 85;
-  --border-light: 71 85 105;
-
-  /* expressive axis — legacy: soft product-console shapes, gentle drop */
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 24px rgba(0, 0, 0, 0.45);
-  --display-tracking: -0.005em;
-  --card-border-width: 1px;
-}
-
-/* ===== Brand-brief variants (Twilight Operations Console) =======================================
-   Two directions beyond the default after convergence: a glow-richer premium gold (Orbit) and a
-   blue-signal high-contrast engineering variant (Minimal). The brief's recommended default — the
-   warm-gold operator console ("A") — now lives IN the default `auction` block above (retuned in
-   place). Cosmic motifs for Orbit are deliberately deferred (approximated with a gold glow ring +
-   rounder cards). Per the brief's data-honesty ethos, both keep MONO hero numerals (--font-metric
-   inherits mono). Faces reuse those already loaded in layout.tsx (Sora / Space Grotesk). */
-
-/* Gold Orbit — premium gold with a glow ring + rounder cards (cosmic motifs deferred) */
-[data-theme='gold-orbit'] {
-  --page: 12 9 5;
-  --background: 12 9 5;
-  --background-secondary: 18 14 8;
-  --background-tertiary: 30 24 14;
-  --background-primary: 7 5 3;
-
-  --card: 24 20 13;
-  --card-hover: 30 25 17;
-  --card-border: 44 38 28;
-
-  --primary: 245 197 66;
-  --primary-light: 255 215 102;
-  --primary-dark: 200 158 46;
-
-  --accent-blue: 78 163 255;
-  --accent-orange: 255 154 61;
-  --accent-yellow: 255 181 112;
-  --accent-green: 61 220 151;
-  --accent-red: 255 107 107;
-
-  --accent-gold: 245 197 66;
-  --accent-gold-light: 255 215 102;
-  --accent-gold-dark: 200 158 46;
-  --accent-amber: 255 181 112;
-  --accent-burgundy: 54 30 14;
-
-  --text: 233 234 242;
-  --text-secondary: 201 202 214;
-  --text-muted: 154 157 180;
-
-  --border: 44 38 28;
-  --border-light: 62 52 38;
-
-  /* expressive — richer: softer rounded cards + a gold GLOW ring (the "orbit" premium cue) */
-  --radius-lg: 0.625rem;
-  --radius-xl: 0.875rem;
-  --radius-2xl: 1.125rem;
-  --shadow-card: 0 0 0 1px rgba(245, 197, 66, 0.1), 0 8px 36px rgba(0, 0, 0, 0.6),
-    0 0 24px rgba(245, 197, 66, 0.05);
-  --display-tracking: -0.01em;
-  --card-border-width: 1px;
-  /* display face — Sora: a touch more designed for the premium/public register */
-  --font-serif: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
-  /* MONO numerals retained (honesty) — premium comes from glow/shape, not decorative numbers */
-}
-
-/* C. Minimal Operator — blue-signal, flat, high-contrast engineering variant */
-[data-theme='minimal-operator'] {
-  --page: 8 8 10;
-  --background: 8 8 10;
-  --background-secondary: 13 13 16;
-  --background-tertiary: 20 20 24;
-  --background-primary: 5 5 6;
-
-  --card: 15 15 18;
-  --card-hover: 21 21 25;
-  /* brighter cool border → crisp high-contrast wireframe grid (cards + table rules) */
-  --card-border: 48 48 56;
-
-  --primary: 78 163 255;
-  --primary-light: 130 180 255;
-  --primary-dark: 54 130 220;
-
-  --accent-blue: 78 163 255;
-  --accent-orange: 255 181 112;
-  /* accent-yellow/-amber are the SEMANTIC warning color (Badge/delta warning tone + the warn icon
-     tint + the Degraded liveness tile), not a warm brand color — they must stay a real amber even in
-     this cool blue theme, or every "watch" signal desaturates to gray. */
-  --accent-yellow: 251 191 36;
-  --accent-green: 61 220 151;
-  --accent-red: 255 107 107;
-
-  /* brand-role tokens repoint to the blue signal so accent-gold consumers rebrand cleanly */
-  --accent-gold: 78 163 255;
-  --accent-gold-light: 130 180 255;
-  --accent-gold-dark: 54 130 220;
-  --accent-amber: 251 191 36;
-  --accent-burgundy: 18 24 38;
-
-  --text: 233 234 242;
-  --text-secondary: 201 202 214;
-  --text-muted: 154 157 180;
-
-  --border: 48 48 56;
-  --border-light: 64 64 74;
-
-  /* expressive — sharp, flat, border-led (engineering precision); mono numerals */
-  --radius-lg: 0.25rem;
-  --radius-xl: 0.375rem;
-  --radius-2xl: 0.5rem;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --display-tracking: -0.015em;
-  --card-border-width: 1px;
-  /* display face — Space Grotesk: tight technical grotesk */
-  --font-serif: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
-  /* MONO numerals (inherit) — engineering honesty */
-}
-
-/* Daylight — the light-mode member of the console set (same voice as `auction`, inverted ground).
-   Picked automatically for first-time visitors whose OS prefers light (see the pre-paint script in
-   layout.tsx); always available from the toggle. All text/status pairs are AA-verified against both
-   --background and --card by theme-tokens.test.ts — keep them passing when retuning. */
-[data-theme='daylight'] {
+/* Light — the same console on paper. Picked automatically for first-time visitors whose OS prefers
+   light (see the pre-paint script in layout.tsx); always available from the toggle. All text/status
+   pairs are AA-verified against both --background and --card by theme-tokens.test.ts — keep them
+   passing when retuning. */
+[data-theme='light'] {
   --page: 250 249 245;
   --background: 250 249 245;
   --background-secondary: 243 241 234;
@@ -287,30 +126,21 @@
   --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
   --display-tracking: -0.01em;
   --card-border-width: 1px;
-  /* display face — Inter, same compact technical voice as the dark console */
+  /* display face — Inter, the same compact technical voice as the dark theme */
   --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* ---- Density scale (independent of theme + layout) --------------------------------------------
-   `compact` reproduces the handoff's dense operator-console spacing/type; `airy` is the roomier
-   new-brand treatment. Switch with `data-density` on <html>. :root defaults to compact so SSR (and
-   any element before the density attribute is applied) renders faithfully. */
-:root,
-[data-density='compact'] {
+/* ---- Spacing/type scale ------------------------------------------------------------------------
+   The dense operator-console rhythm, now the only scale: the roomier "airy" alternative was removed
+   along with the runtime density switch, so these are plain constants rather than a switchable axis.
+   Kept as tokens because components reference them by name. */
+:root {
   --d-section-gap: 1.25rem; /* 20px — handoff section gap */
   --d-grid-gap: 0.875rem; /* 14px — handoff card-grid gap */
   --d-card-px: 1rem; /* 16px */
   --d-card-py: 0.875rem; /* 14px */
   --d-kpi-size: 1.375rem; /* 22px — handoff stat value */
   --d-metric-size: 2rem; /* 32px — handoff big metric */
-}
-[data-density='airy'] {
-  --d-section-gap: 2rem; /* 32px */
-  --d-grid-gap: 1.25rem; /* 20px */
-  --d-card-px: 1.25rem; /* 20px */
-  --d-card-py: 1rem; /* 16px */
-  --d-kpi-size: 1.625rem; /* 26px */
-  --d-metric-size: 2.25rem; /* 36px */
 }
 
 * {

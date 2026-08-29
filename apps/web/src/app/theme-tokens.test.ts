@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 // Regression guard (Copilot PR #17): page/background colors must flow through the CSS-variable theme
 // tokens (e.g. bg-background / bg-page), never a hardcoded hex like bg-[#050505] that would pin the
-// page to the auction palette and stop the `legacy` theme from switching.
+// page to the default palette and stop the light theme from switching.
 const SRC = join(process.cwd(), 'src');
 
 function walk(dir: string): string[] {
@@ -46,15 +46,14 @@ function tokenRgb(css: string, theme: string, name: string): number[] {
   return [Number(m[1]), Number(m[2]), Number(m[3])];
 }
 
-// The converged "Twilight Operations Console" theme set. `auction` carries the default warm-gold
-// console look (id kept for compatibility); daylight is its light-mode member; gold-orbit +
-// minimal-operator are the two variants; legacy is the older alt.
-const THEMES = ['auction', 'daylight', 'legacy', 'gold-orbit', 'minimal-operator'];
+// The full theme set: one dark console and its light counterpart. Every assertion below runs
+// against BOTH, so a retune cannot quietly break one ground while the other still passes.
+const THEMES = ['dark', 'light'];
 
-// Themes that repoint the display face (--font-serif) — the console (auction), its daylight member,
+// Themes that repoint the display face (--font-serif) — both, since
 // and both variants each pick a display sans. `legacy` inherits the Instrument Serif default, so it
 // is excluded.
-const BRAND_THEMES = ['auction', 'daylight', 'gold-orbit', 'minimal-operator'];
+const BRAND_THEMES = ['dark', 'light'];
 
 describe('theme token contrast (WCAG 1.4.3)', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
@@ -83,7 +82,7 @@ describe('theme token contrast (WCAG 1.4.3)', () => {
         });
         // Badges and the status banner render this token as text on ITS OWN 10% tint over the
         // surface (`bg-<token>/10 text-<token>`). The blend shifts the effective background — on
-        // a light ground it lowers the ratio, and the live-browser axe run caught daylight's
+        // a light ground it lowers the ratio, and the live-browser axe run caught the light theme's
         // amber at 4.48:1 on exactly this pair. Guard the blended surface too.
         it(`${theme}: --${token} on its 10% tint over --${surface} meets AA (>= 4.5:1)`, () => {
           const fg = tokenRgb(css, theme, token);
@@ -117,7 +116,7 @@ describe('every theme defines the expressive shape tokens (no silent fallback)',
 
 // Semantic-color guard (Copilot PR #68): --accent-yellow is the WARNING color — it backs the Badge/
 // delta warning tone, the `warn` icon tint, and the Degraded liveness tile. A theme must not desaturate
-// it to gray (minimal-operator once set it to 220 220 228), or every "watch" signal vanishes in that
+// it to gray, or every "watch" signal vanishes in that
 // theme. Assert it stays a warm amber (red channel clearly above blue) everywhere.
 describe('warning color stays a real amber (not gray) in every theme', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');

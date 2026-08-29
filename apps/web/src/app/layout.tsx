@@ -8,10 +8,10 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
 import './globals.css';
 
-// `auction` is the default theme id (kept for compatibility) — it now carries the warm-gold
+// `dark` is the default theme — the warm-gold
 // "Twilight Console" look. `legacy` is opt-in via env.
-const UI_THEME = (process.env.NEXT_PUBLIC_UI_THEME ?? 'auction').toLowerCase();
-const theme: 'auction' | 'legacy' = UI_THEME === 'legacy' ? 'legacy' : 'auction';
+const UI_THEME = (process.env.NEXT_PUBLIC_UI_THEME ?? 'dark').toLowerCase();
+const theme: 'dark' | 'light' = UI_THEME === 'light' ? 'light' : 'dark';
 
 // Faces are bound to UNIQUE css vars (not the role names). globals.css maps the semantic roles
 // (--font-sans / --font-serif / --font-mono) onto these, so loading a face and assigning it to a
@@ -49,17 +49,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       data-theme={theme}
-      data-density="compact"
       className={`${inter.variable} ${instrumentSerif.variable} ${robotoMono.variable} ${sora.variable} ${spaceGrotesk.variable}`}
     >
       <body className="bg-background text-text">
         {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults.
-            With no persisted choice, an OS light-mode preference selects the daylight theme — an
+            Also migrates any theme id stored before the set was reduced to dark/light, so a stale
+            value cannot leave the page with no palette. With no persisted choice, an OS light-mode
+            preference selects the light theme — an
             explicit toggle pick always wins thereafter. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('tw-theme');if(t){document.documentElement.dataset.theme=t;}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.dataset.theme='daylight';}var d=localStorage.getItem('tw-density');if(d){document.documentElement.dataset.density=d;}}catch(e){}})();",
+              "(function(){try{var m={auction:'dark',daylight:'light','gold-orbit':'dark','minimal-operator':'dark',legacy:'dark'};var t=localStorage.getItem('tw-theme');if(t){t=m[t]||t;if(t!=='dark'&&t!=='light'){t='dark';}document.documentElement.dataset.theme=t;localStorage.setItem('tw-theme',t);localStorage.removeItem('tw-density');}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.dataset.theme='light';}}catch(e){}})();",
           }}
         />
         {/* WCAG 2.4.1 — first focusable element: bypass the header/nav straight to content. */}

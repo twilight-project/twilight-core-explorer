@@ -6918,6 +6918,546 @@
         }
       }
     },
+    "/api/v1/mining/settlements": {
+      "get": {
+        "summary": "Settlements with observed activity (chunks submitted and/or finalized)",
+        "tags": [
+          "mining"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "slotId",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "epoch",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "page"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "slotId",
+                          "epochNumber",
+                          "settled",
+                          "finalizationReason",
+                          "releasedRemainder",
+                          "finalizedHeight",
+                          "finalizeTxHash",
+                          "chunkCount",
+                          "payoutCount",
+                          "totalPaid",
+                          "denom",
+                          "lastHeight"
+                        ],
+                        "properties": {
+                          "slotId": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "epochNumber": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "settled": {
+                            "type": "boolean"
+                          },
+                          "finalizationReason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "releasedRemainder": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalizedHeight": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalizeTxHash": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "chunkCount": {
+                            "type": "integer"
+                          },
+                          "payoutCount": {
+                            "type": "integer"
+                          },
+                          "totalPaid": {
+                            "type": "string"
+                          },
+                          "denom": {
+                            "type": "string"
+                          },
+                          "lastHeight": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          }
+                        },
+                        "title": "SettlementItem"
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "limit": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mining/settlements/{slotId}/{epoch}": {
+      "get": {
+        "summary": "One settlement with its chunks and every recipient payout",
+        "tags": [
+          "mining"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "epoch",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "slotId",
+                        "epochNumber",
+                        "settled",
+                        "finalizationReason",
+                        "releasedRemainder",
+                        "finalizedHeight",
+                        "finalizeTxHash",
+                        "chunkCount",
+                        "payoutCount",
+                        "totalPaid",
+                        "denom",
+                        "lastHeight",
+                        "chunks",
+                        "payouts"
+                      ],
+                      "properties": {
+                        "slotId": {
+                          "pattern": "^\\d+$",
+                          "description": "Decimal height/id as string",
+                          "type": "string"
+                        },
+                        "epochNumber": {
+                          "pattern": "^\\d+$",
+                          "description": "Decimal height/id as string",
+                          "type": "string"
+                        },
+                        "settled": {
+                          "type": "boolean"
+                        },
+                        "finalizationReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "releasedRemainder": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "finalizedHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "finalizeTxHash": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "chunkCount": {
+                          "type": "integer"
+                        },
+                        "payoutCount": {
+                          "type": "integer"
+                        },
+                        "totalPaid": {
+                          "type": "string"
+                        },
+                        "denom": {
+                          "type": "string"
+                        },
+                        "lastHeight": {
+                          "pattern": "^\\d+$",
+                          "description": "Decimal height/id as string",
+                          "type": "string"
+                        },
+                        "chunks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "chunkIndex",
+                              "recipientCount",
+                              "chunkTotal",
+                              "height",
+                              "txHash"
+                            ],
+                            "properties": {
+                              "chunkIndex": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "recipientCount": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "chunkTotal": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "txHash": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "payouts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "slotId",
+                              "epochNumber",
+                              "chunkIndex",
+                              "payoutIndex",
+                              "recipient",
+                              "amount",
+                              "denom",
+                              "height",
+                              "txHash",
+                              "msgIndex"
+                            ],
+                            "properties": {
+                              "id": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "slotId": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "epochNumber": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "chunkIndex": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "payoutIndex": {
+                                "type": "integer"
+                              },
+                              "recipient": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "type": "string"
+                              },
+                              "denom": {
+                                "type": "string"
+                              },
+                              "height": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "txHash": {
+                                "type": "string"
+                              },
+                              "msgIndex": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/accounts/{address}/payout-summary": {
       "get": {
         "summary": "Total settlement rewards received by an address",

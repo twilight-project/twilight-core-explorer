@@ -39,6 +39,8 @@ export class MockPrisma {
     this._epochs = data.epochs ?? [];
     this._entitlements = data.entitlements ?? [];
     this._payouts = data.payouts ?? [];
+    this._chunks = data.chunks ?? [];
+    this._finalizations = data.finalizations ?? [];
     this._rewardsBalances = data.rewardsBalances ?? [];
     this._paramsChanges = data.paramsChanges ?? [];
     this._treasuryPayments = data.treasuryPayments ?? [];
@@ -387,6 +389,17 @@ export class MockPrisma {
       findUnique: async (args) => this._epochs.find((e) => e.epochNumber === args.where.epochNumber) ?? null,
     };
 
+    this.miningSettlementChunk = {
+      findMany: async (args = {}) => {
+        const w = args.where ?? {};
+        let r = this._chunks.filter(
+          (c) => c.slotId === w.slotId && c.epochNumber === w.epochNumber,
+        );
+        r.sort((a, b) => (a.chunkIndex < b.chunkIndex ? -1 : 1));
+        return r;
+      },
+    };
+
     this.miningSettlementPayout = {
       findMany: async (args = {}) => {
         let r = [...this._payouts];
@@ -405,7 +418,17 @@ export class MockPrisma {
             }),
           );
         }
-        r.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : descBig(a.id, b.id)));
+        // Honor the caller's ordering: the account list is (height, id) DESC, while the
+        // settlement detail is (chunkIndex, payoutIndex) ASC.
+        const byChunk = JSON.stringify(args.orderBy ?? '').includes('chunkIndex');
+        if (byChunk) {
+          r.sort((a, b) =>
+            a.chunkIndex !== b.chunkIndex
+              ? (a.chunkIndex < b.chunkIndex ? -1 : 1)
+              : a.payoutIndex - b.payoutIndex);
+        } else {
+          r.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : descBig(a.id, b.id)));
+        }
         return args.take ? r.slice(0, args.take) : r;
       },
     };
@@ -508,12 +531,74 @@ export class MockPrisma {
         : String(query);
     // Two call shapes: a tagged template (strings array + REST values, which is how the
     // repositories call it) and a Prisma.sql instance ({ strings, values }).
-    const values = rest.length > 0 ? rest : Array.isArray(query?.values) ? query.values : [];
-    if (sql.includes('_prisma_migrations')) return [{ failed: this._failedMigrations }];
+    let values = rest.length > 0 ? rest : Array.isArray(query?.values) ? query.values : [];
+    // Prisma.raw(...) fragments arrive as VALUES, not as part of the template strings, so the
+    // SQL they carry is invisible to a strings-only match. Fold their text into `sql` and drop
+    // them from the bound values.
+    const rawText = values
+      .filter((v) => v && typeof v === 'object' && Array.isArray(v.strings))
+      .map((v) => v.strings.join(' '))
+      .join(' ');
+    const sqlText = `${sql} ${rawText}`;
+    values = values.filter((v) => !(v && typeof v === 'object' && Array.isArray(v.strings)));
+    if (sqlText.includes('_prisma_migrations')) return [{ failed: this._failedMigrations }];
 
     // The typeGroup filter drops to raw SQL (no Prisma relation between ExplorerTransaction
     // and Message). Emulate it so the filter is actually exercised, not stubbed.
-    if (sql.includes('"MiningSettlementPayout"')) {
+    if (sqlText.includes('WITH pairs AS')) {
+      // Emulate the settlement aggregate: distinct (slot, epoch) across chunks +
+      // finalizations, with per-pair counts and totals.
+      const keys = new Map();
+      const note = (row) => {
+        const k = `${row.slotId}:${row.epochNumber}`;
+        const cur = keys.get(k) ?? { slotId: row.slotId, epochNumber: row.epochNumber, lastHeight: 0n };
+        if (row.height > cur.lastHeight) cur.lastHeight = row.height;
+        keys.set(k, cur);
+      };
+      this._chunks.forEach(note);
+      this._finalizations.forEach(note);
+
+      let rows = [...keys.values()].map((p) => {
+        const fin = this._finalizations
+          .filter((f) => f.slotId === p.slotId && f.epochNumber === p.epochNumber)
+          .sort((a, b) => (a.height > b.height ? -1 : 1))[0] ?? null;
+        const pays = this._payouts.filter(
+          (x) => x.slotId === p.slotId && x.epochNumber === p.epochNumber,
+        );
+        return {
+          ...p,
+          finalizationReason: fin?.finalizationReason ?? null,
+          releasedRemainder: fin?.releasedRemainder ?? null,
+          finalizedHeight: fin?.finalizedHeight ?? null,
+          finalizeTxHash: fin?.txHash ?? null,
+          chunkCount: BigInt(this._chunks.filter(
+            (c) => c.slotId === p.slotId && c.epochNumber === p.epochNumber).length),
+          payoutCount: BigInt(pays.length),
+          totalPaid: pays.reduce((a, x) => a + BigInt(x.amount), 0n).toString(),
+        };
+      });
+
+      // Two call shapes, distinguished by the guarded-filter form the list query uses:
+      //   list  : (?::bigint IS NULL OR p."slotId" = ?) ... -> values[0]=slotId, values[2]=epoch
+      //   detail: WHERE p."slotId" = ? AND p."epochNumber" = ? -> values[0], values[1]
+      if (sqlText.includes('IS NULL OR')) {
+        if (values[0] !== null && values[0] !== undefined) {
+          rows = rows.filter((r) => r.slotId === values[0]);
+        }
+        if (values[2] !== null && values[2] !== undefined) {
+          rows = rows.filter((r) => r.epochNumber === values[2]);
+        }
+      } else {
+        rows = rows.filter((r) => r.slotId === values[0] && r.epochNumber === values[1]);
+      }
+      rows.sort((a, b) =>
+        a.epochNumber !== b.epochNumber
+          ? descBig(a.epochNumber, b.epochNumber)
+          : (a.slotId < b.slotId ? -1 : 1));
+      return rows;
+    }
+
+    if (sqlText.includes('"MiningSettlementPayout"') && !sqlText.includes('WITH pairs AS')) {
       const recipient = values.find((v) => typeof v === 'string');
       const rows = this._payouts.filter((x) => x.recipient === recipient);
       // Sum as BigInt, mirroring the database's numeric sum — these are int64-scale strings.
@@ -525,7 +610,7 @@ export class MockPrisma {
       }];
     }
 
-    if (sql.includes('"ExplorerTransaction"') && sql.includes('"typeUrl" LIKE')) {
+    if (sqlText.includes('"ExplorerTransaction"') && sqlText.includes('"typeUrl" LIKE')) {
       const like = values.find((v) => typeof v === 'string' && v.endsWith('%'));
       const prefix = typeof like === 'string' ? like.slice(0, -1) : '';
       const rows = this._txs.filter((t) =>
@@ -855,6 +940,32 @@ export function entitlement(id, slotId, epochNumber, overrides = {}) {
     rewardConfigVersion: 1n,
     createdHeight: 3196n,
     sampledAtHeight: 3196n,
+    ...overrides,
+  };
+}
+
+export function settlementChunk(slotId, epochNumber, chunkIndex, height, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    epochNumber: BigInt(epochNumber),
+    chunkIndex: BigInt(chunkIndex),
+    recipientCount: 1,
+    chunkTotal: '10000000',
+    height: BigInt(height),
+    txHash: `CHUNKTX${slotId}_${epochNumber}_${chunkIndex}`,
+    ...overrides,
+  };
+}
+
+export function settlementFinalization(slotId, epochNumber, height, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    epochNumber: BigInt(epochNumber),
+    finalizationReason: 'SETTLEMENT_FINALIZATION_REASON_AUTHORIZED_EARLY',
+    releasedRemainder: '0',
+    finalizedHeight: BigInt(height),
+    height: BigInt(height),
+    txHash: `FINTX${slotId}_${epochNumber}`,
     ...overrides,
   };
 }

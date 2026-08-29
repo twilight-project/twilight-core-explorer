@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import {
+  SettlementDetailResponse,
+  SettlementListResponse,
+  SettlementParams,
+  SettlementsQuery,
+  toSettlementChunkItem,
+  toSettlementItem,
   SettlementPayoutListResponse,
   SettlementPayoutSummaryResponse,
   SettlementPayoutsQuery,
@@ -11,7 +17,11 @@ import { AccountParams } from '../dto/accounts.js';
 import { ErrorResponse } from '../dto/common.js';
 import {
   getPayoutSummary,
+  getSettlement,
+  listSettlementChunks,
+  listSettlementPayoutLines,
   listSettlementPayouts,
+  listSettlements,
 } from '../repositories/mining-repository.js';
 import {
   DEFAULT_LIMIT,
@@ -20,7 +30,8 @@ import {
   encodeKeyset,
   parseUint64,
 } from '../lib/pagination.js';
-import { invalidQuery } from '../lib/errors.js';
+import { invalidQuery, notFound } from '../lib/errors.js';
+import { parseSlotId } from '../lib/slot-id.js';
 
 /** Parse an optional numeric filter; out-of-int64 / malformed → 400 invalid_query (not a 500). */
 function filterUint64(raw: string | undefined): bigint | undefined {
@@ -69,6 +80,80 @@ export async function miningRoutes(fastify: FastifyInstance): Promise<void> {
       const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
       const nextCursor = hasMore && last ? encodeKeyset([last.height, last.id]) : null;
       return { data: rows.map(toSettlementPayoutItem), page: { limit, nextCursor } };
+    },
+  );
+
+  // ---- settlements ----
+  app.get(
+    '/mining/settlements',
+    {
+      schema: {
+        tags: ['mining'],
+        summary: 'Settlements with observed activity (chunks submitted and/or finalized)',
+        querystring: SettlementsQuery,
+        response: { 200: SettlementListResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const limit = request.query.limit ?? DEFAULT_LIMIT;
+      let beforeEpoch: bigint | undefined;
+      let beforeSlotId: bigint | undefined;
+      if (request.query.cursor !== undefined) {
+        const [e, s] = decodeKeyset(request.query.cursor, 2);
+        beforeEpoch = decodeBigIntPart(e as string);
+        beforeSlotId = decodeBigIntPart(s as string);
+      }
+      const fetched = await listSettlements(app.prisma, {
+        slotId: filterUint64(request.query.slotId),
+        epochNumber: filterUint64(request.query.epoch),
+        beforeEpoch,
+        beforeSlotId,
+        limit: limit + 1,
+      });
+      const hasMore = fetched.length > limit;
+      const rows = hasMore ? fetched.slice(0, limit) : fetched;
+      const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
+      const nextCursor = hasMore && last ? encodeKeyset([last.epochNumber, last.slotId]) : null;
+      return { data: rows.map(toSettlementItem), page: { limit, nextCursor } };
+    },
+  );
+
+  app.get(
+    '/mining/settlements/:slotId/:epoch',
+    {
+      schema: {
+        tags: ['mining'],
+        summary: 'One settlement with its chunks and every recipient payout',
+        params: SettlementParams,
+        response: {
+          200: SettlementDetailResponse,
+          400: ErrorResponse,
+          404: ErrorResponse,
+        },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const epoch = parseSlotId(request.params.epoch);
+      const settlement = await getSettlement(app.prisma, slotId, epoch);
+      if (!settlement) {
+        // Either no such settlement, or one the chain created and nobody ever touched — the
+        // latter leaves no observable trace, so the two are indistinguishable here.
+        throw notFound('no settlement activity recorded for that slot and epoch');
+      }
+      const [chunks, payouts] = await Promise.all([
+        listSettlementChunks(app.prisma, slotId, epoch),
+        listSettlementPayoutLines(app.prisma, slotId, epoch),
+      ]);
+      return {
+        data: {
+          ...toSettlementItem(settlement),
+          chunks: chunks.map(toSettlementChunkItem),
+          payouts: payouts.map(toSettlementPayoutItem),
+        },
+      };
     },
   );
 

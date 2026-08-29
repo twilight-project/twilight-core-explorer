@@ -525,6 +525,30 @@ export function useRewardEpochRaw(epoch: string, enabled: boolean) {
 export type SettlementPayoutsResponse = JsonOf<'/api/v1/mining/payouts'>;
 export type PayoutSummaryResponse = JsonOf<'/api/v1/accounts/{address}/payout-summary'>;
 
+export type SettlementsResponse = JsonOf<'/api/v1/mining/settlements'>;
+export type SettlementDetailResponse =
+  JsonOf<'/api/v1/mining/settlements/{slotId}/{epoch}'>;
+
+export function useSlotSettlements(slotId: string) {
+  return useInfiniteQuery({
+    queryKey: ['mining', 'settlements', 'slot', slotId],
+    queryFn: ({ pageParam }) =>
+      apiGet('/api/v1/mining/settlements', { limit: LIST_PAGE, cursor: pageParam, slotId }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
+    enabled: slotId.length > 0,
+  });
+}
+
+export function useSettlement(slotId: string, epoch: string) {
+  return useQuery({
+    queryKey: ['mining', 'settlement', slotId, epoch],
+    queryFn: () =>
+      apiGetPath('/api/v1/mining/settlements/{slotId}/{epoch}', { slotId, epoch }),
+    enabled: slotId.length > 0 && epoch.length > 0,
+  });
+}
+
 export function useAccountPayouts(address: string) {
   return useInfiniteQuery({
     queryKey: ['mining', 'payouts', 'account', address],

@@ -40,6 +40,23 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
   '/accounts/aggregate': null,
   '/supply': null,
   '/search': { data: [] },
+  // Settlement detail is object-shaped; the smoke tier only needs it to render, so give it a
+  // minimal settled settlement with one recipient.
+  '/mining/settlements/1/62': {
+    data: {
+      slotId: '1', epochNumber: '62', settled: true,
+      finalizationReason: 'SETTLEMENT_FINALIZATION_REASON_AUTHORIZED_EARLY',
+      releasedRemainder: '0', finalizedHeight: '22623', finalizeTxHash: 'ABCDEF',
+      chunkCount: 1, payoutCount: 1, totalPaid: '10000000', denom: 'utwlt',
+      lastHeight: '22623',
+      chunks: [{ chunkIndex: '0', recipientCount: 1, chunkTotal: '10000000', height: '22608', txHash: 'ABCDEF' }],
+      payouts: [{
+        id: '1', slotId: '1', epochNumber: '62', chunkIndex: '0', payoutIndex: 0,
+        recipient: 'twilight1recipient', amount: '10000000', denom: 'utwlt',
+        height: '22608', txHash: 'ABCDEF', msgIndex: 0,
+      }],
+    },
+  },
 };
 
 export async function mockApi(page: Page): Promise<void> {

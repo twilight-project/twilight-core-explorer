@@ -19,6 +19,7 @@ import { CoreSlotHealthSection } from './sections/CoreSlotHealthSection';
 import { CoreSlotLivenessSection } from './sections/CoreSlotLivenessSection';
 import { CoreSlotProposedBlocksSection } from './sections/CoreSlotProposedBlocksSection';
 import { CoreSlotAuthorityHistorySection } from './sections/CoreSlotAuthorityHistorySection';
+import { CoreSlotSettlementsSection } from './sections/CoreSlotSettlementsSection';
 import { CoreSlotRewardsSection } from './sections/CoreSlotRewardsSection';
 import { CoreSlotRawSection } from './sections/CoreSlotRawSection';
 
@@ -109,6 +110,8 @@ export function CoreSlotDetail({ slotId, embedded = false }: { slotId: string; e
       <CoreSlotLivenessSection slotId={c.slotId} />
       <CoreSlotProposedBlocksSection slotId={c.slotId} />
       <CoreSlotAuthorityHistorySection slotId={c.slotId} />
+      <CoreSlotSettlementsSection slotId={slotId} />
+
       <CoreSlotRewardsSection slotId={c.slotId} />
       <CoreSlotRawSection slotId={c.slotId} />
     </>,

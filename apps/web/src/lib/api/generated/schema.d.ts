@@ -2705,6 +2705,204 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mining/settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Settlements with observed activity (chunks submitted and/or finalized) */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    cursor?: string;
+                    slotId?: string;
+                    epoch?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                /** @description Decimal height/id as string */
+                                epochNumber: string;
+                                settled: boolean;
+                                finalizationReason: string | null;
+                                releasedRemainder: string | null;
+                                finalizedHeight: string | null;
+                                finalizeTxHash: string | null;
+                                chunkCount: number;
+                                payoutCount: number;
+                                totalPaid: string;
+                                denom: string;
+                                /** @description Decimal height/id as string */
+                                lastHeight: string;
+                            }[];
+                            page: {
+                                limit: number;
+                                nextCursor: string | null;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mining/settlements/{slotId}/{epoch}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One settlement with its chunks and every recipient payout */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                    epoch: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                /** @description Decimal height/id as string */
+                                epochNumber: string;
+                                settled: boolean;
+                                finalizationReason: string | null;
+                                releasedRemainder: string | null;
+                                finalizedHeight: string | null;
+                                finalizeTxHash: string | null;
+                                chunkCount: number;
+                                payoutCount: number;
+                                totalPaid: string;
+                                denom: string;
+                                /** @description Decimal height/id as string */
+                                lastHeight: string;
+                                chunks: {
+                                    /** @description Decimal height/id as string */
+                                    chunkIndex: string;
+                                    recipientCount: number | null;
+                                    chunkTotal: string | null;
+                                    /** @description Decimal height/id as string */
+                                    height: string;
+                                    txHash: string;
+                                }[];
+                                payouts: {
+                                    /** @description Decimal height/id as string */
+                                    id: string;
+                                    /** @description Decimal height/id as string */
+                                    slotId: string;
+                                    /** @description Decimal height/id as string */
+                                    epochNumber: string;
+                                    /** @description Decimal height/id as string */
+                                    chunkIndex: string;
+                                    payoutIndex: number;
+                                    recipient: string;
+                                    amount: string;
+                                    denom: string;
+                                    /** @description Decimal height/id as string */
+                                    height: string;
+                                    txHash: string;
+                                    msgIndex: number | null;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/accounts/{address}/payout-summary": {
         parameters: {
             query?: never;

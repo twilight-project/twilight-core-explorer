@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildServer } from '../dist/server.js';
-import { MockPrisma, testConfig, payout } from './mock-prisma.js';
+import {
+  MockPrisma,
+  testConfig,
+  payout,
+  settlementChunk,
+  settlementFinalization,
+} from './mock-prisma.js';
 
 const ADDR = 'twilight1mw4n9ksh7ank3ewqu4vpg7f82ccp83xw03xmgl';
 const OTHER = 'twilight1qvkpcjlfjqpzvh2en7rlrx0hz866z4st8phy04';
@@ -90,6 +96,84 @@ describe('mining settlement payouts', () => {
     assert.equal(res.json().data.payoutCount, '0');
     assert.equal(res.json().data.totalAmount, '0');
     assert.equal(res.json().data.denom, null);
+    await app.close();
+  });
+});
+
+describe('mining settlements', () => {
+  const withActivity = () => build({
+    chunks: [
+      settlementChunk(1, 62, 0, 22608),
+      settlementChunk(1, 62, 1, 22610, { chunkTotal: '5000000', recipientCount: 2 }),
+      settlementChunk(2, 61, 0, 22400),
+    ],
+    finalizations: [settlementFinalization(1, 62, 22623)],
+    payouts: [
+      payout(1, ADDR, 22608, { slotId: 1n, epochNumber: 62n }),
+      payout(2, OTHER, 22610, { slotId: 1n, epochNumber: 62n, amount: '5000000', chunkIndex: 1n }),
+      payout(3, ADDR, 22400, { slotId: 2n, epochNumber: 61n }),
+    ],
+  });
+
+  it('lists settlements newest-epoch-first with counts and totals', async () => {
+    const app = await withActivity();
+    const res = await app.inject({ url: '/api/v1/mining/settlements' });
+    assert.equal(res.statusCode, 200);
+    const rows = res.json().data;
+    assert.deepEqual(rows.map((r) => `${r.slotId}/${r.epochNumber}`), ['1/62', '2/61']);
+    const first = rows[0];
+    assert.equal(first.chunkCount, 2);
+    assert.equal(first.payoutCount, 2);
+    assert.equal(first.totalPaid, '15000000');
+    await app.close();
+  });
+
+  it('marks settled ONLY when the chain finalized it, never inferred from payouts', async () => {
+    const app = await withActivity();
+    const rows = (await app.inject({ url: '/api/v1/mining/settlements' })).json().data;
+    const settled = rows.find((r) => r.slotId === '1');
+    const open = rows.find((r) => r.slotId === '2');
+    assert.equal(settled.settled, true);
+    assert.equal(settled.finalizationReason, 'SETTLEMENT_FINALIZATION_REASON_AUTHORIZED_EARLY');
+    assert.equal(settled.releasedRemainder, '0');
+    // Slot 2 has payouts but no finalization event: paid-out is NOT the same as settled.
+    assert.equal(open.settled, false);
+    assert.equal(open.finalizationReason, null);
+    await app.close();
+  });
+
+  it('filters by slot and by epoch', async () => {
+    const app = await withActivity();
+    const bySlot = await app.inject({ url: '/api/v1/mining/settlements?slotId=2' });
+    assert.deepEqual(bySlot.json().data.map((r) => r.slotId), ['2']);
+    await app.close();
+  });
+
+  it('detail returns the chunks and every recipient payout with amounts', async () => {
+    const app = await withActivity();
+    const res = await app.inject({ url: '/api/v1/mining/settlements/1/62' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.settled, true);
+    assert.deepEqual(d.chunks.map((c) => c.chunkIndex), ['0', '1']);
+    assert.deepEqual(
+      d.payouts.map((p) => [p.recipient, p.amount]),
+      [[ADDR, '10000000'], [OTHER, '5000000']],
+    );
+    await app.close();
+  });
+
+  it('404s for a settlement with no observed activity', async () => {
+    const app = await withActivity();
+    const res = await app.inject({ url: '/api/v1/mining/settlements/9/9' });
+    assert.equal(res.statusCode, 404);
+    await app.close();
+  });
+
+  it('rejects a non-numeric slot id with 400', async () => {
+    const app = await withActivity();
+    const res = await app.inject({ url: '/api/v1/mining/settlements/abc/62' });
+    assert.equal(res.statusCode, 400);
     await app.close();
   });
 });

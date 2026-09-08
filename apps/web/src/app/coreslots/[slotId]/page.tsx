@@ -1,7 +1,13 @@
 import { CoreSlotDetail } from '@/components/coreslots/CoreSlotDetail';
 
-export const metadata = { title: "CoreSlot" };
+export const metadata = { title: 'CoreSlot' };
 
-export default function CoreSlotDetailPage({ params }: { params: { slotId: string } }) {
-  return <CoreSlotDetail slotId={params.slotId} />;
+export default function CoreSlotDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { slotId: string };
+  searchParams: { tab?: string | string[] };
+}) {
+  return <CoreSlotDetail slotId={params.slotId} tab={searchParams.tab} />;
 }

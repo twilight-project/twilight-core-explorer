@@ -56,7 +56,7 @@ export function CoreSlotRewardsSection({ slotId }: { slotId: string }) {
         title="Entitlements (observed projection)"
         action={
           <Link
-            href={`/rewards/entitlements?slotId=${encodeURIComponent(slotId)}`}
+            href={`/economy?tab=entitlements&slotId=${encodeURIComponent(slotId)}`}
             className="text-primary hover:text-primary-light"
           >
             View all entitlements →

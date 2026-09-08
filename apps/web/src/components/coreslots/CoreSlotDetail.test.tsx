@@ -62,19 +62,28 @@ describe('CoreSlotDetail', () => {
       if (fx === undefined) throw new Error(`unexpected ${path}`);
       return fx;
     });
-    renderWithClient(<CoreSlotDetail slotId="2" />);
+    // Verdict header (default Overview tab): status woven into the h1.
+    const first = renderWithClient(<CoreSlotDetail slotId="2" />);
+    expect(await screen.findByText(/CoreSlot 2/)).toBeInTheDocument();
+    first.unmount();
 
-    expect(await screen.findByText('CoreSlot 2')).toBeInTheDocument();
+    // Signing tab: health + liveness sections.
+    const signing = renderWithClient(<CoreSlotDetail slotId="2" tab="signing" />);
     expect(await screen.findByText('90.00%')).toBeInTheDocument(); // lifetime uptime (health section)
-    expect(screen.getByText('lifecycle')).toBeInTheDocument(); // authority event kind
+    signing.unmount();
+
+    // History tab: proposed blocks + authority history.
+    const history = renderWithClient(<CoreSlotDetail slotId="2" tab="history" />);
+    expect(await screen.findByText('lifecycle')).toBeInTheDocument(); // authority event kind
     expect(screen.getByText('50')).toBeInTheDocument(); // proposed block height
-    // Rewards caveat sourced from contract fields, visible:
-    expect(screen.getByText('projection_observed_not_live_claimable')).toBeInTheDocument();
-    expect(screen.getByText('projection_observed_not_live_claimable')).toBeInTheDocument();
-    // 12c cross-link: rewards section links to the filtered claim history for this slot.
+    history.unmount();
+
+    // Rewards tab: caveat sourced from contract fields, visible + entitlements cross-link.
+    renderWithClient(<CoreSlotDetail slotId="2" tab="rewards" />);
+    expect(await screen.findByText('projection_observed_not_live_claimable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /view all entitlements/i })).toHaveAttribute(
       'href',
-      '/rewards/entitlements?slotId=2',
+      '/economy?tab=entitlements&slotId=2',
     );
   });
 
@@ -92,15 +101,15 @@ describe('CoreSlotDetail', () => {
     expect(await screen.findByText(/not found/i)).toBeInTheDocument();
   });
 
-  it('RawSection lazy-fetches include=raw only after expansion', async () => {
+  it('RawSection lazy-fetches include=raw only after expansion (on the Raw tab)', async () => {
     apiGetPath.mockImplementation(async (path: string, _params: unknown, query?: { include?: string }) => {
       if (query?.include === 'raw') return { data: { raw: { ok: 1 } } };
       const fx = FIXTURES[path];
       if (fx === undefined) throw new Error(`unexpected ${path}`);
       return fx;
     });
-    renderWithClient(<CoreSlotDetail slotId="2" />);
-    await screen.findByText('CoreSlot 2');
+    renderWithClient(<CoreSlotDetail slotId="2" tab="raw" />);
+    await screen.findByText(/CoreSlot 2/);
     const rawCalled = () =>
       apiGetPath.mock.calls.some((c) => (c[2] as { include?: string } | undefined)?.include === 'raw');
     expect(rawCalled()).toBe(false);

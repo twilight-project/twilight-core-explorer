@@ -22,21 +22,21 @@ export function RewardEpochDetail({ epoch }: { epoch: string }) {
 
   if (!valid) {
     return (
-      <DetailShell title="Epoch" backHref="/rewards" backLabel="Rewards">
+      <DetailShell title="Epoch" backHref="/economy" backLabel="Economy">
         <InvalidInput message="Epoch must be a positive integer." />
       </DetailShell>
     );
   }
   if (query.isPending) {
     return (
-      <DetailShell title="Epoch" backHref="/rewards" backLabel="Rewards">
+      <DetailShell title="Epoch" backHref="/economy" backLabel="Economy">
         <LoadingState rows={6} />
       </DetailShell>
     );
   }
   if (query.isError) {
     return (
-      <DetailShell title="Epoch" backHref="/rewards" backLabel="Rewards">
+      <DetailShell title="Epoch" backHref="/economy" backLabel="Economy">
         <ErrorState error={query.error} context="Epoch" />
       </DetailShell>
     );
@@ -58,7 +58,7 @@ export function RewardEpochDetail({ epoch }: { epoch: string }) {
   ];
 
   return (
-    <DetailShell title={`Epoch ${e.epochNumber}`} backHref="/rewards" backLabel="Rewards">
+    <DetailShell title={`Epoch ${e.epochNumber}`} backHref="/economy" backLabel="Economy">
       <Card>
         <CardBody>
           <RewardCaveat>

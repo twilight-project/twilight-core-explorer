@@ -57,7 +57,8 @@ describe('BlockDetail', () => {
       }
       throw new Error(`unexpected ${path}`);
     });
-    renderWithClient(<BlockDetail height="3196" />);
+    // Transactions live on their own tab now — only that tab's query mounts.
+    renderWithClient(<BlockDetail height="3196" tab="transactions" />);
     expect(await screen.findByText('Block 3,196')).toBeInTheDocument();
     expect(await screen.findByText(/TXHASH1/)).toBeInTheDocument();
   });
@@ -85,16 +86,17 @@ describe('BlockDetail', () => {
     expect(await screen.findByText(/not found/i)).toBeInTheDocument();
   });
 
-  it('RawSection lazy-fetches include=raw only after expansion', async () => {
+  it('include=raw fetches only on the Raw tab', async () => {
     apiGetPath.mockImplementation(async (_path: string, _params: unknown, query?: { include?: string }) =>
       query?.include === 'raw' ? { data: { ...BLOCK.data, raw: { ok: 1 } } } : BLOCK,
     );
     apiGet.mockResolvedValue(TXS);
-    renderWithClient(<BlockDetail height="3196" />);
-    await screen.findByText('Block 3,196');
     const rawCalled = () => apiGetPath.mock.calls.some((c) => (c[2] as { include?: string } | undefined)?.include === 'raw');
+    const { unmount } = renderWithClient(<BlockDetail height="3196" />);
+    await screen.findByText('Block 3,196');
     expect(rawCalled()).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: /raw/i }));
+    unmount();
+    renderWithClient(<BlockDetail height="3196" tab="raw" />);
     await waitFor(() => expect(rawCalled()).toBe(true));
   });
 });

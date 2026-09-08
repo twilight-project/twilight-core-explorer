@@ -29,14 +29,14 @@ export function OperatorView({ address }: { address: string }) {
 
   if (resolution.isPending) {
     return (
-      <DetailShell title="Operator" backHref="/coreslots" backLabel="CoreSlots">
+      <DetailShell title="Operator" backHref="/validators?tab=registry" backLabel="CoreSlots">
         <LoadingState rows={4} />
       </DetailShell>
     );
   }
   if (resolution.isError) {
     return (
-      <DetailShell title="Operator" backHref="/coreslots" backLabel="CoreSlots">
+      <DetailShell title="Operator" backHref="/validators?tab=registry" backLabel="CoreSlots">
         <ErrorState error={resolution.error} context="Operator" />
       </DetailShell>
     );
@@ -45,7 +45,7 @@ export function OperatorView({ address }: { address: string }) {
   const { matchedRole } = resolution.data;
   if (matchedRole === null || primarySlot === undefined) {
     return (
-      <DetailShell title="Operator" backHref="/coreslots" backLabel="CoreSlots">
+      <DetailShell title="Operator" backHref="/validators?tab=registry" backLabel="CoreSlots">
         <EmptyState message="No CoreSlot found for this address." />
       </DetailShell>
     );
@@ -56,7 +56,7 @@ export function OperatorView({ address }: { address: string }) {
   const name = displayName({ moniker: meta.moniker, operatorAddress });
 
   return (
-    <DetailShell title={name} backHref="/coreslots" backLabel="CoreSlots">
+    <DetailShell title={name} backHref="/validators?tab=registry" backLabel="CoreSlots">
       <Card>
         <CardBody className="space-y-2">
           <div className="text-sm text-text-muted">
@@ -78,7 +78,7 @@ export function OperatorView({ address }: { address: string }) {
             </div>
           ) : null}
           <div className="pt-1">
-            <Link href="/rewards" className="text-sm text-primary hover:text-primary-light">
+            <Link href="/economy" className="text-sm text-primary hover:text-primary-light">
               View rewards →
             </Link>
           </div>

@@ -76,12 +76,12 @@ describe('AccountDetail', () => {
         c[0] === '/api/v1/status' || c[0] === '/api/v1/mining/payouts'),
     ).toBe(true);
     // 12c cross-link: /supply stays (sampled <-> sampled).
-    expect(screen.getByRole('link', { name: /network supply/i })).toHaveAttribute('href', '/supply');
-    // An account is not provably a claimant, so the claims cross-link is phrased as a SEARCH of
-    // the server-side claimant filter (an empty result is a valid answer), never a stated relation.
-    expect(screen.getByRole('link', { name: /search claim events/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /network supply/i })).toHaveAttribute('href', '/economy?tab=supply');
+    // An account is not provably a payout recipient, so the entitlements cross-link is phrased as
+    // a SEARCH of the server-side payoutAddress filter (an empty result is a valid answer).
+    expect(screen.getByRole('link', { name: /search entitlements/i })).toHaveAttribute(
       'href',
-      '/rewards/claims?claimant=twilight1abc',
+      '/economy?tab=entitlements&payoutAddress=twilight1abc',
     );
   });
 

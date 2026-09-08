@@ -1,6 +1,4 @@
-import { ArrowLeftRight } from 'lucide-react';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { TxsAggregateStrip } from '@/components/txs/TxsAggregateStrip';
 import { TxsList } from '@/components/txs/TxsList';
 import { LiveLabel } from '@/components/freshness/LiveLabel';
@@ -9,9 +7,9 @@ import { coerceStatus, TX_STATUS_OPTIONS, TX_TYPE_GROUP_OPTIONS } from '@/lib/st
 
 export const metadata = { title: 'Transactions' };
 
-// Airy redesign — list-page pattern: header, a real windowed stat strip (GET /txs/aggregate), then
-// the real transaction list with its API-backed success/failed status filter AND the message-type
-// group filter (?type= → the /txs typeGroup enum, matched server-side against Message.typeUrl).
+// Explorer stream: shared tab row, then the real transaction list with its API-backed
+// success/failed status filter AND the message-type group filter (?type= → the /txs typeGroup
+// enum, matched server-side against Message.typeUrl).
 export default function TxsPage({
   searchParams,
 }: {
@@ -21,28 +19,23 @@ export default function TxsPage({
   const status = coerceStatus(oneParam(searchParams.status), TX_STATUS_OPTIONS);
   const typeGroup = coerceStatus(oneParam(searchParams.type), TX_TYPE_GROUP_OPTIONS);
   return (
-    <div className="space-y-section">
-      <PageHeader
-        icon={ArrowLeftRight}
-        iconTone="infra"
-        eyebrow="Transactions"
-        title="Transaction stream"
-        sub="Every indexed transaction, newest first — hash, block, message type, and success. Filter by success/failure and by message-type group (CoreSlot / Rewards / Bank)."
-      />
-
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2.5">
+        <h1 className="font-serif text-3xl tracking-tight text-text">Transactions</h1>
+        <p className="max-w-2xl text-[15px] text-text-secondary">
+          Every indexed transaction, newest first. Filter by success/failure and by message-type
+          group (CoreSlot / Mining / Rewards / Bank).
+        </p>
+      </div>
+      <ExplorerTabs />
       <TxsAggregateStrip />
-
-      <Card>
-        <CardHeader
-          icon={ArrowLeftRight}
-          iconTone="infra"
-          title="All transactions"
-          action={<LiveLabel />}
-        />
-        <CardBody>
-          <TxsList status={status} typeGroup={typeGroup} />
-        </CardBody>
-      </Card>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-text">All transactions</h2>
+          <LiveLabel />
+        </div>
+        <TxsList status={status} typeGroup={typeGroup} />
+      </div>
     </div>
   );
 }

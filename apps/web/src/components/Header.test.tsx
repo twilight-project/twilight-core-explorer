@@ -1,57 +1,55 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { NAV, type NavGroup } from './Header';
+import { EXPLORER_LINKS, NAV, isActive, type NavGroup } from './Header';
 
-function isMenu(e: (typeof NAV)[number]): e is Extract<(typeof NAV)[number], { children: unknown }> {
-  return 'children' in e;
-}
+const GROUPS: NavGroup[] = ['overview', 'validators', 'economics', 'explore'];
 
-const GROUPS: NavGroup[] = ['overview', 'validators', 'economics', 'explore', 'diagnostics'];
+// Redesign IA: exactly four destinations, each with a wayfinding icon. Diagnostics and the API
+// live in the footer, and the Explorer dropdown is gone (its streams are EXPLORER_LINKS).
+describe('Header nav (4-destination redesign)', () => {
+  it('has exactly the four destinations, in order', () => {
+    expect(NAV.map((i) => i.label)).toEqual(['Overview', 'Validators', 'Economy', 'Explorer']);
+  });
 
-// J-007: nav items are grouped by concern for discoverability. Every item must carry a known group,
-// and groups must be contiguous (so the desktop separators land on real concern boundaries).
-describe('Header nav grouping', () => {
-  it('every nav item carries a known group', () => {
+  it('every nav item carries a known group and an icon', () => {
     for (const item of NAV) {
       expect(GROUPS).toContain(item.group);
-    }
-  });
-
-  it('every nav item and dropdown child carries a wayfinding icon', () => {
-    for (const item of NAV) {
       expect(item.icon, `missing icon: ${item.label}`).toBeTruthy();
-      if (isMenu(item)) {
-        for (const child of item.children) {
-          expect(child.icon, `missing child icon: ${child.label}`).toBeTruthy();
-        }
-      }
+    }
+    for (const child of EXPLORER_LINKS) {
+      expect(child.icon, `missing child icon: ${child.label}`).toBeTruthy();
     }
   });
 
-  it('groups are contiguous (no group is split across the nav)', () => {
-    const order = NAV.map((i) => i.group);
-    const firstSeen = new Set<NavGroup>();
-    let prev: NavGroup | null = null;
-    for (const g of order) {
-      if (g !== prev) {
-        // entering a new run of `g` — it must not have appeared before
-        expect(firstSeen.has(g)).toBe(false);
-        firstSeen.add(g);
-        prev = g;
-      }
-    }
+  it('keeps merged/child routes active under their destination', () => {
+    const byLabel = Object.fromEntries(NAV.map((i) => [i.label, i]));
+    // Validators owns the coreslot detail + operator routes (their pages are unchanged).
+    expect(isActive('/coreslots/3', byLabel['Validators']!)).toBe(true);
+    expect(isActive('/operator/twilight1abc', byLabel['Validators']!)).toBe(true);
+    // Economy owns the surviving reward/mining detail routes.
+    expect(isActive('/rewards/epochs/9', byLabel['Economy']!)).toBe(true);
+    expect(isActive('/mining/settlements/1/62', byLabel['Economy']!)).toBe(true);
+    // Explorer spans its three streams.
+    expect(isActive('/txs', byLabel['Explorer']!)).toBe(true);
+    expect(isActive('/accounts', byLabel['Explorer']!)).toBe(true);
+    expect(isActive('/blocks/42', byLabel['Explorer']!)).toBe(true);
+    // ...without leaking active state across destinations.
+    expect(isActive('/economy', byLabel['Validators']!)).toBe(false);
+    expect(isActive('/', byLabel['Explorer']!)).toBe(false);
   });
 
   // Regression guard (Codex 13b-ux review, reshaped for the disclosure nav): the inline desktop nav
-  // appears at `xl`, so the compact nav — now a hamburger DISCLOSURE (toggle + panel), not a chip
-  // wrap — must stay available until `xl`, otherwise the 1024..1279px band has no primary nav at
-  // all. Class-level guard so the breakpoints can't silently regress.
-  it('has no responsive nav gap: the disclosure toggle + panel stay until xl (where the desktop nav appears)', () => {
+  // appears at `xl`, so the compact nav — a hamburger DISCLOSURE (toggle + panel) — must stay
+  // available until `xl`, otherwise the 1024..1279px band has no primary nav at all. And the
+  // redesign's always-visible search must exist at `lg`+ (no icon-only overlay).
+  it('has no responsive nav gap and keeps the desktop search visible', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
     expect(src).toContain('xl:flex'); // inline desktop nav appears at xl
     expect(src).toContain('aria-controls="compact-nav"'); // the disclosure toggle is wired
     expect(src).toContain('hover:text-text xl:hidden'); // ...and stays visible until xl
     expect(src).toContain('pb-3 xl:hidden'); // the disclosure panel also stays until xl
+    expect(src).toContain('lg:block'); // the always-visible desktop search at lg+
+    expect(src).not.toContain('SearchBar overlay'); // the icon-overlay search pattern is gone
   });
 });

@@ -1,6 +1,4 @@
-import { Boxes } from 'lucide-react';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { BlocksAggregateStrip } from '@/components/blocks/BlocksAggregateStrip';
 import { BlocksList } from '@/components/blocks/BlocksList';
 import { BlockCadencePanel } from '@/components/blocks/BlockCadencePanel';
@@ -8,36 +6,28 @@ import { LiveLabel } from '@/components/freshness/LiveLabel';
 
 export const metadata = { title: 'Blocks' };
 
-// Airy redesign — list-page pattern (reused by Transactions/CoreSlots/Accounts): a serif PageHeader,
-// a real windowed stat strip (GET /blocks/aggregate), then a titled panel wrapping the real
-// keyset-paginated list. Brand- + density-agnostic (tokens only). The strip was the first `preview`
-// placeholder to be wired to a real endpoint. (Gas is still omitted — not indexed on this chain.)
+// Explorer stream: shared tab row (Blocks · Transactions · Accounts), a plain h1, the windowed
+// stat strip, cadence panel and the keyset-paginated list. (Gas is still omitted — not indexed.)
 export default function BlocksPage() {
   return (
-    <div className="space-y-section">
-      <PageHeader
-        icon={Boxes}
-        iconTone="infra"
-        eyebrow="Blocks"
-        title="Block stream"
-        sub="Every indexed block, newest first — height, age, transaction count, and the CoreSlot that proposed it."
-      />
-
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2.5">
+        <h1 className="font-serif text-3xl tracking-tight text-text">Blocks</h1>
+        <p className="max-w-2xl text-[15px] text-text-secondary">
+          Every indexed block, newest first — height, age, transaction count, and the CoreSlot
+          that proposed it.
+        </p>
+      </div>
+      <ExplorerTabs />
       <BlocksAggregateStrip />
-
       <BlockCadencePanel />
-
-      <Card>
-        <CardHeader
-          icon={Boxes}
-          iconTone="infra"
-          title="All blocks"
-          action={<LiveLabel />}
-        />
-        <CardBody>
-          <BlocksList />
-        </CardBody>
-      </Card>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-text">All blocks</h2>
+          <LiveLabel />
+        </div>
+        <BlocksList />
+      </div>
     </div>
   );
 }

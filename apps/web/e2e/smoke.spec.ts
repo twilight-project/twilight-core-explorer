@@ -7,18 +7,23 @@ import { mockApi } from './fixtures';
 // h1, throw NO uncaught page errors, and pass axe on serious/critical findings.
 
 const ROUTES: { path: string; h1: RegExp }[] = [
-  { path: '/', h1: /operations console/i },
-  { path: '/blocks', h1: /block stream/i },
+  // The verdict h1 states the answer in words (mid-backfill fixture -> "Indexer catching up").
+  { path: '/', h1: /network is healthy|indexer catching up|halt risk/i },
+  { path: '/blocks', h1: /blocks/i },
   { path: '/blocks/42', h1: /block 42/i },
-  { path: '/txs', h1: /transaction stream/i },
+  { path: '/txs', h1: /transactions/i },
   { path: '/accounts', h1: /observed accounts|account/i },
-  { path: '/coreslots', h1: /validator set & registry/i },
-  { path: '/network', h1: /validator set & network health/i },
-  { path: '/liveness', h1: /liveness|signing/i },
-  { path: '/rewards', h1: /rewards & emissions/i },
-  { path: '/rewards/entitlements', h1: /entitlements/i },
+  { path: '/validators', h1: /coreslots/i },
+  { path: '/validators?tab=registry', h1: /coreslots/i },
+  { path: '/validators?tab=history', h1: /coreslots/i },
+  { path: '/economy', h1: /epoch .+ paid|rewards & supply/i },
+  { path: '/economy?tab=entitlements', h1: /epoch .+ paid|rewards & supply/i },
+  { path: '/economy?tab=supply', h1: /epoch .+ paid|rewards & supply/i },
+  // Old IA routes must land on the merged destinations (next.config redirects).
+  { path: '/coreslots', h1: /coreslots/i },
+  { path: '/rewards', h1: /epoch .+ paid|rewards & supply/i },
+  { path: '/supply', h1: /epoch .+ paid|rewards & supply/i },
   { path: '/mining/settlements/1/62', h1: /settlement/i },
-  { path: '/supply', h1: /token supply/i },
   { path: '/diagnostics', h1: /diagnostics/i },
   { path: '/search?q=999999', h1: /search/i },
 ];
@@ -51,21 +56,23 @@ for (const { path, h1 } of ROUTES) {
   });
 }
 
-test('desktop: header search expands into a readable full-row overlay', async ({ page, isMobile }) => {
+test('desktop: the header search is a real always-visible input with a "/" shortcut', async ({ page, isMobile }) => {
   test.skip(!!isMobile, 'desktop only');
   await mockApi(page);
   await page.goto('/');
   await page.getByText(/blocks behind chain tip/).waitFor();
-  await page.getByRole('button', { name: 'Search' }).click();
-  const input = page.getByRole('searchbox');
+  // Redesign: no overlay — a real input lives in the header row at all times.
+  const input = page.getByRole('searchbox').first();
   await expect(input).toBeVisible();
-  await input.fill('2C859B3C9B9DBFCD0C484FDE34C81D0810BE75759867E98654AF2AFA2984DCCB');
-  // The regression this guards: the old inline slot was ~50px wide beside the nav — typing was
-  // invisible. The overlay must span most of the header row.
+  // The regression this guards: the old inline slot was ~50px wide — typing was invisible.
   const width = (await input.boundingBox())?.width ?? 0;
-  expect(width).toBeGreaterThan(600);
-  await input.press('Escape');
-  await expect(input).not.toBeVisible();
+  expect(width).toBeGreaterThan(250);
+  // "/" focuses it from anywhere (skipped while an editable element has focus).
+  await page.keyboard.press('/');
+  await expect(input).toBeFocused();
+  await input.fill('2C859B3C9B9DBFCD0C484FDE34C81D0810BE75759867E98654AF2AFA2984DCCB');
+  await input.press('Enter');
+  await page.waitForURL(/\/search\?q=/);
 });
 
 test('mobile: the hamburger disclosure opens the compact nav', async ({ page, isMobile }) => {

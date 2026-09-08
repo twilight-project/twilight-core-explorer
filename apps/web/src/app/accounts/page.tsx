@@ -1,42 +1,29 @@
-import { Users } from 'lucide-react';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { AccountsAggregateStrip } from '@/components/accounts/AccountsAggregateStrip';
 import { AccountsList } from '@/components/accounts/AccountsList';
 
 export const metadata = { title: 'Accounts' };
 
-// Airy redesign — deliberately "Observed accounts," NOT a wealth leaderboard (per the review): the
-// list is ordered by observation, never by balance, and balances are per-address samples (on the
+// Explorer stream: deliberately "Observed accounts," NOT a wealth leaderboard — the list is
+// ordered by observation, never by balance, and balances are per-address samples (on the
 // detail page), not a global holdings ranking.
-//
-// The strip is real (GET /accounts/aggregate): global registry counts only. No "24h" cards
-// (firstSeen/lastSeen are heights, not timestamps) and no median-balance/holdings card (that would
-// imply a complete global balance index we don't have).
 export default function AccountsPage() {
   return (
-    <div className="space-y-section">
-      <PageHeader
-        icon={Users}
-        iconTone="infra"
-        eyebrow="Accounts"
-        title="Observed accounts"
-        sub="Addresses seen by the indexer — first/last activity, transaction count, and kind. This is an observation log, not a holdings ranking; balances are per-address samples on each account's page."
-      />
-
+    <div className="flex flex-col gap-7">
+      <div className="flex flex-col gap-2.5">
+        <h1 className="font-serif text-3xl tracking-tight text-text">Observed accounts</h1>
+        <p className="max-w-2xl text-[15px] text-text-secondary">
+          Addresses seen by the indexer — first/last activity, transaction count, and kind. An
+          observation log, not a holdings ranking; balances are per-address samples on each
+          account&apos;s page.
+        </p>
+      </div>
+      <ExplorerTabs />
       <AccountsAggregateStrip />
-
-      <Card>
-        <CardHeader
-          icon={Users}
-          iconTone="infra"
-          title="Observed accounts"
-          action={<span className="font-mono text-xs text-text-muted">by observation</span>}
-        />
-        <CardBody>
-          <AccountsList />
-        </CardBody>
-      </Card>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium text-text">Observed accounts</h2>
+        <AccountsList />
+      </div>
     </div>
   );
 }

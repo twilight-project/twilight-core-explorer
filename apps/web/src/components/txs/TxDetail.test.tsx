@@ -47,11 +47,16 @@ describe('TxDetail', () => {
       if (path === '/api/v1/txs/{hash}') return TX;
       throw new Error(`unexpected ${path}`);
     });
-    renderWithClient(<TxDetail hash="ABCDEF123456" />);
-    expect(await screen.findByText('MsgDoThing')).toBeInTheDocument();
+    // Messages tab: decoded fields + the per-message decodeError badge.
+    const messages = renderWithClient(<TxDetail hash="ABCDEF123456" tab="messages" />);
+    expect(await screen.findByText(/MsgDoThing/)).toBeInTheDocument();
     expect(screen.getByText('decode error')).toBeInTheDocument();
     expect(screen.getByText('could not decode')).toBeInTheDocument();
-    expect(screen.getByText('transfer')).toBeInTheDocument();
+    messages.unmount();
+
+    // Events tab: shape-agnostic event rows.
+    renderWithClient(<TxDetail hash="ABCDEF123456" tab="events" />);
+    expect(await screen.findByText('transfer')).toBeInTheDocument();
   });
 
   it('not_found -> NotFound state', async () => {

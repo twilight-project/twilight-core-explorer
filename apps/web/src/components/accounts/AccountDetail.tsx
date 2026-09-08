@@ -50,15 +50,17 @@ export function AccountDetail({ address }: { address: string }) {
               { label: 'Last seen', value: <span className="font-mono">{formatHeight(a.lastSeenHeight)}</span> },
               { label: 'Tx count', value: <span className="font-mono">{a.txCount}</span> },
               {
-                label: 'Reward claims',
-                // Phrased as a SEARCH, not a relation: an account is not provably a claimant, so
-                // this links to the server-side claimant filter — an empty result is a valid answer.
+                label: 'Reward entitlements',
+                // Phrased as a SEARCH, not a relation: an account is not provably a payout
+                // recipient, so this links to the server-side payoutAddress filter — an empty
+                // result is a valid answer. (Claims are retired on this chain; entitlements are
+                // the V2 surface.)
                 value: (
                   <Link
-                    href={`/rewards/claims?claimant=${encodeURIComponent(a.address)}`}
+                    href={`/economy?tab=entitlements&payoutAddress=${encodeURIComponent(a.address)}`}
                     className="text-sm text-primary hover:text-primary-light"
                   >
-                    Search claim events naming this address →
+                    Search entitlements paying this address →
                   </Link>
                 ),
               },
@@ -74,7 +76,7 @@ export function AccountDetail({ address }: { address: string }) {
           iconTone="infra"
           title="Sampled balances"
           action={
-            <Link href="/supply" className="text-sm text-primary hover:text-primary-light">
+            <Link href="/economy?tab=supply" className="text-sm text-primary hover:text-primary-light">
               Network supply →
             </Link>
           }

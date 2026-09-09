@@ -131,6 +131,8 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+        # Build-time too: `next start` serves rewrites from the BUILD's routes-manifest.
+        API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:8080}
     image: twilight-explorer-web:devnet
     container_name: twilight-explorer-devnet-web
     depends_on:

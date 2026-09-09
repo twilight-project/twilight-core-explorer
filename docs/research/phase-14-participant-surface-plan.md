@@ -47,7 +47,7 @@ escrow holding, how many participants am I carrying, who else is running.
 
 **Participant** (new): which epochs paid this address and how much; why that amount; when the
 current epoch closes and when settlement usually lands; whether a payment is late; and — once the
-operator-status source exists (§8) — whether an epoch that did not pay was "not enrolled", "not
+operator-status source exists (§8) — from their own client, not the explorer — whether an epoch that did not pay was "not enrolled", "not
 verified", or "deadline missed".
 
 **Newcomer** (either persona on a first visit): a one-line answer about the network before any
@@ -116,11 +116,12 @@ Reorder to rewards first:
 4. Raw.
 
 **States, not blanks.** No payouts at all: *"No settlement has paid this address."* An epoch in
-the participant's history with no payout, once §8's source exists: the exclusion class. Never the
+the participant's history with no payout, once §8's source exists: the epoch's aggregate and a pointer to the client's own `status`. Never the
 bare empty-table string.
 
-**The "Reward entitlements → search" link** becomes a state line as soon as §8 can say enrolled or
-excluded; until then it stays, reworded: *"Entitlements paying this address"*.
+**The "Reward entitlements → search" link** stays, reworded *"Entitlements paying this address"*;
+per-address enrolled/excluded states are the participant's own, in their client (§7.3), and never
+appear here.
 
 ### 4.3 Economy
 
@@ -270,8 +271,13 @@ diverges. Do not display a formula that the data contradicts.
 ### 7.3 Provenance, and the second data source that is coming
 
 Operators will publish an **operator-status** feed (a contract the AS reference implementation
-will ship): the epoch clock with deadlines, per-epoch admitted counts, per-address status per
-epoch with coarse exclusion classes, and payout-binding state. It is discovered per slot from the
+will ship, draft 0.2): the epoch clock with deadlines, and per-epoch **aggregates** — enrolled,
+eligible, admitted, and counts per exclusion reason using the AS's own closed identifiers. It
+carries **no per-address status**: `ADR-MINIS-0020` rules that the join between a participant and
+an unpaid address is not published, so a participant's own per-epoch history is served only to
+that participant, authenticated, through their own client. The explorer's per-address facts stay
+chain-only; its "why" for an epoch is the aggregate: "12 of 13 eligible paid; 1 excluded
+(`EXCLUDED_BELOW_FLOOR`) — check your agent's `status` for your own epochs". It is discovered per slot from the
 service document and it is explanation, never fact.
 
 The explorer's data layer needs one abstraction before that source arrives, because retrofitting
@@ -303,8 +309,10 @@ estimate        a derived figure with no chain commitment (the clock stopgap)
 unknown         the source needed to say more is not available (operator publishes no status)
 ```
 
-Once the operator-status source exists, the per-address per-epoch vocabulary extends with
-`not enrolled`, `not verified`, `deadline missed`, `excluded` — coarse classes only, no provider data.
+Once the operator-status source exists, the per-epoch aggregate vocabulary uses the AS's own
+closed identifiers verbatim (`NO_VERIFIED_ACTIVITY`, `EXCLUDED_BELOW_FLOOR`, `NOT_SELECTED_IN_DRAW`,
+…) with a fixed caption each. Per-address reasons are never shown here; they are the participant's
+own, in their client.
 
 ## 9. Cleanup in the same phase
 

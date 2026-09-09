@@ -137,6 +137,9 @@ services:
       - api
     environment:
       NODE_ENV: production
+      # Same-origin API proxy (next.config rewrites): with an EMPTY NEXT_PUBLIC_API_BASE_URL,
+      # the browser calls relative /api/v1/* and the web server forwards to the api container.
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:8080}
     ports:
       - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped

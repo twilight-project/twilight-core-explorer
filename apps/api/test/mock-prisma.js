@@ -1,0 +1,1041 @@
+// Minimal in-memory mock of the PrismaClient surface used by apps/api repositories. Mirrors the
+// indexer's mock-Prisma test style. Heights are BigInt, matching the real schema.
+
+export const testConfig = {
+  databaseUrl: 'postgresql://unused',
+  port: 0,
+  host: '127.0.0.1',
+  env: 'development',
+  isProduction: false,
+  corsOrigins: false,
+  // Rate limiting OFF in tests — the suite must never be throttled or made flaky by it.
+  rateLimit: { enabled: false, max: 100, timeWindowMs: 60_000 },
+};
+
+const descBig = (a, b) => (a < b ? 1 : a > b ? -1 : 0);
+
+export class MockPrisma {
+  constructor(data = {}) {
+    this._indexerCursor = data.indexerCursor ?? null;
+    this._projectionCursors = data.projectionCursors ?? [];
+    this._failures = data.failures ?? []; // [{ projectionName, failureKind?, resolved }]
+    this._blocks = data.blocks ?? [];
+    this._attributions = data.attributions ?? [];
+    this._txs = data.txs ?? [];
+    this._messages = data.messages ?? [];
+    this._events = data.events ?? [];
+    this._accounts = data.accounts ?? [];
+    this._decodeFailures = data.decodeFailures ?? [];
+    this._coreSlots = data.coreSlots ?? [];
+    this._lifecycleEvents = data.lifecycleEvents ?? [];
+    this._metadataChanges = data.metadataChanges ?? [];
+    this._payoutChanges = data.payoutChanges ?? [];
+    this._keyRotations = data.keyRotations ?? [];
+    this._windows = data.windows ?? [];
+    this._livenessSummaries = data.livenessSummaries ?? [];
+    this._livenessEvidence = data.livenessEvidence ?? [];
+    this._healthSnapshots = data.healthSnapshots ?? [];
+    this._networkRisk = data.networkRisk ?? null;
+    this._epochs = data.epochs ?? [];
+    this._entitlements = data.entitlements ?? [];
+    this._payouts = data.payouts ?? [];
+    this._chunks = data.chunks ?? [];
+    this._finalizations = data.finalizations ?? [];
+    this._rewardsBalances = data.rewardsBalances ?? [];
+    this._paramsChanges = data.paramsChanges ?? [];
+    this._treasuryPayments = data.treasuryPayments ?? [];
+    this._accountBalances = data.accountBalances ?? [];
+    this._dbDown = data.dbDown ?? false;
+    this._failedMigrations = data.failedMigrations ?? 0;
+
+    this.indexerCursor = { findFirst: async () => this._indexerCursor };
+
+    this.projectionCursor = {
+      findMany: async () => [...this._projectionCursors],
+    };
+
+    this.projectionFailure = {
+      groupBy: async (args = {}) => {
+        const by = args.by ?? ['projectionName'];
+        const counts = new Map();
+        for (const f of this._failures) {
+          if (args.where?.resolved === false && f.resolved) continue;
+          const key = by.map((k) => String(f[k])).join('__keysep__');
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        return [...counts.entries()].map(([key, n]) => {
+          const parts = key.split('__keysep__');
+          const row = { _count: { _all: n } };
+          by.forEach((k, i) => {
+            row[k] = parts[i];
+          });
+          return row;
+        });
+      },
+    };
+
+    this.block = {
+      findMany: async (args = {}) => {
+        let rows = [...this._blocks];
+        const lt = args.where?.height?.lt;
+        if (lt !== undefined) rows = rows.filter((b) => b.height < lt);
+        rows.sort((a, b) => descBig(a.height, b.height));
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+      findUnique: async (args) => {
+        if (args.where.height !== undefined) {
+          return this._blocks.find((b) => b.height === args.where.height) ?? null;
+        }
+        return this._blocks.find((b) => b.hash === args.where.hash) ?? null;
+      },
+    };
+
+    this.blockProposerAttribution = {
+      findFirst: async (args) =>
+        this._attributions.find((a) => a.height === args.where.height) ?? null,
+      findMany: async (args = {}) => {
+        let rows = [...this._attributions];
+        const w = args.where ?? {};
+        if (w.height?.in) rows = rows.filter((a) => w.height.in.some((h) => h === a.height));
+        if (w.slotId !== undefined) rows = rows.filter((a) => a.slotId === w.slotId);
+        if (w.height?.lt !== undefined) rows = rows.filter((a) => a.height < w.height.lt);
+        if (args.orderBy?.height === 'desc') rows.sort((a, b) => descBig(a.height, b.height));
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+      groupBy: async (args = {}) => {
+        const by = args.by ?? [];
+        const rows = this._attributions.filter(
+          (a) => args.where?.attributionStatus === undefined || a.attributionStatus === args.where.attributionStatus,
+        );
+        const groups = new Map();
+        for (const a of rows) {
+          const key = by.map((k) => String(a[k])).join('__keysep__');
+          const cur = groups.get(key) ?? { row: a, count: 0 };
+          cur.count += 1;
+          groups.set(key, cur);
+        }
+        return [...groups.values()].map(({ row, count }) => {
+          const out = { _count: { _all: count } };
+          by.forEach((k) => {
+            out[k] = row[k];
+          });
+          return out;
+        });
+      },
+    };
+
+    this.explorerTransaction = {
+      findMany: async (args = {}) => {
+        let rows = [...this._txs];
+        const w = args.where ?? {};
+        if (w.height !== undefined && typeof w.height !== 'object') {
+          rows = rows.filter((t) => t.height === w.height);
+        }
+        if (w.status !== undefined) rows = rows.filter((t) => t.status === w.status);
+        if (w.OR) {
+          rows = rows.filter((t) =>
+            w.OR.some((c) => {
+              if (c.height && typeof c.height === 'object' && c.height.lt !== undefined) {
+                return t.height < c.height.lt;
+              }
+              if (c.index && c.index.lt !== undefined) {
+                return t.height === c.height && t.index < c.index.lt;
+              }
+              return false;
+            }),
+          );
+        }
+        rows.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : b.index - a.index));
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+      findUnique: async (args) => this._txs.find((t) => t.hash === args.where.hash) ?? null,
+    };
+
+    this.message = {
+      findMany: async (args = {}) =>
+        this._messages
+          .filter((m) => m.txHash === args.where.txHash)
+          .sort((a, b) => a.msgIndex - b.msgIndex),
+    };
+
+    this.event = {
+      findMany: async (args = {}) =>
+        this._events
+          .filter((e) => e.txHash === args.where.txHash)
+          .sort((a, b) => (a.msgIndex ?? 0) - (b.msgIndex ?? 0) || a.eventIndex - b.eventIndex),
+    };
+
+    this.account = {
+      findMany: async (args = {}) => {
+        let rows = [...this._accounts];
+        const w = args.where ?? {};
+        if (w.accountKind !== undefined) rows = rows.filter((a) => a.accountKind === w.accountKind);
+        if (w.address?.gt !== undefined) rows = rows.filter((a) => a.address > w.address.gt);
+        rows.sort((a, b) => (a.address < b.address ? -1 : a.address > b.address ? 1 : 0)); // asc
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+      findUnique: async (args) =>
+        this._accounts.find((a) => a.address === args.where.address) ?? null,
+      count: async (args = {}) => {
+        const w = args.where ?? {};
+        let rows = [...this._accounts];
+        if (w.accountKind !== undefined) {
+          if (typeof w.accountKind === 'object' && w.accountKind !== null && 'not' in w.accountKind) {
+            const nv = w.accountKind.not;
+            rows = rows.filter((a) => (nv === null ? a.accountKind != null : a.accountKind !== nv));
+          } else {
+            rows = rows.filter((a) => a.accountKind === w.accountKind);
+          }
+        }
+        return rows.length;
+      },
+      aggregate: async (args = {}) => {
+        const out = {};
+        if (args._avg?.txCount) {
+          const rows = this._accounts;
+          out._avg = {
+            txCount: rows.length
+              ? rows.reduce((s, a) => s + (a.txCount ?? 0), 0) / rows.length
+              : null,
+          };
+        }
+        return out;
+      },
+    };
+
+    this.decodeFailure = {
+      findMany: async (args = {}) => {
+        let rows = [...this._decodeFailures];
+        const w = args.where ?? {};
+        if (w.resolved !== undefined) rows = rows.filter((d) => d.resolved === w.resolved);
+        if (w.failureKind !== undefined) rows = rows.filter((d) => d.failureKind === w.failureKind);
+        if (w.height !== undefined) rows = rows.filter((d) => d.height === w.height);
+        if (w.id?.lt !== undefined) rows = rows.filter((d) => d.id < w.id.lt);
+        rows.sort((a, b) => descBig(a.id, b.id));
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+    };
+
+    const eventTable = (source) => ({
+      findMany: async (args = {}) => {
+        const w = args.where ?? {};
+        let r = source.filter((e) => e.slotId === w.slotId);
+        if (w.OR) {
+          r = r.filter((e) =>
+            w.OR.some((c) => {
+              if (c.height && typeof c.height === 'object') return e.height < c.height.lt; // {height:{lt}}
+              if (c.id?.lt !== undefined) return e.height === c.height && e.id < c.id.lt; // {height:H,id:{lt}}
+              return e.height === c.height; // {height:H} (whole height for a later-ranked kind)
+            }),
+          );
+        }
+        r.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : descBig(a.id, b.id)));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    });
+    this.coreSlotLifecycleEvent = eventTable(this._lifecycleEvents);
+    this.coreSlotMetadataChange = eventTable(this._metadataChanges);
+    this.coreSlotPayoutChange = eventTable(this._payoutChanges);
+
+    this.coreSlotProjection = {
+      findMany: async (args = {}) => {
+        let r = [...this._coreSlots];
+        const w = args.where ?? {};
+        if (w.status !== undefined) {
+          // Supports both the scalar form and the { in: [...] } dual-spelling status filter.
+          const wanted = typeof w.status === 'object' && w.status !== null && 'in' in w.status
+            ? w.status.in
+            : [w.status];
+          r = r.filter((s) => wanted.includes(s.status));
+        }
+        if (w.operatorAddress !== undefined) r = r.filter((s) => s.operatorAddress === w.operatorAddress);
+        if (w.consensusAddress !== undefined) r = r.filter((s) => s.consensusAddress === w.consensusAddress);
+        if (w.payoutAddress !== undefined) r = r.filter((s) => s.payoutAddress === w.payoutAddress);
+        if (w.slotId?.gt !== undefined) r = r.filter((s) => s.slotId > w.slotId.gt);
+        r.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+      findUnique: async (args) => this._coreSlots.find((s) => s.slotId === args.where.slotId) ?? null,
+      findFirst: async (args = {}) => {
+        const w = args.where ?? {};
+        return (
+          this._coreSlots.find(
+            (s) =>
+              (w.consensusAddress === undefined || s.consensusAddress === w.consensusAddress) &&
+              (w.operatorAddress === undefined || s.operatorAddress === w.operatorAddress) &&
+              (w.payoutAddress === undefined || s.payoutAddress === w.payoutAddress),
+          ) ?? null
+        );
+      },
+    };
+
+    this.coreSlotConsensusKeyRotation = {
+      findMany: async (args = {}) => {
+        let r = this._keyRotations.filter((k) => k.slotId === args.where.slotId);
+        if (args.where?.id?.lt !== undefined) r = r.filter((k) => k.id < args.where.id.lt);
+        r.sort((a, b) => descBig(a.id, b.id));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.coreSlotConsensusWindow = {
+      findMany: async (args = {}) => {
+        let r = [...this._windows];
+        const w = args.where ?? {};
+        if (w.slotId !== undefined) r = r.filter((x) => x.slotId === w.slotId);
+        if (w.effectiveFromHeight?.lte !== undefined) {
+          r = r.filter((x) => x.effectiveFromHeight <= w.effectiveFromHeight.lte);
+        }
+        if (w.OR) {
+          r = r.filter((x) =>
+            w.OR.some((c) => {
+              if (c.effectiveFromHeight && typeof c.effectiveFromHeight === 'object' && c.effectiveFromHeight.lt !== undefined) {
+                return x.effectiveFromHeight < c.effectiveFromHeight.lt;
+              }
+              if (c.effectiveFromHeight !== undefined && c.id?.lt !== undefined) {
+                return x.effectiveFromHeight === c.effectiveFromHeight && x.id < c.id.lt;
+              }
+              if (c.effectiveToHeight === null) return x.effectiveToHeight === null;
+              if (c.effectiveToHeight?.gt !== undefined) {
+                return x.effectiveToHeight !== null && x.effectiveToHeight > c.effectiveToHeight.gt;
+              }
+              return false;
+            }),
+          );
+        }
+        if (Array.isArray(args.orderBy)) {
+          r.sort((a, b) =>
+            a.effectiveFromHeight !== b.effectiveFromHeight
+              ? descBig(a.effectiveFromHeight, b.effectiveFromHeight)
+              : descBig(a.id, b.id),
+          );
+        } else if (args.orderBy?.slotId === 'asc') {
+          r.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));
+        }
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.coreSlotLivenessSummary = {
+      findMany: async (args = {}) => {
+        let r = this._livenessSummaries.filter((s) => s.slotId === args.where.slotId);
+        if (args.where?.windowKind !== undefined) r = r.filter((s) => s.windowKind === args.where.windowKind);
+        r.sort((a, b) => (a.windowKind < b.windowKind ? -1 : a.windowKind > b.windowKind ? 1 : 0));
+        return r;
+      },
+    };
+
+    this.coreSlotHealthSnapshot = {
+      findFirst: async (args) => this._healthSnapshots.find((h) => h.slotId === args.where.slotId) ?? null,
+    };
+
+    this.networkLivenessRiskSnapshot = {
+      findFirst: async () => this._networkRisk,
+    };
+
+    this.coreSlotLivenessEvidence = {
+      findMany: async (args = {}) => {
+        let rows = [...this._livenessEvidence];
+        const w = args.where ?? {};
+        if (w.committedBlockHeight?.in) {
+          rows = rows.filter((r) => w.committedBlockHeight.in.some((h) => h === r.committedBlockHeight));
+        }
+        // Prisma applies orderBy before distinct (distinct keeps the first row per value).
+        const ob = args.orderBy;
+        if (Array.isArray(ob)) {
+          rows.sort((a, b) => {
+            for (const key of ob) {
+              const [field, dir] = Object.entries(key)[0];
+              if (a[field] !== b[field]) {
+                const cmp = a[field] < b[field] ? -1 : 1;
+                return dir === 'desc' ? -cmp : cmp;
+              }
+            }
+            return 0;
+          });
+        } else if (ob?.committedBlockHeight === 'desc') {
+          rows.sort((a, b) => descBig(a.committedBlockHeight, b.committedBlockHeight));
+        }
+        if (args.distinct?.includes('committedBlockHeight')) {
+          const seen = new Set();
+          rows = rows.filter((r) => {
+            const k = r.committedBlockHeight.toString();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+        }
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+      // Mirrors Prisma groupBy for the heatmap heights query: distinct grouped values, ordered, limited.
+      groupBy: async (args = {}) => {
+        const field = args.by?.[0];
+        const values = new Set(this._livenessEvidence.map((r) => r[field].toString()));
+        let rows = [...values].map((v) => ({ [field]: BigInt(v) }));
+        if (args.orderBy?.[field] === 'desc') rows.sort((a, b) => descBig(a[field], b[field]));
+        else rows.sort((a, b) => -descBig(a[field], b[field]));
+        return args.take ? rows.slice(0, args.take) : rows;
+      },
+    };
+
+    this.rewardEpochProjection = {
+      findMany: async (args = {}) => {
+        let r = [...this._epochs];
+        const lt = args.where?.epochNumber?.lt;
+        if (lt !== undefined) r = r.filter((e) => e.epochNumber < lt);
+        r.sort((a, b) => descBig(a.epochNumber, b.epochNumber));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+      findUnique: async (args) => this._epochs.find((e) => e.epochNumber === args.where.epochNumber) ?? null,
+    };
+
+    this.miningSettlementChunk = {
+      findMany: async (args = {}) => {
+        const w = args.where ?? {};
+        let r = this._chunks.filter(
+          (c) => c.slotId === w.slotId && c.epochNumber === w.epochNumber,
+        );
+        r.sort((a, b) => (a.chunkIndex < b.chunkIndex ? -1 : 1));
+        return r;
+      },
+    };
+
+    this.miningSettlementPayout = {
+      findMany: async (args = {}) => {
+        let r = [...this._payouts];
+        const w = args.where ?? {};
+        if (w.recipient !== undefined) r = r.filter((x) => x.recipient === w.recipient);
+        if (w.slotId !== undefined) r = r.filter((x) => x.slotId === w.slotId);
+        if (w.epochNumber !== undefined) r = r.filter((x) => x.epochNumber === w.epochNumber);
+        if (w.OR) {
+          r = r.filter((x) =>
+            w.OR.some((c) => {
+              if (c.height && typeof c.height === 'object' && c.height.lt !== undefined) {
+                return x.height < c.height.lt;
+              }
+              if (c.id?.lt !== undefined) return x.height === c.height && x.id < c.id.lt;
+              return false;
+            }),
+          );
+        }
+        // Honor the caller's ordering: the account list is (height, id) DESC, while the
+        // settlement detail is (chunkIndex, payoutIndex) ASC.
+        const byChunk = JSON.stringify(args.orderBy ?? '').includes('chunkIndex');
+        if (byChunk) {
+          r.sort((a, b) =>
+            a.chunkIndex !== b.chunkIndex
+              ? (a.chunkIndex < b.chunkIndex ? -1 : 1)
+              : a.payoutIndex - b.payoutIndex);
+        } else {
+          r.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : descBig(a.id, b.id)));
+        }
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.slotEntitlementProjection = {
+      findMany: async (args = {}) => {
+        let r = [...this._entitlements];
+        const w = args.where ?? {};
+        if (w.slotId !== undefined) {
+          if (typeof w.slotId === 'object' && w.slotId !== null && w.slotId.lt !== undefined) {
+            r = r.filter((e) => e.slotId < w.slotId.lt);
+          } else {
+            r = r.filter((e) => e.slotId === w.slotId);
+          }
+        }
+        if (w.epochNumber !== undefined) {
+          if (typeof w.epochNumber === 'object' && w.epochNumber !== null && w.epochNumber.lt !== undefined) {
+            r = r.filter((e) => e.epochNumber < w.epochNumber.lt);
+          } else {
+            r = r.filter((e) => e.epochNumber === w.epochNumber);
+          }
+        }
+        if (w.payoutAddress !== undefined) r = r.filter((e) => e.payoutAddress === w.payoutAddress);
+        r.sort((a, b) =>
+          a.epochNumber !== b.epochNumber
+            ? descBig(a.epochNumber, b.epochNumber)
+            : (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.rewardsBalanceSample = {
+      findFirst: async (args = {}) => {
+        let r = [...this._rewardsBalances];
+        if (typeof args.where?.sampleKind === 'string') r = r.filter((b) => b.sampleKind === args.where.sampleKind);
+        r.sort((a, b) => descBig(a.height, b.height));
+        return r[0] ?? null;
+      },
+      findMany: async (args = {}) => {
+        let r = [...this._rewardsBalances];
+        const w = args.where ?? {};
+        if (typeof w.sampleKind === 'string') r = r.filter((b) => b.sampleKind === w.sampleKind);
+        else if (w.sampleKind?.not !== undefined) r = r.filter((b) => b.sampleKind !== w.sampleKind.not);
+        if (w.height !== undefined) r = r.filter((b) => b.height === w.height);
+        if (w.denom !== undefined) r = r.filter((b) => b.denom === w.denom);
+        if (w.id?.lt !== undefined) r = r.filter((b) => b.id < w.id.lt);
+        if (args.orderBy?.denom === 'asc') r.sort((a, b) => (a.denom < b.denom ? -1 : a.denom > b.denom ? 1 : 0));
+        else r.sort((a, b) => descBig(a.id, b.id));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.rewardsParamsChange = {
+      findMany: async (args = {}) => {
+        let r = [...this._paramsChanges];
+        const w = args.where ?? {};
+        if (w.changeType !== undefined) r = r.filter((p) => p.changeType === w.changeType);
+        if (w.id?.lt !== undefined) r = r.filter((p) => p.id < w.id.lt);
+        r.sort((a, b) => descBig(a.id, b.id));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.rewardsTreasuryPayment = {
+      findMany: async (args = {}) => {
+        let r = [...this._treasuryPayments];
+        if (args.where?.id?.lt !== undefined) r = r.filter((t) => t.id < args.where.id.lt);
+        r.sort((a, b) => descBig(a.id, b.id));
+        return args.take ? r.slice(0, args.take) : r;
+      },
+    };
+
+    this.accountBalanceCurrent = {
+      findFirst: async (args = {}) => {
+        const rows = this._accountBalances.filter((b) => b.address === args.where.address);
+        if (rows.length === 0) return null;
+        // only orderBy used by the repo is sampledAtHeight desc
+        return rows.reduce((m, r) => (r.sampledAtHeight > m.sampledAtHeight ? r : m), rows[0]);
+      },
+      findMany: async (args = {}) =>
+        this._accountBalances
+          .filter(
+            (b) =>
+              b.address === args.where.address &&
+              (args.where.sampledAtHeight === undefined ||
+                b.sampledAtHeight === args.where.sampledAtHeight),
+          )
+          .sort((a, b) => (a.denom < b.denom ? -1 : a.denom > b.denom ? 1 : 0)),
+    };
+  }
+
+  async $queryRaw(query, ...rest) {
+    if (this._dbDown) throw new Error('connection refused');
+    // Prisma.sql passes a Sql instance ({ strings, values }); the health probe passes a plain
+    // template-strings array.
+    const sql = Array.isArray(query)
+      ? query.join(' ')
+      : Array.isArray(query?.strings)
+        ? query.strings.join(' ')
+        : String(query);
+    // Two call shapes: a tagged template (strings array + REST values, which is how the
+    // repositories call it) and a Prisma.sql instance ({ strings, values }).
+    let values = rest.length > 0 ? rest : Array.isArray(query?.values) ? query.values : [];
+    // Prisma.raw(...) fragments arrive as VALUES, not as part of the template strings, so the
+    // SQL they carry is invisible to a strings-only match. Fold their text into `sql` and drop
+    // them from the bound values.
+    const rawText = values
+      .filter((v) => v && typeof v === 'object' && Array.isArray(v.strings))
+      .map((v) => v.strings.join(' '))
+      .join(' ');
+    const sqlText = `${sql} ${rawText}`;
+    values = values.filter((v) => !(v && typeof v === 'object' && Array.isArray(v.strings)));
+    if (sqlText.includes('_prisma_migrations')) return [{ failed: this._failedMigrations }];
+
+    // The typeGroup filter drops to raw SQL (no Prisma relation between ExplorerTransaction
+    // and Message). Emulate it so the filter is actually exercised, not stubbed.
+    if (sqlText.includes('WITH pairs AS')) {
+      // Emulate the settlement aggregate: distinct (slot, epoch) across chunks +
+      // finalizations, with per-pair counts and totals.
+      const keys = new Map();
+      const note = (row) => {
+        const k = `${row.slotId}:${row.epochNumber}`;
+        const cur = keys.get(k) ?? { slotId: row.slotId, epochNumber: row.epochNumber, lastHeight: 0n };
+        if (row.height > cur.lastHeight) cur.lastHeight = row.height;
+        keys.set(k, cur);
+      };
+      this._chunks.forEach(note);
+      this._finalizations.forEach(note);
+
+      let rows = [...keys.values()].map((p) => {
+        const fin = this._finalizations
+          .filter((f) => f.slotId === p.slotId && f.epochNumber === p.epochNumber)
+          .sort((a, b) => (a.height > b.height ? -1 : 1))[0] ?? null;
+        const pays = this._payouts.filter(
+          (x) => x.slotId === p.slotId && x.epochNumber === p.epochNumber,
+        );
+        return {
+          ...p,
+          finalizationReason: fin?.finalizationReason ?? null,
+          releasedRemainder: fin?.releasedRemainder ?? null,
+          finalizedHeight: fin?.finalizedHeight ?? null,
+          finalizeTxHash: fin?.txHash ?? null,
+          chunkCount: BigInt(this._chunks.filter(
+            (c) => c.slotId === p.slotId && c.epochNumber === p.epochNumber).length),
+          payoutCount: BigInt(pays.length),
+          totalPaid: pays.reduce((a, x) => a + BigInt(x.amount), 0n).toString(),
+        };
+      });
+
+      // Two call shapes, distinguished by the guarded-filter form the list query uses:
+      //   list  : (?::bigint IS NULL OR p."slotId" = ?) ... -> values[0]=slotId, values[2]=epoch
+      //   detail: WHERE p."slotId" = ? AND p."epochNumber" = ? -> values[0], values[1]
+      if (sqlText.includes('IS NULL OR')) {
+        if (values[0] !== null && values[0] !== undefined) {
+          rows = rows.filter((r) => r.slotId === values[0]);
+        }
+        if (values[2] !== null && values[2] !== undefined) {
+          rows = rows.filter((r) => r.epochNumber === values[2]);
+        }
+      } else {
+        rows = rows.filter((r) => r.slotId === values[0] && r.epochNumber === values[1]);
+      }
+      rows.sort((a, b) =>
+        a.epochNumber !== b.epochNumber
+          ? descBig(a.epochNumber, b.epochNumber)
+          : (a.slotId < b.slotId ? -1 : 1));
+      return rows;
+    }
+
+    if (sqlText.includes('"MiningSettlementPayout"') && !sqlText.includes('WITH pairs AS')) {
+      const recipient = values.find((v) => typeof v === 'string');
+      const rows = this._payouts.filter((x) => x.recipient === recipient);
+      // Sum as BigInt, mirroring the database's numeric sum — these are int64-scale strings.
+      const total = rows.reduce((acc, x) => acc + BigInt(x.amount), 0n);
+      return [{
+        count: BigInt(rows.length),
+        total: rows.length ? total.toString() : null,
+        denom: rows[0]?.denom ?? null,
+      }];
+    }
+
+    if (sqlText.includes('"ExplorerTransaction"') && sqlText.includes('"typeUrl" LIKE')) {
+      const like = values.find((v) => typeof v === 'string' && v.endsWith('%'));
+      const prefix = typeof like === 'string' ? like.slice(0, -1) : '';
+      const rows = this._txs.filter((t) =>
+        this._messages.some((m) => m.txHash === t.hash && String(m.typeUrl).startsWith(prefix)));
+      rows.sort((a, b) => (a.height !== b.height ? descBig(a.height, b.height) : b.index - a.index));
+      const limit = values.find((v) => typeof v === 'number');
+      return typeof limit === 'number' ? rows.slice(0, limit) : rows;
+    }
+    return [{ ok: 1 }];
+  }
+
+  async $disconnect() {}
+}
+
+export function block(height, overrides = {}) {
+  return {
+    height: BigInt(height),
+    hash: `HASH${height}`,
+    time: new Date('2026-06-26T00:00:00.000Z'),
+    chainId: 'twilight-localnet-1',
+    proposerAddress: 'ABCDEF0123',
+    appHash: 'app',
+    validatorsHash: 'vh',
+    nextValidatorsHash: 'nvh',
+    lastBlockHash: 'lbh',
+    txCount: 0,
+    rawJson: { height },
+    createdAt: new Date('2026-06-26T00:00:01.000Z'),
+    ...overrides,
+  };
+}
+
+export function tx(hash, height, index, overrides = {}) {
+  return {
+    hash,
+    height: BigInt(height),
+    index,
+    status: 'success',
+    code: 0,
+    gasWanted: 100000n,
+    gasUsed: 80000n,
+    memo: null,
+    feeJson: { amount: [{ denom: 'utwlt', amount: '5' }] },
+    signerAddressesJson: ['twilight1signer'],
+    messageTypesJson: ['/twilight.coreslot.MsgUpdate'],
+    rawTx: { tx: hash },
+    rawResultJson: { result: hash },
+    createdAt: new Date('2026-06-26T00:00:02.000Z'),
+    ...overrides,
+  };
+}
+
+export function msg(txHash, msgIndex, overrides = {}) {
+  return {
+    id: BigInt(msgIndex + 1),
+    txHash,
+    height: 1n,
+    msgIndex,
+    typeUrl: '/twilight.coreslot.MsgUpdate',
+    module: 'coreslot',
+    typeName: 'MsgUpdate',
+    decodedJson: { a: 1 },
+    rawJson: { raw: msgIndex },
+    decodeError: null,
+    ...overrides,
+  };
+}
+
+export function evt(txHash, eventIndex, overrides = {}) {
+  return {
+    id: BigInt(eventIndex + 1),
+    eventKey: `${txHash}:${eventIndex}`,
+    height: 1n,
+    txHash,
+    txIndex: 0,
+    msgIndex: 0,
+    eventIndex,
+    phase: 'tx',
+    type: 'message',
+    attributesJson: [{ key: 'action', value: 'update' }],
+    module: 'coreslot',
+    keyFieldsJson: null,
+    ...overrides,
+  };
+}
+
+export function account(address, overrides = {}) {
+  return {
+    address,
+    firstSeenHeight: 10n,
+    lastSeenHeight: 20n,
+    txCount: 3,
+    accountKind: 'base',
+    rawAccountJson: { address },
+    createdAt: new Date('2026-06-26T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+export function decodeFailure(id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    height: 5n,
+    txHash: 'TXH',
+    msgIndex: 0,
+    eventIndex: null,
+    typeUrl: '/some.Type',
+    eventType: null,
+    failureKind: 'unknown_message_type',
+    rawJson: { big: 'payload' },
+    rawBase64: 'AAAA',
+    decodeError: 'boom',
+    resolved: false,
+    resolvedAt: null,
+    createdAt: new Date('2026-06-26T00:00:03.000Z'),
+    ...overrides,
+  };
+}
+
+export function coreSlot(slotId, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    status: 'ACTIVE',
+    operatorAddress: `twilight1op${slotId}`,
+    payoutAddress: `twilight1pay${slotId}`,
+    consensusAddress: `cafe${slotId}`,
+    consensusPubkeyJson: { key: `pk${slotId}` },
+    metadataJson: { moniker: `slot${slotId}` },
+    rewardWeight: '1',
+    consensusPower: 10n,
+    createdHeight: 1n,
+    updatedHeight: 100n,
+    removedHeight: null,
+    rawSnapshotJson: { slotId },
+    createdAt: new Date('2026-06-26T00:00:00.000Z'),
+    updatedAtDb: new Date('2026-06-26T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+export function lifecycleEvent(slotId, height, id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    slotId: BigInt(slotId),
+    height: BigInt(height),
+    txHash: `TX${id}`,
+    msgIndex: 0,
+    eventType: 'activate',
+    oldStatus: 'INACTIVE',
+    newStatus: 'ACTIVE',
+    operatorAddress: `twilight1op${slotId}`,
+    consensusAddress: `cafe${slotId}`,
+    power: 10n,
+    reason: null,
+    authority: null,
+    ...overrides,
+  };
+}
+
+export function metadataChange(slotId, height, id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    slotId: BigInt(slotId),
+    height: BigInt(height),
+    txHash: `TX${id}`,
+    msgIndex: 0,
+    operatorAddress: `twilight1op${slotId}`,
+    metadataJson: { moniker: `m${id}` },
+    ...overrides,
+  };
+}
+
+export function payoutChange(slotId, height, id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    slotId: BigInt(slotId),
+    height: BigInt(height),
+    txHash: `TX${id}`,
+    msgIndex: 0,
+    operatorAddress: `twilight1op${slotId}`,
+    newPayoutAddress: `twilight1pay${id}`,
+    ...overrides,
+  };
+}
+
+export function keyRotation(slotId, id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    slotId: BigInt(slotId),
+    status: 'applied',
+    operatorAddress: `twilight1op${slotId}`,
+    oldConsensusAddress: `old${slotId}`,
+    newConsensusAddress: `new${slotId}`,
+    requestedHeight: 50n,
+    effectiveHeight: 52n,
+    appliedHeight: 52n,
+    cancelledHeight: null,
+    reason: null,
+    requestTxHash: `REQ${id}`,
+    appliedTxHash: `APP${id}`,
+    cancelledTxHash: null,
+    ...overrides,
+  };
+}
+
+export function consensusWindow(slotId, id, from, to, overrides = {}) {
+  return {
+    id: BigInt(id),
+    slotId: BigInt(slotId),
+    operatorAddress: `twilight1op${slotId}`,
+    consensusAddress: `cafe${slotId}`,
+    consensusPower: 10n,
+    validatorUpdateHeight: BigInt(from),
+    effectiveFromHeight: BigInt(from),
+    effectiveToHeight: to === null ? null : BigInt(to),
+    status: 'ACTIVE',
+    openedByKind: 'lifecycle',
+    closedByKind: to === null ? null : 'key_rotation',
+    ...overrides,
+  };
+}
+
+export function livenessSummary(slotId, windowKind, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    windowKind,
+    windowSize: windowKind === 'lifetime' ? null : Number(windowKind.split('_')[1]),
+    operatorAddress: `twilight1op${slotId}`,
+    consensusAddress: `cafe${slotId}`,
+    firstCommittedHeight: 1n,
+    lastCommittedHeight: 360n,
+    spanHeightCount: 360n,
+    evidenceHeightCount: 360,
+    expectedCount: 360,
+    signedCount: 360,
+    missedCount: 0,
+    absentMissedCount: 0,
+    nilMissedCount: 0,
+    uptimeBps: 10000,
+    currentSignedStreak: 360,
+    currentMissedStreak: 0,
+    latestMissedHeight: null,
+    invalidHeightCount: 0,
+    summaryStatus: 'complete',
+    ...overrides,
+  };
+}
+
+export function healthSnapshot(slotId, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    healthStatus: 'healthy',
+    healthReason: null,
+    isActiveAtLatest: true,
+    primaryWindowKind: 'recent_100',
+    expectedCount: 100,
+    signedCount: 100,
+    missedCount: 0,
+    absentMissedCount: 0,
+    nilMissedCount: 0,
+    uptimeBps: 10000,
+    lifetimeUptimeBps: 10000,
+    recent500UptimeBps: 10000,
+    recent1000UptimeBps: 10000,
+    currentSignedStreak: 100,
+    currentMissedStreak: 0,
+    latestMissedHeight: null,
+    firstCommittedHeight: 1n,
+    lastCommittedHeight: 360n,
+    summaryStatus: 'complete',
+    invalidHeightCount: 0,
+    policyVersion: 'coreslot_health_policy_v1',
+    updatedAtDb: new Date('2026-06-26T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+export function networkRisk(overrides = {}) {
+  return {
+    haltRiskLevel: 'low',
+    haltRiskReason: null,
+    latestCommittedHeight: 360n,
+    activeSlotCount: 4,
+    healthySlotCount: 4,
+    degradedSlotCount: 0,
+    downSlotCount: 0,
+    incompleteSlotCount: 0,
+    unknownSlotCount: 0,
+    availableSlotCount: 4,
+    unavailableSlotCount: 0,
+    availablePowerBps: 10000,
+    unavailablePowerBps: 0,
+    policyVersion: 'coreslot_health_policy_v1',
+    updatedAtDb: new Date('2026-06-26T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+export function epoch(epochNumber, overrides = {}) {
+  return {
+    epochNumber: BigInt(epochNumber),
+    height: BigInt(epochNumber) * 10n,
+    blockTime: new Date('2026-06-26T00:00:00.000Z'),
+    totalReward: '1000',
+    denom: 'utwlt',
+    activeSlotCount: 4,
+    cumulativeEmitted: '1000',
+    distributionMethod: 'DISTRIBUTION_METHOD_UNIFORM_ACTIVE_BLOCKS',
+    rawSnapshotJson: { epoch: epochNumber },
+    ...overrides,
+  };
+}
+
+export function entitlement(id, slotId, epochNumber, overrides = {}) {
+  return {
+    id: BigInt(id),
+    slotId: BigInt(slotId),
+    epochNumber: BigInt(epochNumber),
+    entitlementAmount: '250',
+    releasedAmount: '0',
+    denom: 'utwlt',
+    payoutAddress: 'twilight1payout',
+    totalBlocksActive: 360n,
+    slotStatusAtEpochClose: 'SLOT_STATUS_ACTIVE',
+    activationSequenceAtEpochClose: 1n,
+    rewardConfigVersion: 1n,
+    createdHeight: 3196n,
+    sampledAtHeight: 3196n,
+    ...overrides,
+  };
+}
+
+export function settlementChunk(slotId, epochNumber, chunkIndex, height, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    epochNumber: BigInt(epochNumber),
+    chunkIndex: BigInt(chunkIndex),
+    recipientCount: 1,
+    chunkTotal: '10000000',
+    height: BigInt(height),
+    txHash: `CHUNKTX${slotId}_${epochNumber}_${chunkIndex}`,
+    ...overrides,
+  };
+}
+
+export function settlementFinalization(slotId, epochNumber, height, overrides = {}) {
+  return {
+    slotId: BigInt(slotId),
+    epochNumber: BigInt(epochNumber),
+    finalizationReason: 'SETTLEMENT_FINALIZATION_REASON_AUTHORIZED_EARLY',
+    releasedRemainder: '0',
+    finalizedHeight: BigInt(height),
+    height: BigInt(height),
+    txHash: `FINTX${slotId}_${epochNumber}`,
+    ...overrides,
+  };
+}
+
+export function payout(id, recipient, height, overrides = {}) {
+  return {
+    id: BigInt(id),
+    payoutKey: `${id}:0`,
+    slotId: 1n,
+    epochNumber: 62n,
+    chunkIndex: 0n,
+    payoutIndex: 0,
+    recipient,
+    amount: '10000000',
+    denom: 'utwlt',
+    height: BigInt(height),
+    txHash: `PAYTX${id}`,
+    msgIndex: 0,
+    ...overrides,
+  };
+}
+
+export function rewardsBalance(id, sampleKind, overrides = {}) {
+  return {
+    id: BigInt(id),
+    sampleKind,
+    height: 3196n,
+    address: null,
+    moduleName: sampleKind === 'module_balance' ? 'rewards' : null,
+    denom: 'utwlt',
+    amount: '1000',
+    ...overrides,
+  };
+}
+
+export function paramsChange(id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    height: BigInt(id) * 5n,
+    txHash: `PTX${id}`,
+    msgIndex: 0,
+    authority: 'twilight1authority',
+    changeType: 'direct_update',
+    paramsJson: { foo: 'bar' },
+    ...overrides,
+  };
+}
+
+export function treasuryPayment(id, overrides = {}) {
+  return {
+    id: BigInt(id),
+    height: BigInt(id) * 7n,
+    recipient: 'twilight1recipient',
+    denom: 'utwlt',
+    amount: '42',
+    purpose: 'grant',
+    ...overrides,
+  };
+}
+
+export function accountBalance(address, denom, amount, overrides = {}) {
+  return {
+    denom,
+    amount,
+    sampledAtHeight: 3196n,
+    address,
+    ...overrides,
+  };
+}
+
+export function supplySample(denom, amount, height = 3196n, overrides = {}) {
+  return { id: 1n, sampleKind: 'supply', height, address: null, moduleName: null, denom, amount, ...overrides };
+}

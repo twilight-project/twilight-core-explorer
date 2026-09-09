@@ -21,12 +21,22 @@ Base URL in examples: `REST=http://localhost:1317`.
 | `EpochInfo` | `/twilight/rewards/v1/epoch-info` | — | `QueryEpochInfoResponse` | `curl $REST/twilight/rewards/v1/epoch-info` | 200 |
 | `NextHalving` | `/twilight/rewards/v1/next-halving` | — | `QueryNextHalvingResponse` | `curl $REST/twilight/rewards/v1/next-halving` | 200 |
 | `EpochReward` | `/twilight/rewards/v1/epochs/{epoch_number}` | `epoch_number` (path, uint64) | `QueryEpochRewardResponse` | `curl $REST/twilight/rewards/v1/epochs/5` | 200; 404 if epoch not finalized |
-| `SlotRewards` | `/twilight/rewards/v1/slots/{slot_id}/rewards` | `slot_id` (path, uint64); `pagination.*` (query) | `QuerySlotRewardsResponse` | `curl $REST/twilight/rewards/v1/slots/1/rewards` | 200 |
-| `ClaimableRewards` | `/twilight/rewards/v1/slots/{slot_id}/claimable` | `slot_id` (path); `start_epoch`,`end_epoch` (query, **required**, uint64) | `QueryClaimableRewardsResponse` | `curl "$REST/twilight/rewards/v1/slots/1/claimable?start_epoch=1&end_epoch=10"` | 200; 400 if range missing/invalid |
+| `EpochEntitlements` | `/twilight/rewards/v1/epochs/{epoch}/entitlements` | `epoch` (path, uint64); `pagination.*` (query) | `QueryEpochEntitlementsResponse` | `curl $REST/twilight/rewards/v1/epochs/233/entitlements` | 200 |
+| `SlotEntitlement` | `/twilight/rewards/v1/slots/{slot_id}/entitlements/{epoch}` | `slot_id`, `epoch` (path, uint64) | `QuerySlotEntitlementResponse` | `curl $REST/twilight/rewards/v1/slots/1/entitlements/233` | 200; 404 if none |
+| `EpochBoundaries` | `/twilight/rewards/v1/epochs/{epoch_number}/boundaries` | `epoch_number` (path, uint64) | `QueryEpochBoundariesResponse` | `curl $REST/twilight/rewards/v1/epochs/233/boundaries` | 200 |
+| `PauseState` | `/twilight/rewards/v1/pause-state` | — | `QueryPauseStateResponse` | `curl $REST/twilight/rewards/v1/pause-state` | 200 |
+| `EpochConfigVersions` | `/twilight/rewards/v1/epoch-config-versions` | `pagination.*` (query) | `QueryEpochConfigVersionsResponse` | `curl $REST/twilight/rewards/v1/epoch-config-versions` | 200 |
+| `RewardConfigVersions` | `/twilight/rewards/v1/reward-config-versions` | `pagination.*` (query) | `QueryRewardConfigVersionsResponse` | `curl $REST/twilight/rewards/v1/reward-config-versions` | 200 |
 | `CumulativeEmitted` | `/twilight/rewards/v1/cumulative-emitted` | — | `QueryCumulativeEmittedResponse` | `curl $REST/twilight/rewards/v1/cumulative-emitted` | 200 |
 | `SupplySchedule` | `/twilight/rewards/v1/supply-schedule` | — | `QuerySupplyScheduleResponse` | `curl $REST/twilight/rewards/v1/supply-schedule` | 200 |
 | `CurrentEpochActiveBlocks` | `/twilight/rewards/v1/current-epoch/active-blocks` | `pagination.*` (query) | `QueryCurrentEpochActiveBlocksResponse` | `curl $REST/twilight/rewards/v1/current-epoch/active-blocks` | 200 |
 | `ModuleBalances` | `/twilight/rewards/v1/module-balances` | — | `QueryModuleBalancesResponse` | `curl $REST/twilight/rewards/v1/module-balances` | 200 |
+
+**Retired (twilight-core `aa568f61`, "retire the legacy claim path"):**
+`/twilight/rewards/v1/slots/{slot_id}/rewards` and
+`/twilight/rewards/v1/slots/{slot_id}/claimable` no longer exist — they answer **501**.
+Manual claiming is gone; a per-slot, per-epoch **entitlement** is now the unit of reward
+truth, and release happens through `x/mining` settlements.
 
 ## x/coreslot — `twilight.coreslot.v1.Query`
 
@@ -42,6 +52,9 @@ Base URL in examples: `REST=http://localhost:1317`.
 | `LastAppliedValidators` | `/twilight/coreslot/v1/last-applied-validators` | — | `QueryLastAppliedValidatorsResponse` | `curl $REST/twilight/coreslot/v1/last-applied-validators` | 200 |
 | `ReservedConsensusAddress` | `/twilight/coreslot/v1/reserved-consensus-address/{consensus_address}` | `consensus_address` (path) | `QueryReservedConsensusAddressResponse` | `curl $REST/twilight/coreslot/v1/reserved-consensus-address/<addr>` | 200; 404 if none |
 | `RewardWeight` | `/twilight/coreslot/v1/slots/{slot_id}/reward-weight` | `slot_id` (path, uint64) | `QueryRewardWeightResponse` | `curl $REST/twilight/coreslot/v1/slots/1/reward-weight` | 200 |
+| `SelectionPolicy` | `/twilight/coreslot/v1/slots/{slot_id}/selection-policy` | `slot_id` (path, uint64) | `QuerySelectionPolicyResponse` | `curl $REST/twilight/coreslot/v1/slots/1/selection-policy` | 200 |
+| `SelectionPolicyVersion` | `/twilight/coreslot/v1/slots/{slot_id}/selection-policy/version/{policy_version}` | `slot_id`, `policy_version` (path, uint64) | `QuerySelectionPolicyResponse` | `curl $REST/twilight/coreslot/v1/slots/1/selection-policy/version/1` | 200; 404 if none |
+| `SelectionPolicyAtHeight` | `/twilight/coreslot/v1/slots/{slot_id}/selection-policy/height/{at_height}` | `slot_id`, `at_height` (path, uint64) — named `at_height`, not `height` (the SDK reserves `--height`) | `QuerySelectionPolicyResponse` | `curl $REST/twilight/coreslot/v1/slots/1/selection-policy/height/100` | 200 |
 
 ### Notes
 - **`ActiveCoreSlots` uses `/active-slots`, not the legacy nested active route.** The
@@ -73,3 +86,34 @@ Smoke check: `./scripts/smoke-api-surface.sh` (honors `BASE_REST`, `BASE_GRPC`,
   RESERVED_CONS_HEX="$(TWILIGHT_LOCALNET_HOME=<twilight-localnet-home> ./scripts/seed-reservation.sh -q)" \
     ./scripts/smoke-api-surface.sh
   ```
+
+## x/mining — `twilight.mining.v1.Query`
+
+`x/mining` is the **settlement / payout-distribution** workflow layered on `x/rewards`
+entitlements — despite the module name there is no proof-of-work here. `x/rewards` finalizes
+an epoch and creates immutable `SlotEntitlement`s; `x/mining` materializes one `Settlement`
+per entitlement, the slot's **settlement address** submits chunks of participant payouts,
+and finalization releases any remainder to the operator's payout address.
+
+Two operational notes for clients:
+
+- Settlement **creation is silent** — `x/mining`'s EndBlocker emits no events at all. Detect
+  new settlements from the `epoch_finalized` event (the rewards EndBlocker runs immediately
+  before mining in the same block), then query.
+- `OpenSettlements`' page limit bounds rows **inspected**, not returned, so an empty page does
+  not mean "no work"; follow `next_key` until it is empty. `pagination.total` is `"0"` on the
+  `*-versions` endpoints even when items exist.
+
+| gRPC method | REST path | Request params | Response type | Example curl | Expected |
+|---|---|---|---|---|---|
+| `SettlementClock` | `/twilight/mining/v1/settlement-clock` | — | `QuerySettlementClockResponse` | `curl $REST/twilight/mining/v1/settlement-clock` | 200 |
+| `Settlement` | `/twilight/mining/v1/settlements/{slot_id}/{epoch}` | `slot_id`, `epoch` (path, uint64) | `QuerySettlementResponse` | `curl $REST/twilight/mining/v1/settlements/1/62` | 200; 404 if no settlement |
+| `OpenSettlements` | `/twilight/mining/v1/slots/{slot_id}/open-settlements` | `slot_id` (path, uint64); `pagination.*` (query) | `QueryOpenSettlementsResponse` | `curl $REST/twilight/mining/v1/slots/3/open-settlements` | 200 |
+| `DistributionModeVersions` | `/twilight/mining/v1/distribution-mode-versions` | `pagination.*` (query) | `QueryDistributionModeVersionsResponse` | `curl $REST/twilight/mining/v1/distribution-mode-versions` | 200 |
+| `SelectionParamsVersions` | `/twilight/mining/v1/selection-params-versions` | `pagination.*` (query) | `QuerySelectionParamsVersionsResponse` | `curl $REST/twilight/mining/v1/selection-params-versions` | 200 |
+| `SettlementParamsVersions` | `/twilight/mining/v1/settlement-params-versions` | `pagination.*` (query) | `QuerySettlementParamsVersionsResponse` | `curl $REST/twilight/mining/v1/settlement-params-versions` | 200 |
+| `TargetEpochInterpretation` | `/twilight/mining/v1/target-epochs/{target_epoch}` | `target_epoch` (path, uint64) | `QueryTargetEpochInterpretationResponse` | `curl $REST/twilight/mining/v1/target-epochs/200` | 200 |
+| `ValidateEconomicAddress` | `/twilight/mining/v1/economic-address` | `address` (**query**, not a path segment — the empty address must be expressible) | `QueryValidateEconomicAddressResponse` | `curl "$REST/twilight/mining/v1/economic-address?address=twilight1..."` | 200 |
+
+There is **no** `Params` query for `x/mining`: its configuration lives in the three versioned
+histories above.

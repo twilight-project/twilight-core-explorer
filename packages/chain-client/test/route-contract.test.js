@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CORE_SLOT_REST_ROUTES,
+  MINING_REST_ROUTES,
   REQUIRED_TWILIGHT_REST_ROUTES,
   REWARDS_REST_ROUTES,
 } from '../dist/index.js';
@@ -23,12 +24,35 @@ const rewardsRoutes = [
   '/twilight/rewards/v1/epoch-info',
   '/twilight/rewards/v1/next-halving',
   '/twilight/rewards/v1/epochs/{epoch_number}',
-  '/twilight/rewards/v1/slots/{slot_id}/rewards',
-  '/twilight/rewards/v1/slots/{slot_id}/claimable',
   '/twilight/rewards/v1/cumulative-emitted',
   '/twilight/rewards/v1/supply-schedule',
   '/twilight/rewards/v1/current-epoch/active-blocks',
   '/twilight/rewards/v1/module-balances',
+  // V2: entitlements replace the retired claim queries.
+  '/twilight/rewards/v1/epochs/{epoch}/entitlements',
+  '/twilight/rewards/v1/slots/{slot_id}/entitlements/{epoch}',
+  '/twilight/rewards/v1/epochs/{epoch_number}/boundaries',
+  '/twilight/rewards/v1/pause-state',
+  '/twilight/rewards/v1/epoch-config-versions',
+  '/twilight/rewards/v1/reward-config-versions',
+];
+
+// Retired by twilight-core aa568f61 ("retire the legacy claim path"). Asserting their
+// ABSENCE stops the dead claim surface being silently reintroduced.
+const retiredRewardsRoutes = [
+  '/twilight/rewards/v1/slots/{slot_id}/rewards',
+  '/twilight/rewards/v1/slots/{slot_id}/claimable',
+];
+
+const miningRoutes = [
+  '/twilight/mining/v1/settlement-clock',
+  '/twilight/mining/v1/settlements/{slot_id}/{epoch}',
+  '/twilight/mining/v1/slots/{slot_id}/open-settlements',
+  '/twilight/mining/v1/distribution-mode-versions',
+  '/twilight/mining/v1/selection-params-versions',
+  '/twilight/mining/v1/settlement-params-versions',
+  '/twilight/mining/v1/target-epochs/{target_epoch}',
+  '/twilight/mining/v1/economic-address',
 ];
 
 const coreSlotRoutes = [
@@ -42,6 +66,9 @@ const coreSlotRoutes = [
   '/twilight/coreslot/v1/last-applied-validators',
   '/twilight/coreslot/v1/reserved-consensus-address/{consensus_address}',
   '/twilight/coreslot/v1/slots/{slot_id}/reward-weight',
+  '/twilight/coreslot/v1/slots/{slot_id}/selection-policy',
+  '/twilight/coreslot/v1/slots/{slot_id}/selection-policy/version/{policy_version}',
+  '/twilight/coreslot/v1/slots/{slot_id}/selection-policy/height/{at_height}',
 ];
 
 const forbiddenStandardModulePatterns = [
@@ -92,17 +119,34 @@ function walkFiles(dir, files = []) {
 describe('Twilight REST route contract', () => {
   it('imports the current Swagger route inventory', () => {
     assert.equal(swagger.swagger, '2.0');
-    assert.equal(paths.size, 61);
+    assert.equal(paths.size, 80);
   });
 
-  it('contains all 10 x/rewards query routes', () => {
+  it('contains every live x/rewards query route', () => {
     assertRoutesPresent(rewardsRoutes);
     assert.deepEqual(Object.values(REWARDS_REST_ROUTES).sort(), [...rewardsRoutes].sort());
   });
 
-  it('contains all 10 x/coreslot query routes', () => {
+  it('contains every live x/coreslot query route', () => {
     assertRoutesPresent(coreSlotRoutes);
     assert.deepEqual(Object.values(CORE_SLOT_REST_ROUTES).sort(), [...coreSlotRoutes].sort());
+  });
+
+  it('contains every live x/mining query route', () => {
+    assertRoutesPresent(miningRoutes);
+    assert.deepEqual(Object.values(MINING_REST_ROUTES).sort(), [...miningRoutes].sort());
+  });
+
+  it('no longer declares the retired rewards claim routes', () => {
+    const declared = Object.values(REWARDS_REST_ROUTES);
+    for (const route of retiredRewardsRoutes) {
+      assert.equal(
+        declared.includes(route),
+        false,
+        `retired route still declared in REWARDS_REST_ROUTES: ${route}`,
+      );
+      assert.equal(paths.has(route), false, `retired route still in Swagger: ${route}`);
+    }
   });
 
   it('uses the validated active slots route', () => {
@@ -116,7 +160,7 @@ describe('Twilight REST route contract', () => {
   });
 
   it('keeps route constants aligned with the imported route contract', () => {
-    assert.equal(REQUIRED_TWILIGHT_REST_ROUTES.length, 20);
+    assert.equal(REQUIRED_TWILIGHT_REST_ROUTES.length, 35);
     for (const route of REQUIRED_TWILIGHT_REST_ROUTES) {
       assert.equal(paths.has(route), true, `route constant missing from Swagger: ${route}`);
       assert.match(restRoutes, new RegExp(escapeRegExp(route)));

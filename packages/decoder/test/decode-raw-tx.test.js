@@ -22,12 +22,15 @@ describe('Twilight descriptor-backed raw tx decoder', () => {
     assert.ok(root.lookupType('cosmos.tx.v1beta1.TxRaw'));
     assert.ok(root.lookupType('cosmos.tx.v1beta1.TxBody'));
     assert.ok(root.lookupType('twilight.coreslot.v1.MsgUpdateOperatorMetadata'));
-    assert.ok(root.lookupType('twilight.rewards.v1.MsgClaimRewards'));
+    assert.ok(root.lookupType('twilight.rewards.v1.MsgPauseRewards'));
+    assert.ok(root.lookupType('twilight.mining.v1.MsgSubmitSettlementChunk'));
+    assert.ok(root.lookupType('twilight.mining.v1.MsgFinalizeSettlement'));
   });
 
   it('looks up message types by Any type URL', () => {
     assert.ok(lookupMessageByTypeUrl('/twilight.coreslot.v1.MsgUpdateOperatorMetadata'));
-    assert.ok(lookupMessageByTypeUrl('type.googleapis.com/twilight.rewards.v1.MsgClaimRewards'));
+    assert.ok(lookupMessageByTypeUrl('type.googleapis.com/twilight.rewards.v1.MsgPauseRewards'));
+    assert.ok(lookupMessageByTypeUrl('/twilight.mining.v1.MsgSubmitSettlementChunk'));
     assert.equal(lookupMessageByTypeUrl('/twilight.unknown.v1.MsgNope'), undefined);
   });
 

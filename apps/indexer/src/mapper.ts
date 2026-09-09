@@ -256,16 +256,30 @@ export function inferModuleFromTypeUrl(typeUrl: string): string | undefined {
   if (module) return module;
   if (typeUrl.includes('twilight.coreslot.v1')) return 'coreslot';
   if (typeUrl.includes('twilight.rewards.v1')) return 'rewards';
+  if (typeUrl.includes('twilight.mining.v1')) return 'mining';
   if (typeUrl.includes('cosmos.bank.v1beta1')) return 'bank';
   if (typeUrl.includes('cosmos.auth.v1beta1')) return 'auth';
   if (typeUrl.includes('cosmos.tx.v1beta1')) return 'tx';
   return undefined;
 }
 
+// x/rewards emits several events whose names carry no module prefix (`epoch_finalized`,
+// `treasury_paid`, `params_activated`, `params_update_queued`). Prefix matching alone left
+// them unstamped, which silently blinded the rewards projector's forward-compat guardrail
+// (it queries `module: 'rewards'` for unrecognized types). Name them explicitly.
+const REWARDS_UNPREFIXED_EVENT_TYPES = new Set([
+  'epoch_finalized',
+  'treasury_paid',
+  'params_activated',
+  'params_update_queued',
+]);
+
 export function inferModuleFromEventType(type: string): string | undefined {
   if (type.startsWith('coreslot') || type.includes('core_slot')) return 'coreslot';
+  if (type.startsWith('mining')) return 'mining';
   if (type.startsWith('rewards') || type.includes('reward')) return 'rewards';
-  if (type.startsWith('coin_') || type === 'transfer') return 'bank';
+  if (REWARDS_UNPREFIXED_EVENT_TYPES.has(type)) return 'rewards';
+  if (type.startsWith('coin_') || type === 'transfer' || type === 'coinbase') return 'bank';
   if (type === 'tx' || type === 'message') return 'tx';
   return undefined;
 }

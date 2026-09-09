@@ -25,7 +25,9 @@ packages/
   decoder/       descriptor-backed protobuf tx decoding
   proto/         Twilight descriptor artifacts
 apps/
-  indexer/       ingestion + semantic projections (api/, web/ are future)
+  indexer/       ingestion + semantic projections
+  api/           DB-only public REST/OpenAPI service (Phase 9; 32 paths)
+  web/           Next.js app-router explorer UI consuming the API (Phase 10)
 prisma/          schema + migrations
 docs/research/   one report per phase; checkpoint is the index/source of truth
 ```
@@ -102,7 +104,11 @@ grep -R "/cosmos/staking\|/cosmos/gov\|/cosmos/mint\|/cosmos/distribution" apps 
 
 ## Status
 
-`docs/research/explorer-project-checkpoint.md` is the canonical status index. As of the latest
-work: CoreSlot semantic layer (6a/6b), rewards projection (7), and Phase 8 CoreSlot liveness
-backend projections are done. Next major work is the public API and web explorer UI, with
-generated gRPC/proto clients still preserved as a later `ChainClient` transport.
+`docs/research/explorer-project-checkpoint.md` is the canonical status index. As of the latest work:
+the full backend (CoreSlot semantics 6a/6b, rewards 7/7.2, liveness 8a–8c, proposer attribution), the
+DB-only public API (Phase 9, 32 paths), the web explorer (Phases 10–12), and **Phase 13 — explorer
+hardening & RC pass (13a–13d) — are complete**: the RC gate (`npm run rc-check`, incl. `RC_LIVE=1`) is
+green, the ~2,500-block localnet soak ran GREEN (53 checks), adversarial + Codex reviewed PASS, tagged
+`explorer-phase-13`. The one deferred acceptance item is the primary **devnet** soak (Issue #41 — localnet
+only this pass). Next major work is **Phase 14 (deployment & operations)**; the generated gRPC/proto
+clients remain a preserved later `ChainClient` transport.

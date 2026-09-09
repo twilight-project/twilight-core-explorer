@@ -7,6 +7,7 @@ import {
 import {
   COMET_RPC_ROUTES,
   CORE_SLOT_REST_ROUTES,
+  MINING_REST_ROUTES,
   COSMOS_REST_ROUTES,
   REWARDS_REST_ROUTES,
   buildPath,
@@ -208,8 +209,8 @@ export class RestRpcChainClient implements ChainClient {
     return txs;
   }
 
-  async getSupply(): Promise<SupplySource[]> {
-    const raw = await this.rest(COSMOS_REST_ROUTES.supply);
+  async getSupply(height?: bigint): Promise<SupplySource[]> {
+    const raw = await this.rest(COSMOS_REST_ROUTES.supply, undefined, height);
     const supply = readArray(getRecord(raw).supply);
 
     return supply.map((coin) => {
@@ -222,8 +223,8 @@ export class RestRpcChainClient implements ChainClient {
     });
   }
 
-  async getBalances(address: string): Promise<ModuleSnapshot> {
-    return this.snapshot(buildPath(COSMOS_REST_ROUTES.balances, { address }));
+  async getBalances(address: string, height?: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(buildPath(COSMOS_REST_ROUTES.balances, { address }), undefined, height);
   }
 
   async getCoreSlotParams(): Promise<ModuleSnapshot> {
@@ -300,32 +301,48 @@ export class RestRpcChainClient implements ChainClient {
     );
   }
 
-  async getSlotRewards(
-    slotId: bigint,
+  async getEpochEntitlements(
+    epoch: bigint,
     pagination: PaginationRequest = {},
   ): Promise<ModuleSnapshot> {
     return this.snapshot(
-      buildPath(REWARDS_REST_ROUTES.slotRewards, { slot_id: slotId }),
+      buildPath(REWARDS_REST_ROUTES.epochEntitlements, { epoch }),
       buildPaginationQuery(pagination),
     );
   }
 
-  async getClaimableRewards(
-    slotId: bigint,
-    startEpoch: bigint,
-    endEpoch: bigint,
-  ): Promise<ModuleSnapshot> {
+  async getSlotEntitlement(slotId: bigint, epoch: bigint): Promise<ModuleSnapshot> {
     return this.snapshot(
-      buildPath(REWARDS_REST_ROUTES.claimableRewards, { slot_id: slotId }),
-      {
-        start_epoch: startEpoch,
-        end_epoch: endEpoch,
-      },
+      buildPath(REWARDS_REST_ROUTES.slotEntitlement, { slot_id: slotId, epoch }),
     );
   }
 
-  async getCumulativeEmitted(): Promise<ModuleSnapshot> {
-    return this.snapshot(REWARDS_REST_ROUTES.cumulativeEmitted);
+  async getEpochBoundaries(epoch: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(REWARDS_REST_ROUTES.epochBoundaries, { epoch_number: epoch }),
+    );
+  }
+
+  async getRewardsPauseState(): Promise<ModuleSnapshot> {
+    return this.snapshot(REWARDS_REST_ROUTES.pauseState);
+  }
+
+  async getEpochConfigVersions(pagination: PaginationRequest = {}): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      REWARDS_REST_ROUTES.epochConfigVersions,
+      buildPaginationQuery(pagination),
+    );
+  }
+
+  async getRewardConfigVersions(pagination: PaginationRequest = {}): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      REWARDS_REST_ROUTES.rewardConfigVersions,
+      buildPaginationQuery(pagination),
+    );
+  }
+
+  async getCumulativeEmitted(height?: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(REWARDS_REST_ROUTES.cumulativeEmitted, undefined, height);
   }
 
   async getSupplySchedule(): Promise<ModuleSnapshot> {
@@ -336,8 +353,96 @@ export class RestRpcChainClient implements ChainClient {
     return this.snapshot(REWARDS_REST_ROUTES.currentEpochActiveBlocks);
   }
 
-  async getModuleBalances(): Promise<ModuleSnapshot> {
-    return this.snapshot(REWARDS_REST_ROUTES.moduleBalances);
+  async getModuleBalances(height?: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(REWARDS_REST_ROUTES.moduleBalances, undefined, height);
+  }
+
+  async getSelectionPolicy(slotId: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(CORE_SLOT_REST_ROUTES.selectionPolicy, { slot_id: slotId }),
+    );
+  }
+
+  async getSelectionPolicyVersion(
+    slotId: bigint,
+    policyVersion: bigint,
+  ): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(CORE_SLOT_REST_ROUTES.selectionPolicyVersion, {
+        slot_id: slotId,
+        policy_version: policyVersion,
+      }),
+    );
+  }
+
+  async getSelectionPolicyAtHeight(slotId: bigint, atHeight: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(CORE_SLOT_REST_ROUTES.selectionPolicyAtHeight, {
+        slot_id: slotId,
+        at_height: atHeight,
+      }),
+    );
+  }
+
+  // --- x/mining ------------------------------------------------------------------------
+  // NOTE: none of these take a height. The node prunes state to the last ~100 blocks, so a
+  // height-pinned read of an older height fails; settlements persist in current state and
+  // are read there instead.
+
+  async getSettlementClock(): Promise<ModuleSnapshot> {
+    return this.snapshot(MINING_REST_ROUTES.settlementClock);
+  }
+
+  async getSettlement(slotId: bigint, epoch: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(MINING_REST_ROUTES.settlement, { slot_id: slotId, epoch }),
+    );
+  }
+
+  async getOpenSettlements(
+    slotId: bigint,
+    pagination: PaginationRequest = {},
+  ): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(MINING_REST_ROUTES.openSettlements, { slot_id: slotId }),
+      buildPaginationQuery(pagination),
+    );
+  }
+
+  async getDistributionModeVersions(
+    pagination: PaginationRequest = {},
+  ): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      MINING_REST_ROUTES.distributionModeVersions,
+      buildPaginationQuery(pagination),
+    );
+  }
+
+  async getSelectionParamsVersions(pagination: PaginationRequest = {}): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      MINING_REST_ROUTES.selectionParamsVersions,
+      buildPaginationQuery(pagination),
+    );
+  }
+
+  async getSettlementParamsVersions(
+    pagination: PaginationRequest = {},
+  ): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      MINING_REST_ROUTES.settlementParamsVersions,
+      buildPaginationQuery(pagination),
+    );
+  }
+
+  async getTargetEpochInterpretation(targetEpoch: bigint): Promise<ModuleSnapshot> {
+    return this.snapshot(
+      buildPath(MINING_REST_ROUTES.targetEpochInterpretation, { target_epoch: targetEpoch }),
+    );
+  }
+
+  async getEconomicAddressValidation(address: string): Promise<ModuleSnapshot> {
+    // `address` is a query param, not a path segment — the empty address must be expressible.
+    return this.snapshot(MINING_REST_ROUTES.economicAddress, { address });
   }
 
   private async rpc(
@@ -354,19 +459,25 @@ export class RestRpcChainClient implements ChainClient {
   private async rest(
     path: string,
     query?: Record<string, string | number | bigint | boolean | undefined>,
+    height?: bigint,
   ): Promise<unknown> {
     return getJson(this.restUrl, path, {
       query,
       timeoutMs: this.timeoutMs,
       fetchImpl: this.fetchImpl,
+      // Cosmos SDK serves historical state at a specific block when this header is set, so
+      // sampled snapshots reflect (and are honestly labeled at) the requested height rather
+      // than whatever 'latest' happens to be when the query lands.
+      ...(height !== undefined ? { headers: { 'x-cosmos-block-height': height.toString() } } : {}),
     });
   }
 
   private async snapshot(
     path: string,
     query?: Record<string, string | number | bigint | boolean | undefined>,
+    height?: bigint,
   ): Promise<ModuleSnapshot> {
-    return { raw: await this.rest(path, query) };
+    return { raw: await this.rest(path, query, height) };
   }
 }
 

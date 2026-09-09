@@ -7,13 +7,12 @@ import {
   EPOCH_FINALIZED_EVENT_TYPE,
   PARAMS_ACTIVATED_EVENT_TYPE,
   PARAMS_UPDATE_QUEUED_EVENT_TYPE,
-  REWARD_CLAIMED_EVENT_TYPE,
-  REWARDS_CLAIM_TYPE_URL,
   REWARDS_EVENT_TYPES,
   REWARDS_MESSAGE_TYPE_URLS,
   REWARDS_PAUSE_TYPE_URL,
   REWARDS_PAUSED_EVENT_TYPE,
   REWARDS_PARAMS_CHANGE_TYPE,
+  REWARDS_NATIVE_DENOM,
   REWARDS_RESUME_TYPE_URL,
   REWARDS_RESUMED_EVENT_TYPE,
   REWARDS_SEMANTIC_PROJECTION,
@@ -48,7 +47,6 @@ export interface RewardsSemanticProjectionPrisma extends ProjectionCursorPrisma 
   message: { findMany(args: unknown): Promise<MessageSource[]> };
   event: { findMany(args: unknown): Promise<EventSource[]> };
   rewardEpochProjection: { upsert(args: unknown): Promise<unknown> };
-  rewardClaimEvent: { upsert(args: unknown): Promise<unknown> };
   slotRewardProjection: {
     findMany(args: unknown): Promise<SlotRewardSource[]>;
     update(args: unknown): Promise<unknown>;
@@ -158,7 +156,8 @@ export async function projectRewardsSemanticHeight(
 
       const counters: Counters = { rowsWritten: 0, failuresCreated: 0 };
 
-      // Deterministic per-height order: epochs -> params/pause/resume -> claims -> treasury.
+      // Deterministic per-height order: epochs -> params/pause/resume -> treasury.
+      // (Claims were retired with the V2 switchover — see the projection header.)
       for (const event of byType(EPOCH_FINALIZED_EVENT_TYPE)) {
         if (isFailedTxBound(event, successfulTxHashes)) continue;
         await projectEpochFinalized(tx, event, counters);
@@ -172,13 +171,6 @@ export async function projectRewardsSemanticHeight(
         activatedEvents: byType(PARAMS_ACTIVATED_EVENT_TYPE),
         pausedEvents: byType(REWARDS_PAUSED_EVENT_TYPE),
         resumedEvents: byType(REWARDS_RESUMED_EVENT_TYPE),
-        successfulTxHashes,
-        counters,
-      });
-
-      await projectClaims(tx, {
-        claimMessages: messagesByUrl(REWARDS_CLAIM_TYPE_URL),
-        claimedEvents: byType(REWARD_CLAIMED_EVENT_TYPE),
         successfulTxHashes,
         counters,
       });
@@ -239,9 +231,20 @@ async function projectEpochFinalized(
     return;
   }
 
-  const totalReward = readString(attrs.total_reward) ?? readString(attrs.amount) ?? null;
-  const denom = readString(attrs.denom) ?? null;
-  const activeSlotCount = parseInt32(readString(attrs.active_slot_count));
+  // Live nyks-core epoch_finalized emits `allocated` (rewards distributed this epoch),
+  // `eligible_slots`, `cumulative_emitted`, `distribution_method` — NOT total_reward/
+  // active_slot_count (the originally-assumed keys, kept as defensive fallbacks). denom is
+  // not emitted; rewards are utwlt by chain convention (REWARDS_NATIVE_DENOM). carry_out /
+  // reward_pool stay in preserved raw until a fixture exercises carry_out != 0. See
+  // docs/research/phase-7.2-rewards-fixture-findings.md.
+  const totalReward =
+    readString(attrs.allocated) ?? readString(attrs.total_reward) ?? readString(attrs.amount) ?? null;
+  const denom = readString(attrs.denom) ?? REWARDS_NATIVE_DENOM;
+  const activeSlotCount = parseInt32(
+    readString(attrs.eligible_slots) ?? readString(attrs.active_slot_count),
+  );
+  const cumulativeEmitted = readString(attrs.cumulative_emitted) ?? null;
+  const distributionMethod = readString(attrs.distribution_method) ?? null;
 
   const data = {
     epochNumber,
@@ -249,6 +252,8 @@ async function projectEpochFinalized(
     totalReward,
     denom,
     activeSlotCount,
+    cumulativeEmitted,
+    distributionMethod,
     sourceEventId: event.id,
     rawEventJson: buildRawEventJson(event),
   };
@@ -260,6 +265,8 @@ async function projectEpochFinalized(
       totalReward,
       denom,
       activeSlotCount,
+      cumulativeEmitted,
+      distributionMethod,
       sourceEventId: event.id,
       rawEventJson: buildRawEventJson(event),
     },
@@ -500,192 +507,6 @@ async function upsertParamsChange(
       where: { sourceMessageId: message.id },
       create: data,
       update: data,
-    });
-  }
-}
-
-// --- claims ----------------------------------------------------------------
-
-async function projectClaims(
-  tx: RewardsSemanticProjectionPrisma,
-  args: {
-    claimMessages: MessageSource[];
-    claimedEvents: EventSource[];
-    successfulTxHashes: Set<string>;
-    counters: Counters;
-  },
-): Promise<void> {
-  const { counters } = args;
-  const usedEvents = new Set<string>();
-
-  for (const message of args.claimMessages) {
-    const decoded = asRecord(message.decodedJson);
-    const slotId = parseBigInt(readString(decoded.slot_id) ?? readString(decoded.slotId));
-    if (slotId === undefined) {
-      await createFailure(tx, {
-        sourceHeight: message.height,
-        sourceMessageId: message.id,
-        typeUrl: message.typeUrl,
-        failureKind: 'invalid_slot_id',
-        rawMessageJson: buildRawMessageJson(message),
-        error: 'MsgClaimRewards has invalid slot_id.',
-      });
-      counters.failuresCreated += 1;
-      continue;
-    }
-
-    const matching = args.claimedEvents.filter(
-      (e) => !usedEvents.has(e.id.toString())
-        && txEventMatches(e, message)
-        && eventSlotMatches(e, slotId),
-    );
-    if (matching.length === 0) {
-      await createFailure(tx, {
-        sourceHeight: message.height,
-        sourceMessageId: message.id,
-        typeUrl: message.typeUrl,
-        failureKind: 'missing_event',
-        rawMessageJson: buildRawMessageJson(message),
-        error: 'MsgClaimRewards had no matching reward_claimed event.',
-      });
-      counters.failuresCreated += 1;
-      continue;
-    }
-    if (matching.length > 1) {
-      await createFailure(tx, {
-        sourceHeight: message.height,
-        sourceMessageId: message.id,
-        sourceEventId: matching[0]?.id ?? null,
-        typeUrl: message.typeUrl,
-        failureKind: 'claim_correlation_failed',
-        rawMessageJson: buildRawMessageJson(message),
-        error: `${matching.length} reward_claimed events matched one MsgClaimRewards.`,
-      });
-      counters.failuresCreated += 1;
-      continue;
-    }
-    const event = matching[0];
-    if (!event) continue;
-    usedEvents.add(event.id.toString());
-    await applyClaim(tx, { slotId, message, event, counters });
-  }
-
-  // reward_claimed events with no message (out-of-band/auto claim): record from event.
-  for (const event of args.claimedEvents) {
-    if (usedEvents.has(event.id.toString())) continue;
-    if (isFailedTxBound(event, args.successfulTxHashes)) continue;
-    const slotId = parseBigInt(readString(attributesToRecord(event.attributesJson).slot_id));
-    if (slotId === undefined) {
-      await createFailure(tx, {
-        sourceHeight: event.height,
-        sourceEventId: event.id,
-        eventType: event.type,
-        failureKind: 'invalid_slot_id',
-        rawEventJson: buildRawEventJson(event),
-        error: 'reward_claimed event has invalid slot_id.',
-      });
-      counters.failuresCreated += 1;
-      continue;
-    }
-    await applyClaim(tx, { slotId, message: null, event, counters });
-    await createFailure(tx, {
-      sourceHeight: event.height,
-      sourceEventId: event.id,
-      eventType: event.type,
-      failureKind: 'missing_message',
-      rawEventJson: buildRawEventJson(event),
-      error: 'reward_claimed event had no matching MsgClaimRewards message.',
-    });
-    counters.failuresCreated += 1;
-  }
-}
-
-async function applyClaim(
-  tx: RewardsSemanticProjectionPrisma,
-  args: {
-    slotId: bigint;
-    message: MessageSource | null;
-    event: EventSource;
-    counters: Counters;
-  },
-): Promise<void> {
-  const { slotId, message, event, counters } = args;
-  const attrs = attributesToRecord(event.attributesJson);
-  const decoded = asRecord(message?.decodedJson);
-
-  const startEpoch = parseBigInt(
-    readString(attrs.start_epoch) ?? readString(decoded.start_epoch) ?? readString(decoded.startEpoch),
-  );
-  const endEpoch = parseBigInt(
-    readString(attrs.end_epoch) ?? readString(decoded.end_epoch) ?? readString(decoded.endEpoch),
-  );
-  const claimant = readString(attrs.claimant)
-    ?? readString(attrs.operator)
-    ?? readString(decoded.claimant)
-    ?? readString(decoded.creator)
-    ?? null;
-
-  await tx.rewardClaimEvent.upsert({
-    where: { sourceEventId: event.id },
-    create: {
-      slotId,
-      claimant,
-      payoutAddress: readString(attrs.payout_address) ?? null,
-      startEpoch: startEpoch ?? null,
-      endEpoch: endEpoch ?? null,
-      amount: readString(attrs.amount) ?? null,
-      denom: readString(attrs.denom) ?? null,
-      height: event.height,
-      txHash: event.txHash ?? message?.txHash ?? '',
-      msgIndex: message?.msgIndex ?? event.msgIndex ?? null,
-      sourceMessageId: message?.id ?? null,
-      sourceEventId: event.id,
-      rawMessageJson: message ? buildRawMessageJson(message) : undefined,
-      rawEventJson: buildRawEventJson(event),
-    },
-    update: {
-      slotId,
-      claimant,
-      payoutAddress: readString(attrs.payout_address) ?? null,
-      startEpoch: startEpoch ?? null,
-      endEpoch: endEpoch ?? null,
-      amount: readString(attrs.amount) ?? null,
-      denom: readString(attrs.denom) ?? null,
-      sourceMessageId: message?.id ?? null,
-      rawMessageJson: message ? buildRawMessageJson(message) : undefined,
-      rawEventJson: buildRawEventJson(event),
-    },
-  });
-  counters.rowsWritten += 1;
-
-  // Reconcile claim state onto existing observed slot reward rows (never fabricate).
-  if (startEpoch === undefined || endEpoch === undefined) return;
-  const rows = await tx.slotRewardProjection.findMany({
-    where: { slotId, epochNumber: { gte: startEpoch, lte: endEpoch } },
-  });
-  if (rows.length === 0) {
-    await createFailure(tx, {
-      sourceHeight: event.height,
-      sourceEventId: event.id,
-      eventType: event.type,
-      failureKind: 'missing_reward_records',
-      rawEventJson: buildRawEventJson(event),
-      error: `Claim for slot ${slotId} epochs ${startEpoch}..${endEpoch} has no SlotRewardProjection rows.`,
-    });
-    counters.failuresCreated += 1;
-    return;
-  }
-  for (const row of rows) {
-    await tx.slotRewardProjection.update({
-      where: { id: row.id },
-      data: {
-        claimed: true,
-        claimedAtHeight: event.height,
-        claimTxHash: event.txHash ?? message?.txHash ?? null,
-        claimMsgIndex: message?.msgIndex ?? event.msgIndex ?? null,
-        claimEventId: event.id,
-        rawClaimJson: buildRawEventJson(event),
-      },
     });
   }
 }

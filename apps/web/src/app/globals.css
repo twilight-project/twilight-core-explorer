@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Theme bridge. Tailwind colors resolve via CSS variables, switched with `data-theme` on <html>.
+  Two themes only — `dark` (the default operator console) and `light` (its paper counterpart).
+  They share one voice and shape language; only the ground and palette depth differ.
+*/
+
+:root {
+  /* Semantic font ROLES resolve onto the faces loaded by next/font in layout.tsx (each bound to a
+     unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
+     its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
+     if a face fails to load. */
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter,
+    sans-serif;
+  --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Roboto Mono', monospace;
+  /* Hero-numeral role (KPI/stat values). Mono by default — operator honesty: heights and amounts
+     stay monospaced so digits align and cannot be misread. */
+  --font-metric: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  /* KPI category legend. Every category hue except violet already exists as a per-theme --accent-*
+     (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. Violet has
+     no accent, so it lives here in :root as a global fallback — constant across all themes. */
+  --accent-violet: 167 139 250;
+}
+
+/* Dark — the default operator console: warm gold on a near-black ground. */
+[data-theme='dark'] {
+  --page: 10 8 5;
+  --background: 10 8 5;
+  --background-secondary: 15 13 9;
+  --background-tertiary: 28 24 16;
+  --background-primary: 6 5 3;
+
+  --card: 22 19 13;
+  --card-hover: 28 24 16;
+  --card-border: 38 34 27;
+
+  --primary: 245 197 66;
+  --primary-light: 255 215 102;
+  --primary-dark: 200 158 46;
+
+  --accent-blue: 78 163 255;
+  --accent-orange: 255 154 61;
+  --accent-yellow: 255 181 112;
+  --accent-green: 61 220 151;
+  --accent-red: 255 107 107;
+
+  --accent-gold: 245 197 66;
+  --accent-gold-light: 255 215 102;
+  --accent-gold-dark: 200 158 46;
+  --accent-amber: 255 181 112;
+  --accent-burgundy: 40 24 12;
+
+  --text: 233 234 242;
+  --text-secondary: 201 202 214;
+  /* WCAG 1.4.3: ~7:1 on the warm-black --background. */
+  --text-muted: 154 157 180;
+
+  --border: 38 34 27;
+  --border-light: 54 48 38;
+
+  /* expressive — balanced elevation, bordered, sans display, MONO numerals (operator honesty) */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
+  --display-tracking: -0.01em;
+  --card-border-width: 1px;
+  /* display face — Inter (compact technical sans per brief); hierarchy by size/weight, not face */
+  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* --font-metric inherits the :root mono default — heights/amounts stay monospaced */
+}
+
+/* Light — the same console on paper. Picked automatically for first-time visitors whose OS prefers
+   light (see the pre-paint script in layout.tsx); always available from the toggle. All text/status
+   pairs are AA-verified against both --background and --card by theme-tokens.test.ts — keep them
+   passing when retuning. */
+[data-theme='light'] {
+  --page: 250 249 245;
+  --background: 250 249 245;
+  --background-secondary: 243 241 234;
+  --background-tertiary: 232 229 219;
+  --background-primary: 255 255 255;
+
+  --card: 255 255 255;
+  --card-hover: 248 246 240;
+  --card-border: 214 209 196;
+
+  /* Ink-gold: the warm-gold identity carried at text-safe depth. Status/brand text also sits on
+     10%-tint surfaces (badges, the lag banner) over this paper ground, which RAISES the effective
+     background — every pair below clears AA on the tint blend too (guarded by theme-tokens.test.ts;
+     the live-browser axe run caught the first tuning at 4.48:1 on exactly that blend). */
+  --primary: 122 96 20;
+  --primary-light: 102 80 16;
+  --primary-dark: 87 68 14;
+
+  --accent-blue: 29 100 189;
+  --accent-orange: 180 83 9;
+  --accent-yellow: 138 90 5;
+  --accent-green: 13 107 76;
+  --accent-red: 185 28 28;
+
+  --accent-gold: 122 96 20;
+  --accent-gold-light: 102 80 16;
+  --accent-gold-dark: 87 68 14;
+  --accent-amber: 138 90 5;
+  --accent-burgundy: 240 231 214;
+
+  --text: 26 26 31;
+  --text-secondary: 68 70 80;
+  /* WCAG 1.4.3: ≈5.7:1 on the paper --background. */
+  --text-muted: 96 99 112;
+
+  --border: 214 209 196;
+  --border-light: 196 190 175;
+
+  /* expressive — the console shape language on paper: bordered cards, soft warm shadow */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
+  --display-tracking: -0.01em;
+  --card-border-width: 1px;
+  /* display face — Inter, the same compact technical voice as the dark theme */
+  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---- Spacing/type scale ------------------------------------------------------------------------
+   The dense operator-console rhythm, now the only scale: the roomier "airy" alternative was removed
+   along with the runtime density switch, so these are plain constants rather than a switchable axis.
+   Kept as tokens because components reference them by name. */
+:root {
+  --d-section-gap: 1.25rem; /* 20px — handoff section gap */
+  --d-grid-gap: 0.875rem; /* 14px — handoff card-grid gap */
+  --d-card-px: 1rem; /* 16px */
+  --d-card-py: 0.875rem; /* 14px */
+  --d-kpi-size: 1.375rem; /* 22px — handoff stat value */
+  --d-metric-size: 2rem; /* 32px — handoff big metric */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100vh;
+  background-color: rgb(var(--background));
+  color: rgb(var(--text));
+  font-family: var(--font-sans);
+}
+
+/* Heading rhythm is a theme-owned expressive lever: each brand sets its own display tracking
+   (tight grotesk vs relaxed editorial). Element-level selector (specificity 0,0,1) so any
+   component utility class — e.g. a one-off tracking-* — still overrides it. */
+h1,
+h2 {
+  letter-spacing: var(--display-tracking, -0.01em);
+}
+
+/* Keep in-page anchor targets (e.g. the skip link → #main) clear of the sticky header. */
+html {
+  scroll-padding-top: 5rem;
+}
+
+/* WCAG 2.4.7 — a consistent, visible keyboard-focus indicator for every interactive element.
+   `:where()` keeps specificity at 0 so a component can still opt into its own focus style. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(var(--background-secondary));
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--card-border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--border-light));
+}
+
+/* Skeleton shimmer used by loading states */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--card)) 25%,
+    rgb(var(--card-hover)) 37%,
+    rgb(var(--card)) 63%
+  );
+  background-size: 200% 100%;
+}

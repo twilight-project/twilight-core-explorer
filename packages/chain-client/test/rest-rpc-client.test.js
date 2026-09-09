@@ -204,6 +204,41 @@ describe('RestRpcChainClient', () => {
     );
   });
 
+  it('pins sampled REST reads to a height via the x-cosmos-block-height header', async () => {
+    const seen = [];
+    const fetchImpl = async (input, init) => {
+      seen.push({ url: input.toString(), headers: init?.headers });
+      return createJsonResponse({
+        supply: [{ denom: 'utwlt', amount: '1000' }],
+        rewards: [],
+        balances: [],
+        pagination: { next_key: null },
+      });
+    };
+    const client = new RestRpcChainClient({
+      cometRpcUrl: 'http://rpc.test',
+      restUrl: 'http://rest.test',
+      fetchImpl,
+    });
+
+    await client.getSupply(53n);
+    await client.getBalances('twilight1height', 53n);
+    await client.getModuleBalances(53n);
+    await client.getCumulativeEmitted(53n);
+    await client.getBalances('twilight1address', 53n);
+    await client.getSupply(); // no height -> no header
+
+    for (let i = 0; i < 5; i += 1) {
+      assert.equal(
+        seen[i].headers?.['x-cosmos-block-height'],
+        '53',
+        `pinned call ${i} should carry the height header`,
+      );
+    }
+    // Unpinned (latest) reads must not set the header at all.
+    assert.equal(seen[5].headers, undefined);
+  });
+
   it('falls back to CometBFT block txs when REST tx search cannot decode a tx', async () => {
     const failingTxSearchUrl = 'http://rest.test/cosmos/tx/v1beta1/txs?query=tx.height%3D17';
     const { calls, fetchImpl } = createRecordingFetch({
@@ -301,8 +336,8 @@ describe('RestRpcChainClient', () => {
     await client.getEpochInfo();
     await client.getNextHalving();
     await client.getEpochReward(9n);
-    await client.getSlotRewards(7n, { limit: 25n, reverse: true });
-    await client.getClaimableRewards(7n, 10n, 20n);
+    await client.getEpochEntitlements(7n, { limit: 25n, reverse: true });
+    await client.getSlotEntitlement(7n, 20n);
     await client.getCumulativeEmitted();
     await client.getSupplySchedule();
     await client.getCurrentEpochActiveBlocks();
@@ -317,8 +352,8 @@ describe('RestRpcChainClient', () => {
         '/twilight/rewards/v1/epoch-info',
         '/twilight/rewards/v1/next-halving',
         '/twilight/rewards/v1/epochs/9',
-        '/twilight/rewards/v1/slots/7/rewards',
-        '/twilight/rewards/v1/slots/7/claimable',
+        '/twilight/rewards/v1/epochs/7/entitlements',
+        '/twilight/rewards/v1/slots/7/entitlements/20',
         '/twilight/rewards/v1/cumulative-emitted',
         '/twilight/rewards/v1/supply-schedule',
         '/twilight/rewards/v1/current-epoch/active-blocks',
@@ -327,8 +362,53 @@ describe('RestRpcChainClient', () => {
     );
     assert.equal(urls[4].searchParams.get('pagination.limit'), '25');
     assert.equal(urls[4].searchParams.get('pagination.reverse'), 'true');
-    assert.equal(urls[5].searchParams.get('start_epoch'), '10');
-    assert.equal(urls[5].searchParams.get('end_epoch'), '20');
+    // Slot + epoch are path segments on the entitlement route, so it carries no query at all
+    // (the retired claimable route took start_epoch/end_epoch as required query params).
+    assert.equal([...urls[5].searchParams].length, 0);
+  });
+
+  it('routes x/mining settlement reads through REST contract paths', async () => {
+    const calls = [];
+    const fetchImpl = async (url) => {
+      calls.push(url);
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const client = new RestRpcChainClient({
+      cometRpcUrl: 'http://rpc.test',
+      restUrl: 'http://rest.test',
+      fetchImpl,
+    });
+
+    await client.getSettlementClock();
+    await client.getSettlement(1n, 62n);
+    await client.getOpenSettlements(3n, { limit: 50n });
+    await client.getDistributionModeVersions();
+    await client.getSelectionParamsVersions();
+    await client.getSettlementParamsVersions();
+    await client.getTargetEpochInterpretation(200n);
+    await client.getEconomicAddressValidation('twilight1abc');
+
+    const urls = calls.map((call) => new URL(call));
+    assert.deepEqual(
+      urls.map((url) => url.pathname),
+      [
+        '/twilight/mining/v1/settlement-clock',
+        '/twilight/mining/v1/settlements/1/62',
+        '/twilight/mining/v1/slots/3/open-settlements',
+        '/twilight/mining/v1/distribution-mode-versions',
+        '/twilight/mining/v1/selection-params-versions',
+        '/twilight/mining/v1/settlement-params-versions',
+        '/twilight/mining/v1/target-epochs/200',
+        '/twilight/mining/v1/economic-address',
+      ],
+    );
+    assert.equal(urls[2].searchParams.get('pagination.limit'), '50');
+    // The address is a query param, never a path segment: the empty address must be
+    // expressible, so it cannot be baked into the path template.
+    assert.equal(urls[7].searchParams.get('address'), 'twilight1abc');
   });
 
   it('normalizes CoreSlot consensus-address route parameters at the client boundary', async () => {

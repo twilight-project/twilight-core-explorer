@@ -185,6 +185,57 @@ describe('CoreSlot liveness summary projection (8c-2)', () => {
     assert.equal(firstCount, 4);
   });
 
+  it('chunked streaming read produces identical summaries to a single-chunk read', async () => {
+    // Deterministic mixed fixture: 3 slots, interleaved signed/absent/nil runs, 137 heights each
+    // (prime-ish so chunkSize 7 never aligns with slot or run boundaries).
+    const seed = (p) => {
+      for (let h = 1; h <= 137; h += 1) {
+        for (const slot of [1, 2, 3]) {
+          const phase = (h + slot * 13) % 11;
+          if (phase < 7) p.seedEvidence(signedEv({ slot, committed: h }));
+          else if (phase < 9) p.seedEvidence(absentEv({ slot, committed: h }));
+          else p.seedEvidence(nilEv({ slot, committed: h }));
+        }
+      }
+    };
+    const chunked = new MockSummaryPrisma();
+    const single = new MockSummaryPrisma();
+    seed(chunked);
+    seed(single);
+
+    const resultChunked = await projectCoreSlotLivenessSummary({
+      prisma: chunked, chainId: CHAIN_ID, chunkSize: 7,
+    });
+    const resultSingle = await projectCoreSlotLivenessSummary({
+      prisma: single, chainId: CHAIN_ID, chunkSize: 1_000_000,
+    });
+
+    assert.deepEqual(resultChunked, resultSingle);
+    const key = (s) => s.summaryKey;
+    const a = [...chunked.summaries].sort((x, y) => key(x).localeCompare(key(y)));
+    const b = [...single.summaries].sort((x, y) => key(x).localeCompare(key(y)));
+    assert.equal(a.length, 12); // 3 slots x 4 windowKinds
+    assert.deepEqual(a, b);
+  });
+
+  it('chunk boundary inside a trailing run keeps streaks and latestMissedHeight exact', async () => {
+    const p = new MockSummaryPrisma();
+    // Slot 1: signed 1..10, absent 11..12, then signed 13..20 (trailing signed streak 8).
+    for (let h = 1; h <= 10; h += 1) p.seedEvidence(signedEv({ slot: 1, committed: h }));
+    for (let h = 11; h <= 12; h += 1) p.seedEvidence(absentEv({ slot: 1, committed: h }));
+    for (let h = 13; h <= 20; h += 1) p.seedEvidence(signedEv({ slot: 1, committed: h }));
+
+    await projectCoreSlotLivenessSummary({ prisma: p, chainId: CHAIN_ID, chunkSize: 3 });
+
+    const life = get(p, 1, 'lifetime');
+    assert.equal(life.currentSignedStreak, 8);
+    assert.equal(life.currentMissedStreak, 0);
+    assert.equal(life.latestMissedHeight, 12n);
+    assert.equal(life.signedCount, 18);
+    assert.equal(life.absentMissedCount, 2);
+    assert.equal(life.expectedCount, 20);
+  });
+
   it('reset clears only summary state and preserves evidence + unrelated state', async () => {
     const p = new MockSummaryPrisma();
     p.summaries.push({ summaryKey: 'k' });
@@ -246,8 +297,11 @@ class MockSummaryPrisma {
     this.cursors = new Map();
 
     this.coreSlotLivenessEvidence = {
-      findMany: async (args) =>
-        applyOrdering(this.evidence.filter((r) => match(r, args?.where ?? {})), args?.orderBy),
+      findMany: async (args) => {
+        const rows = applyOrdering(this.evidence.filter((r) => match(r, args?.where ?? {})), args?.orderBy);
+        // Honor `take` like real Prisma — the streaming projector paginates with it.
+        return typeof args?.take === 'number' ? rows.slice(0, args.take) : rows;
+      },
     };
     this.coreSlotLivenessSummary = {
       deleteMany: async (args) => {

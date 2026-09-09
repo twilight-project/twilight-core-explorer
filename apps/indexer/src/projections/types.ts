@@ -7,6 +7,17 @@ export const CORESLOT_TEMPORAL_MAP_PROJECTION = 'coreslot_temporal_map_v1';
 export const BLOCK_SIGNATURES_PROJECTION = 'block_signatures_v1';
 export const OPERATOR_SIGNING_EVIDENCE_PROJECTION = 'operator_signing_evidence_v1';
 export const CORESLOT_LIVENESS_PROJECTION = 'coreslot_liveness_v1';
+export const PROPOSER_ATTRIBUTION_PROJECTION = 'proposer_attribution_v1';
+
+// Per-block proposer attribution to historical CoreSlot ownership. The proposer of block N belongs
+// to height N (no -1 shift, unlike commit signatures).
+export const PROPOSER_ATTRIBUTION_STATUS = {
+  attributed: 'attributed',
+  unmappedValidator: 'unmapped_validator',
+  noConsensusWindow: 'no_consensus_window',
+  missingProposer: 'missing_proposer',
+  invalidProposerAddress: 'invalid_proposer_address',
+} as const;
 
 export const OPERATOR_SIGNING_ATTRIBUTION_STATUS = {
   attributed: 'attributed',
@@ -127,6 +138,29 @@ export const CORESLOT_METADATA_EVENT_TYPE = 'coreslot_metadata_updated';
 export const CORESLOT_PAYOUT_TYPE_URL =
   '/twilight.coreslot.v1.MsgUpdatePayoutAddress';
 export const CORESLOT_PAYOUT_EVENT_TYPE = 'coreslot_payout_updated';
+// CoreSlot V2 structural state (devnet-2). Like coreslot_payout_updated, the settlement event
+// deliberately omits the ADDRESS itself (only slot_id + operator_address), so the new value
+// must come from the decoded message body.
+export const CORESLOT_SETTLEMENT_ADDRESS_TYPE_URL =
+  '/twilight.coreslot.v1.MsgUpdateSettlementAddress';
+export const CORESLOT_SETTLEMENT_UPDATED_EVENT_TYPE = 'coreslot_settlement_updated';
+export const CORESLOT_SELECTION_POLICY_TYPE_URL =
+  '/twilight.coreslot.v1.MsgUpdateSelectionPolicy';
+export const CORESLOT_SELECTION_POLICY_UPDATED_EVENT_TYPE =
+  'coreslot_selection_policy_updated';
+
+export const CORESLOT_STRUCTURAL_PROJECTION = 'coreslot_structural_v1';
+
+export const CORESLOT_STRUCTURAL_TYPE_URLS = [
+  CORESLOT_SETTLEMENT_ADDRESS_TYPE_URL,
+  CORESLOT_SELECTION_POLICY_TYPE_URL,
+] as const;
+
+export const CORESLOT_STRUCTURAL_EVENT_TYPES = [
+  CORESLOT_SETTLEMENT_UPDATED_EVENT_TYPE,
+  CORESLOT_SELECTION_POLICY_UPDATED_EVENT_TYPE,
+] as const;
+
 export const CORESLOT_PARAMS_TYPE_URL = '/twilight.coreslot.v1.MsgUpdateParams';
 export const CORESLOT_PARAMS_EVENT_TYPE = 'coreslot_params_updated';
 
@@ -135,13 +169,27 @@ export const CORESLOT_KEY_ROTATION_TYPE_URL =
 export const CORESLOT_KEY_ROTATION_REQUESTED_EVENT_TYPE =
   'coreslot_key_rotation_requested';
 export const CORESLOT_KEY_ROTATED_EVENT_TYPE = 'coreslot_key_rotated';
-export const CORESLOT_ROTATION_CANCELLED_EVENT_TYPE =
-  'coreslot_rotation_cancelled';
+// The chain renamed this event `…_cancelled` -> `…_canceled` (one L) in twilight-core
+// 33653660. Matching only the old spelling meant cancellations were silently never
+// recorded. Accept BOTH: the current spelling is canonical, the legacy one is kept so
+// devnet-1-era indexed rows still project identically on a rebuild.
+export const CORESLOT_ROTATION_CANCELED_EVENT_TYPE = 'coreslot_rotation_canceled';
+/** @deprecated pre-33653660 spelling; still matched for historical rows. */
+export const CORESLOT_ROTATION_CANCELLED_EVENT_TYPE = 'coreslot_rotation_cancelled';
+
+export const CORESLOT_ROTATION_CANCEL_EVENT_TYPES = [
+  CORESLOT_ROTATION_CANCELED_EVENT_TYPE,
+  CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
+] as const;
+
+export function isRotationCancelEventType(type: string): boolean {
+  return (CORESLOT_ROTATION_CANCEL_EVENT_TYPES as readonly string[]).includes(type);
+}
 
 export const CORESLOT_KEY_ROTATION_EVENT_TYPES = [
   CORESLOT_KEY_ROTATION_REQUESTED_EVENT_TYPE,
   CORESLOT_KEY_ROTATED_EVENT_TYPE,
-  CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
+  ...CORESLOT_ROTATION_CANCEL_EVENT_TYPES,
 ] as const;
 
 export const CORESLOT_KEY_ROTATION_STATUS = {
@@ -165,21 +213,63 @@ export const REWARDS_PROJECTIONS = [
   REWARDS_SNAPSHOT_PROJECTION,
 ] as const;
 
-export const REWARDS_CLAIM_TYPE_URL = '/twilight.rewards.v1.MsgClaimRewards';
+// --- Mining (x/mining) projections (devnet-2 V2) --------------------------
+//
+// x/mining is the SETTLEMENT / payout-distribution workflow layered on rewards entitlements —
+// despite the module name there is no proof-of-work. Two categories, kept strictly separate:
+//   - mining_semantic_v1: rebuildable from generic Message/Event/Transaction rows.
+//   - mining_settlement_state_v1: observed sample. Settlement CREATION is silent (x/mining's
+//     EndBlocker emits NOTHING at all), so current settlement state can only be read back from
+//     the chain and is tied to the height/clock it was sampled at.
+export const MINING_SEMANTIC_PROJECTION = 'mining_semantic_v1';
+export const MINING_SETTLEMENT_STATE_PROJECTION = 'mining_settlement_state_v1';
+
+// Mining is its own domain — NOT part of the CoreSlot or rewards combined rebuilds.
+export const MINING_PROJECTIONS = [
+  MINING_SEMANTIC_PROJECTION,
+  MINING_SETTLEMENT_STATE_PROJECTION,
+] as const;
+
+export const MINING_SUBMIT_CHUNK_TYPE_URL =
+  '/twilight.mining.v1.MsgSubmitSettlementChunk';
+export const MINING_FINALIZE_SETTLEMENT_TYPE_URL =
+  '/twilight.mining.v1.MsgFinalizeSettlement';
+
+export const MINING_MESSAGE_TYPE_URLS = [
+  MINING_SUBMIT_CHUNK_TYPE_URL,
+  MINING_FINALIZE_SETTLEMENT_TYPE_URL,
+] as const;
+
+export const MINING_CHUNK_SUBMITTED_EVENT_TYPE = 'mining_settlement_chunk_submitted';
+export const MINING_SETTLEMENT_FINALIZED_EVENT_TYPE = 'mining_settlement_finalized';
+
+export const MINING_EVENT_TYPES = [
+  MINING_CHUNK_SUBMITTED_EVENT_TYPE,
+  MINING_SETTLEMENT_FINALIZED_EVENT_TYPE,
+] as const;
+
+// Entitlements are the V2 reward unit. Created silently when x/rewards finalizes an epoch
+// (only epoch_finalized is emitted), so this is an OBSERVED SAMPLE, not rebuildable.
+export const REWARDS_ENTITLEMENTS_PROJECTION = 'rewards_entitlements_v1';
+
+// Phase 9d-0: observed account-balance + bank-supply sampling. Supply rows reuse
+// RewardsBalanceSample with sampleKind = SUPPLY_SAMPLE_KIND; account balances go to
+// AccountBalanceCurrent. Both are live ChainClient samples tied to a height.
+export const BALANCE_SNAPSHOT_PROJECTION = 'balance_snapshot_v1';
+export const SUPPLY_SAMPLE_KIND = 'supply';
+
 export const REWARDS_UPDATE_PARAMS_TYPE_URL =
   '/twilight.rewards.v1.MsgUpdateRewardsParams';
 export const REWARDS_PAUSE_TYPE_URL = '/twilight.rewards.v1.MsgPauseRewards';
 export const REWARDS_RESUME_TYPE_URL = '/twilight.rewards.v1.MsgResumeRewards';
 
 export const REWARDS_MESSAGE_TYPE_URLS = [
-  REWARDS_CLAIM_TYPE_URL,
   REWARDS_UPDATE_PARAMS_TYPE_URL,
   REWARDS_PAUSE_TYPE_URL,
   REWARDS_RESUME_TYPE_URL,
 ] as const;
 
 export const EPOCH_FINALIZED_EVENT_TYPE = 'epoch_finalized';
-export const REWARD_CLAIMED_EVENT_TYPE = 'reward_claimed';
 export const PARAMS_UPDATE_QUEUED_EVENT_TYPE = 'params_update_queued';
 export const PARAMS_ACTIVATED_EVENT_TYPE = 'params_activated';
 export const REWARDS_PAUSED_EVENT_TYPE = 'rewards_paused';
@@ -188,7 +278,6 @@ export const TREASURY_PAID_EVENT_TYPE = 'treasury_paid';
 
 export const REWARDS_EVENT_TYPES = [
   EPOCH_FINALIZED_EVENT_TYPE,
-  REWARD_CLAIMED_EVENT_TYPE,
   PARAMS_UPDATE_QUEUED_EVENT_TYPE,
   PARAMS_ACTIVATED_EVENT_TYPE,
   REWARDS_PAUSED_EVENT_TYPE,
@@ -244,14 +333,17 @@ export type ProjectionFailureKind =
   | 'effective_height_invalid'
   | 'invalid_epoch'
   | 'invalid_amount'
-  | 'missing_reward_records'
-  | 'claim_correlation_failed'
+  | 'settlement_correlation_failed'
+  | 'invalid_chunk_index'
+  | 'mining_settlement_chain_read_failed'
+  | 'entitlements_chain_read_failed'
   | 'missing_block_raw'
   | 'missing_last_commit'
   | 'missing_signatures'
   | 'invalid_signature_payload'
   | 'invalid_validator_address'
   | 'invalid_height'
+  | 'inconsistent_committed_height'
   | 'unknown_block_signature_shape'
   | 'genesis_unavailable'
   | 'genesis_coreslot_malformed'
@@ -271,6 +363,11 @@ export type ProjectionFailureKind =
   | 'coreslot_health_invariant_violation'
   | 'network_liveness_risk_invariant_violation'
   | 'unknown_coreslot_health_shape'
+  | 'invalid_proposer_address'
+  | 'unknown_proposer_attribution_shape'
+  | 'balance_snapshot_chain_read_failed'
+  | 'rewards_snapshot_chain_read_failed'
+  | 'module_balance_sample_unavailable'
   | 'unknown_semantic_type'
   | 'unknown_coreslot_message'
   | 'unknown_coreslot_event'

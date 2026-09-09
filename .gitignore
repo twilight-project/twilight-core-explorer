@@ -38,6 +38,7 @@ junit.xml
 .env
 .env.*
 !.env.example
+!.env.devnet.example
 
 # Local databases / dumps
 *.db
@@ -45,6 +46,8 @@ junit.xml
 *.sqlite3
 *.dump
 *.sql
+# ...but Prisma migration files must always be tracked (the *.sql rule above is for local dumps).
+!prisma/migrations/**/migration.sql
 
 # IDEs
 .idea/
@@ -54,3 +57,7 @@ junit.xml
 # Local reference repos and generated research artifacts
 reference/
 docs/research/artifacts/
+
+# Playwright (apps/web e2e smoke tier)
+apps/web/playwright-report/
+apps/web/test-results/

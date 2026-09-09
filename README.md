@@ -20,7 +20,9 @@ TypeScript monorepo (npm workspaces):
 | `packages/db` | Prisma client |
 | `packages/decoder` | descriptor-backed protobuf tx decoding |
 | `packages/proto` | Twilight descriptor artifacts |
-| `apps/indexer` | ingestion + semantic projections (`api/`, `web/` are future) |
+| `apps/indexer` | ingestion + semantic projections |
+| `apps/api` | DB-only public REST/OpenAPI service (Phase 9; 32 paths) |
+| `apps/web` | Next.js app-router explorer UI consuming the API (Phases 10–12) |
 | `prisma/` | schema + migrations |
 | `docs/research/` | one design/report doc per phase; the project checkpoint is the status index |
 
@@ -61,6 +63,17 @@ RESET_PROJECTION=true npm --prefix apps/indexer run project:coreslot-liveness-su
 RESET_PROJECTION=true npm --prefix apps/indexer run project:coreslot-health
 ```
 
+Then serve the read-only API and the web UI:
+
+```sh
+# DB-only public API (defaults to :8080; reuses DATABASE_URL locally, API_DATABASE_URL in prod)
+npm --prefix apps/api run dev
+
+# web explorer (Next.js on :3000) pointed at the API
+export NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+npm --prefix apps/web run dev
+```
+
 ## Development
 
 ```sh
@@ -78,10 +91,15 @@ for current status and the phase history.
 
 ## Status
 
-CoreSlot semantic layer (metadata, lifecycle, payout/params, key rotation, temporal consensus
-map), rewards semantic projection, rewards snapshots, block-signature ingestion, operator
-signature attribution, CoreSlot liveness evidence, liveness summaries, and health/risk snapshots
-are implemented.
+The full stack is built and live-validated: the indexer + all semantic projections (CoreSlot
+metadata/lifecycle/payout/params, key rotation, temporal consensus map; rewards semantic + snapshots;
+block-signature ingestion → operator signature attribution → CoreSlot liveness evidence/summaries →
+health & network halt-risk; proposer attribution), the DB-only public **API** (Phase 9; 32 OpenAPI
+paths), and the **web** explorer (Phases 10–12: generic pages, CoreSlot/liveness/network/operator
+surfaces, and the read-only rewards/supply economic pages). **Phase 13 (explorer hardening & RC pass)
+is complete** — Fastify server hardening, an executable RC checklist (`npm run rc-check`), and a
+~2,500-block localnet soak, RC-tagged `explorer-phase-13`. Next up is **deployment & operations
+(Phase 14)**.
 
 ## Current Scope
 
@@ -92,14 +110,22 @@ Implemented:
 - CoreSlot semantic projections and deterministic rebuild/reset tooling.
 - Rewards semantic and observed-snapshot projections.
 - Block-signature ingestion, signature-to-CoreSlot attribution, liveness evidence, liveness
-  summaries, and CoreSlot/network health snapshots.
+  summaries, CoreSlot/network health snapshots, and proposer attribution.
+- The DB-only public REST/OpenAPI **API** (Phase 9; 32 paths).
+- The **web** explorer (Phase 10 foundation + generic pages; Phase 11 CoreSlot/liveness/network +
+  the first-class operator page; Phase 12 read-only rewards/supply economic pages). The rewards
+  surface is intentionally read-only — claiming is CLI-only, not an in-app action.
+- **Hardening & release readiness (Phase 13):** API security headers / cache-control / in-process
+  rate limiting, a real linter + static guards, the executable RC checklist (`npm run rc-check`,
+  incl. the `RC_LIVE` live tier), and a ~2,500-block localnet soak (GREEN). See
+  `docs/operations/explorer-release-readiness.md`.
 
 Not yet implemented:
 
-- Public HTTP API routes.
-- Web explorer UI.
-- Proposer enrichment.
-- Production deployment packaging and operating runbooks.
+- Production deployment packaging + operating runbooks (Phase 14): the rate-limit shared store /
+  proxy keying, fail-closed env resolution, the production CORS allow-list, build-metadata injection,
+  and indexer lag-monitoring / gap-detection. The primary **devnet** soak is a deferred Phase-13d
+  acceptance item (Issue #41).
 - Generated gRPC/proto client transport behind `ChainClient`.
 
 Status is tracked in the project checkpoint.

@@ -6,6 +6,7 @@ import {
   CORESLOT_KEY_ROTATION_REQUESTED_EVENT_TYPE,
   CORESLOT_KEY_ROTATED_EVENT_TYPE,
   CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
+  CORESLOT_ROTATION_CANCELED_EVENT_TYPE,
   CORESLOT_METADATA_PROJECTION,
   CORESLOT_TEMPORAL_MAP_PROJECTION,
 } from '../../dist/projections/types.js';
@@ -130,6 +131,20 @@ describe('CoreSlot key rotation projection', () => {
     const prisma = new MockKeyRotationPrisma();
     prisma.seedRequested({ height: 100n, slotId: 1n, effective: 150n });
     prisma.seedCancelled({ height: 120n, slotId: 1n, effective: 150n });
+
+    await projectCoreSlotKeyRotationRange({ prisma, chainId: CHAIN_ID, startHeight: 100n, endHeight: 120n });
+
+    assert.equal(prisma.rotations.length, 1);
+    assert.equal(prisma.rotations[0].status, 'cancelled');
+    assert.equal(prisma.rotations[0].cancelledHeight, 120n);
+  });
+
+  it('8b. the CURRENT chain spelling (coreslot_rotation_canceled, one L) also cancels', async () => {
+    // twilight-core 33653660 renamed the event. Matching only the legacy two-L spelling
+    // meant cancellations on devnet-2 were silently never recorded.
+    const prisma = new MockKeyRotationPrisma();
+    prisma.seedRequested({ height: 100n, slotId: 1n, effective: 150n });
+    prisma.seedCanceled({ height: 120n, slotId: 1n, effective: 150n });
 
     await projectCoreSlotKeyRotationRange({ prisma, chainId: CHAIN_ID, startHeight: 100n, endHeight: 120n });
 
@@ -575,6 +590,17 @@ class MockKeyRotationPrisma {
   seedCancelled({ height, slotId, effective }) {
     this.events.push(cancelledEvent({
       id: 9000n + BigInt(height) + slotId, height, slotId, effective,
+    }));
+  }
+
+  // Current chain spelling (twilight-core 33653660 renamed cancelled -> canceled).
+  seedCanceled({ height, slotId, effective }) {
+    this.events.push(rotationEvent(CORESLOT_ROTATION_CANCELED_EVENT_TYPE, {
+      reason: 'lifecycle_change',
+      id: 9000n + BigInt(height) + slotId,
+      height,
+      slotId,
+      effective,
     }));
   }
 }

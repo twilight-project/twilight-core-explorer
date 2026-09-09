@@ -1,6 +1,6 @@
 # Twilight Core Explorer Project Checkpoint
 
-Date: 2026-06-25
+Date: 2026-06-29
 
 Status: checkpoint after Phase A/B foundation, descriptor decoder work, chain-alignment
 cleanup, the full CoreSlot semantic projection set, temporal consensus map/boundary
@@ -14,11 +14,38 @@ set-difference); 8c-1 materializes the per-height expected-signer / missed evide
 live-validated on a clean 4-operator fixture (1440 rows, 41 slot-4 misses = 39 absent + 2 nil);
 8c-2 aggregates that evidence into per-(slot, window) liveness summaries (slot 4 lifetime uptime
 8861 bps, recent_100 5900 bps; slots 1-3 = 10000); 8c-3 derives health labels + a network halt-risk
-snapshot from those summaries (slots 1-3 healthy, slot 4 degraded, network = warning).
+snapshot from those summaries (slots 1-3 healthy, slot 4 degraded, network = warning). A
+**live behavioral validation (2026-06-26)** then drove every CoreSlot tx category through the chain
+with real `twilightd` transactions and verified the indexer responded — closing the last live-coverage
+gaps. A **proposer attribution projection** (`proposer_attribution_v1`) was also added, completing the
+validator surface (blocks-proposed per operator). The entire CoreSlot + liveness + proposer backend
+stack (6a/6b/7/8a–8c-3) is complete and live-proven. On top of it the **public DB-only API is complete: Phase 9a (foundation:
+health/status/blocks), 9b (generic explorer: txs/accounts/search/diagnostics), 9c (CoreSlot/validator/
+liveness/health/network), and 9d (rewards/supply/account-balances) are all done, tested, and
+live-validated** (a strictly DB-only Fastify + TypeBox `apps/api`; OpenAPI **32 paths**), along with
+the **9d-0** indexer balance/supply snapshots. On top of that the **web explorer is now live: Phase
+10-0 (plan), 10a (foundation — Next.js app-router + Tailwind `apps/web`, typed OpenAPI client, auction
+theme, Overview/home, search, freshness model, standard states), and 10b (generic pages — blocks,
+transactions, accounts + sampled balances) are complete, tested (apps/web 62 tests, 13 routes), and
+Codex-passed**, and **Phase 11 (Twilight surfaces — CoreSlot list/detail, liveness, network, and the
+first-class operator page; 11a + 11b+c) is complete and Codex-passed** (apps/web 94 tests;
+operator-forward, CoreSlot-backed), and **Phase 12 (rewards economics — 12a plan/contract-delta
+audit, 12b `/rewards` hub + epoch detail, 12c `/supply` + `?slotId=` cross-links) is complete and
+dual-reviewed** (apps/web 113 tests; read-only — no claim actions, claiming is CLI-only). **Phase 7.2
+(live rewards-claim fixture) is also done** (merged #32): it discharged the claim gate, so the rewards
+posture is now read-only (`productionClaimReadiness:"read_only_no_claim_action"`, replacing the old
+`gated_by_phase_7_2`). **Phase 13 (explorer hardening & release readiness) is now complete** — 13a
+(full audit) → 13b (code remediation + UX polish + status filters) → 13c (linter/static guards + Fastify
+server hardening) → 13d (RC pass: an executable `npm run rc-check` checklist + the `RC_LIVE=1` live tier,
+a ~2,500-block localnet soak that ran **GREEN, 53 checks**, a perf audit, and compile-enforced table
+a11y). Independently **adversarial + Codex reviewed PASS** and **RC-tagged `explorer-phase-13`**. The one
+deferred acceptance item is the primary **devnet** soak (Issue #41 — localnet only this pass). **The next
+phase is 14 (deployment & operations)**, then Phase 15 (operator education & onboarding) — see
+`phase-13-explorer-hardening-plan.md` for the 13/14/15 split. See §6 for the phase breakdown.
 
 This document summarizes what has already been decided and built, what is still only
 designed, and the recommended sequence from here. It is intended to keep implementation
-aligned before Phase 8a block-signature ingestion and later API/web work.
+aligned for the remaining deployment & operations (Phase 14) work.
 
 ## 1. Product North Star
 
@@ -412,6 +439,9 @@ Established before building liveness:
 
 ## 4. Designed But Not Yet Implemented
 
+> **Note (2026-06-26):** this whole section is historical — the CoreSlot semantic design below is
+> fully implemented (Phases 6a/6b) and live-exercised. Retained for design rationale only.
+
 ### Phase A/B-6: CoreSlot Semantic Projection Design
 
 Designed:
@@ -436,10 +466,12 @@ Reviewed and accepted refinements:
 - Filter semantic projections to successful transactions only.
 - Enrich `Account.accountKind` where cheap and clear: operator, payout, authority, module.
 
-Hard fixture needs before full confidence:
+Hard fixture needs before full confidence (**all live-exercised 2026-06-26**):
 
-- delayed `key_rotation_requested` tx to later EndBlock `key_rotated`.
-- queued params to later `params_activated`.
+- ~~delayed `key_rotation_requested` tx to later EndBlock `key_rotated`~~ — done (slot 3 rotation,
+  applied at +1, window switch at +2).
+- ~~queued params to later `params_activated`~~ — `update-params` exercised live (applied immediately
+  with `activation_delay_blocks=0`; emitted `coreslot_params_updated`).
 
 ### Operator Experience Milestone
 
@@ -454,30 +486,35 @@ Designed:
 
 Important conclusion:
 
-- Most operator UX is pages/API over already-planned projections.
-- Per-operator liveness is the main missing data dependency.
+- Most operator UX is pages/API over already-built projections.
+- **The per-operator liveness data dependency is now fully satisfied** — `CoreSlotHealthSnapshot`
+  (per-operator health/uptime/streaks) + `NetworkLivenessRiskSnapshot` (network halt-risk) plus the
+  lifecycle/payout/metadata/key-rotation/rewards projections cover every operator-page need. Operator
+  UX is now purely API (Phase 9) + web (Phase 11) work over existing data.
 
 ## 5. Known Gaps
 
+### Tracked engineering follow-ups (non-blocking)
+
+- **Phase 7.2 review follow-ups** — see [`phase-7.2-followups.md`](phase-7.2-followups.md): (FU-1)
+  `coreslot-temporal-map.ts` shares the genesis-failure-durability pattern the genesis-identity seed
+  fixed (per-slot genesis failures at `sourceHeight: 1n` are deleted by the height-1 cleanup; fix with
+  the `0n` sentinel); (FU-2) the genesis-identity `0n` sentinel is not airtight on an empty `Block`
+  table (unreachable order; guard the zero-block rebuild); (FU-3) duplicate malformed-genesis slots
+  collapse to one `ProjectionFailure` (add a per-slot discriminator to the failureKey). All low-priority,
+  judged non-blocking by both the local adversarial reviewer and Codex.
+
 ### Data Gaps
 
-1. Block commit signatures and CoreSlot attribution are stored, but liveness is not computed.
-   - Phase 8a stores raw commit-signature evidence in `BlockSignature`.
-   - Phase 8b attributes signatures to historical CoreSlot windows in
-     `OperatorSigningEvidence`.
-   - Phase 8c still needs expected signer-set enumeration and liveness/uptime summaries.
+1. ~~Block commit signatures and CoreSlot attribution are stored, but liveness is not computed.~~
+   **RESOLVED.** 8a `BlockSignature` → 8b `OperatorSigningEvidence` → 8c-1 per-height evidence →
+   8c-2 summaries → 8c-3 health + network halt-risk. Full stack live-validated.
 
-2. Temporal consensus-address map exists, but it is **not genesis-complete** — resolved by
-   Phase 8c-0 into a concrete prerequisite.
-   - `CoreSlotConsensusWindow` uses the Phase 6b-4 `validatorUpdateHeight + 2` membership
-     boundary.
-   - Phase 8b writes `no_consensus_window` for coverage gaps.
-   - **8c-0 finding:** genesis CoreSlots emit no indexable event, so the event-only map never opens
-     windows for the founding set. The fix is a **genesis-baseline seed** of the temporal map from
-     `/genesis` app_state (one ACTIVE window per genesis slot at `effectiveFromHeight = 1`, no `+2`
-     offset for the genesis set), then event replay on top. This is a temporal-map (6b) correctness
-     fix and a hard prerequisite for Phase 8c-1. Liveness scope is CoreSlots-only; the expected set
-     is the active-CoreSlot set, not the consensus commit set.
+2. ~~Temporal consensus-address map is not genesis-complete.~~ **RESOLVED** by Phase 8c-0b
+   (genesis-baseline seed of `CoreSlotConsensusWindow` from `/genesis` app_state, one ACTIVE window
+   per genesis slot at `effectiveFromHeight = 1`, then event replay). Genesis windows and the
+   `validatorUpdateHeight + 2` boundary are live-proven (see Open Question #1). Liveness is
+   CoreSlots-only.
 
 3. Snapshot tables must be categorized clearly.
    - Rebuildable derived projections are different from observed live samples.
@@ -488,22 +525,15 @@ Important conclusion:
    - Low-level transport can reject bech32.
    - Search/self-service should eventually decode `twilightvalcons...` to lowercase hex.
 
-5. Phase 7.2 live rewards claim fixture is still open.
-   - Phase 7 / 7.1 is merge-ready, and live rewards snapshot smoke passed.
-   - A real `MsgClaimRewards` / `reward_claimed` fixture has not been exercised because the
-     localnet had no finalized claimable rewards.
-   - Implement once at least one epoch has finalized and
-     `getClaimableRewards(slotId, startEpoch, endEpoch)` returns a non-empty range.
-   - This does not block Phase 8a block-signature ingestion, but it should be completed
-     before rewards API/web/operator-economics pages rely on live claim behavior.
+5. ~~Phase 7.2 live rewards claim fixture is still open.~~ **RESOLVED (2026-06-28, merged #32.)** A
+   finalized claimable epoch was produced and a real `MsgClaimRewards` / `reward_claimed` indexed
+   end-to-end; the projector event-schema mismatches it exposed are fixed (see the §6 Phase 7.2
+   section). Rewards web/operator-economics surfaces (Phase 12) ship read-only over this evidence.
 
-6. Phase 8c must preserve the attribution taxonomy from Phase 8b.
-   - `no_consensus_window` means temporal coverage gap.
-   - `unmapped_validator` means coverage exists but this validator address did not map.
-   - `absent_no_validator` means last-commit evidence carried no validator address.
-   - None of these statuses means missed signature by itself.
-   - Phase 8c missed-count logic must use expected signers at committed height minus observed
-     commit signatures at committed height.
+6. ~~Phase 8c must preserve the attribution taxonomy from Phase 8b.~~ **RESOLVED in 8c-1.** Missed =
+   expected active CoreSlots minus flag-2 signed evidence (set-difference); `no_consensus_window` /
+   `unmapped_validator` / `absent_no_validator` are kept out of missed semantics. Both ABSENT and NIL
+   count as missed with the cause retained. Live-validated (41 slot-4 misses = 39 absent + 2 nil).
 
 ### Proposer and signature height semantics
 
@@ -515,7 +545,9 @@ Block proposer and commit signatures have different height semantics:
 
 Liveness projection must attribute signatures from block `N` to height `N-1`, but proposer
 enrichment must not shift the proposer address. The proposer in block `N` remains the
-proposer for block `N`.
+proposer for block `N`. **Implemented** in `proposer_attribution_v1`: commit-signature attribution
+(8b) uses `committedBlockHeight` (≈ N-1), while proposer attribution joins at the block's own height
+N — the two height axes are kept distinct.
 
 ### UX Gaps
 
@@ -572,14 +604,14 @@ deterministic `failureKey` upserts, and the combined CoreSlot semantic rebuild c
 the completed implementation section above. Not in scope here: key rotation, temporal
 consensus map, rewards, liveness, API/web.
 
-### Phase 6b: Key Rotation and Temporal Consensus Map
+### Phase 6b: Key Rotation and Temporal Consensus Map (completed)
 
-Goal:
+Done: `coreslot_key_rotation_v1` (`CoreSlotConsensusKeyRotation`) and the temporal consensus map
+(`CoreSlotConsensusWindow`, `coreslot_temporal_map_v1`) with the `validatorUpdateHeight + 2` boundary
+and the 8c-0b genesis seed. Key rotation + window close/reopen are **live-proven** (behavioral
+validation). The design notes below are historical.
 
-- Implement CoreSlot key rotation projection and the historical temporal consensus-address
-  map.
-
-Recommended split:
+Recommended split (delivered):
 
 1. Phase 6b-1: key rotation projection.
 2. Phase 6b-2: temporal consensus map / validator-set timeline.
@@ -624,7 +656,15 @@ Do not treat `EpochReward` as claim truth.
 Completed in Phase 7 / 7.1. Remaining evidence task is Phase 7.2 live rewards claim
 fixture, which is not a merge blocker for Phase 7 / 7.1.
 
-### Phase 7.2: Live Rewards Claim Fixture
+### Phase 7.2: Live Rewards Claim Fixture (completed)
+
+> **Status (2026-06-28): DONE, merged #32.** A finalized claimable epoch was produced on the live
+> fixture and a real `MsgClaimRewards` was indexed end-to-end. The fixture exposed that the
+> rewards/identity projectors had been written against an assumed event schema; the live nyks-core
+> emits different keys — fixed: `epoch_finalized` (`allocated`/`eligible_slots`/`cumulative_emitted`/
+> `distribution_method`), `reward_claimed` (`signer`), object-shaped module balances, and a genesis
+> CoreSlot-identity seed (genesis slots emit no on-chain events). See the Phase 7.2 report + the F1–F4
+> fixes. This unblocked Phase 12 (rewards economics) as a read-only surface. Original goal/scope below.
 
 Goal:
 
@@ -795,6 +835,42 @@ summaries.
 
 API, web, per-operator grain, consensusPower weighting, historical network snapshots remain deferred.
 
+### Live Behavioral Validation (completed)
+
+Status: **PASS (all categories).** See `docs/research/phase-8c-live-behavioral-validation-report.md`
+and runbook Part G (`docs/research/localnet/fixture-reset-runbook.md`). Drove the live 4-CoreSlot
+localnet with REAL `twilightd coreslot` transactions (no DB manipulation) and verified the indexer's
+derived rows for every category: metadata, payout, params, lifecycle (inactivate→reactivate),
+suspend→reactivate, key rotation (with node restart), and add+remove operator. Results:
+
+- The `validatorUpdateHeight + 2` membership boundary is **empirically proven** for inactivate,
+  reactivate, suspend, and key rotation — every `/validators` transition matched `txHeight + 2`.
+- The genesis-window **close** path ran on live data for the first time (closes Open Question #1).
+- Inactive/suspended ≠ missed (window-closed slot produces no missed rows); attribution follows the
+  slotId across a key rotation; the anonymous-absent set-difference correctly attributes a
+  freshly-added operator's misses → `down`; health/halt-risk react correctly.
+- Zero unresolved `ProjectionFailure` across the entire run. Operational gotchas recorded
+  (`query tx` unreliable → verify via indexer; `update-params` needs numeric int64 fields; shared
+  advisory lock needs a gap between projection runs; swap only `priv_validator_key.json` on rotation).
+
+### Proposer Attribution (completed)
+
+Status: **PASS.** Implemented `proposer_attribution_v1` / `BlockProposerAttribution` — one row per
+block height attributing `Block.proposerAddress` to historical CoreSlot ownership via the temporal
+map. Completes the validator surface (the proposer side, complementing the commit-signature side).
+
+- the proposer of block N belongs to height **N** (no `-1` shift, unlike commit signatures) — the
+  join uses `findConsensusWindowAtHeight(proposerAddress, N)`.
+- `Block.proposerAddress` is CometBFT **uppercase** hex; window `consensusAddress` is lowercase — the
+  projector lowercases before the join (raw uppercase preserved in `rawProposerAddress`).
+- statuses mirror 8b: `attributed`, `unmapped_validator`, `no_consensus_window`, `missing_proposer`,
+  `invalid_proposer_address`. Rebuildable, idempotent, scoped reset, deterministic `ProjectionFailure`.
+- consumes `Block` + `CoreSlotConsensusWindow` only; no live reads. Standalone CLI, run after the
+  temporal map.
+- live-validated over the fixture: **3196/3196 attributed**, 0 unmapped/no-window/failures;
+  blocks-proposed per operator (slot 3's count continuous across its key rotation — both consensus
+  addresses attribute to the same slotId).
+
 ### Sequencing note: rewards and liveness
 
 Rewards and liveness can proceed in parallel after the CoreSlot temporal map exists. Rewards
@@ -803,63 +879,242 @@ signatures plus the temporal consensus map. They do not need to block each other
 liveness is a primary operator-facing gap, it may be pulled level with or ahead of rewards
 once the temporal map is ready.
 
-### Phase 9: API Foundation
+### Phase 9: Public API (split into 9a–9d)
+
+Goal: expose indexed data through a stable, strictly DB-only REST/OpenAPI API
+(Fastify + TypeScript + Prisma + TypeBox). The original single "Phase 9" block was split
+into four sub-phases as the DB-only-vs-sampled and generic-vs-Twilight-specific boundaries
+became clear. `apps/api` is its own workspace; no chain-client/config, no outbound network,
+no projection recompute; `{ data }` / `{ data, page }` / `{ error }` envelopes; BigInt/heights
+as strings; OpenAPI generated to `docs/reference/openapi.json` + drift test; static no-chain guard.
+
+#### Phase 9a: Foundation + status + blocks (completed)
+
+Report: `docs/research/phase-9a-api-foundation-report.md` (contract:
+`phase-9a-api-contract-and-plan.md`; design: `phase-9-api-foundation-design.md`).
+
+- `GET /health/live`, `/health/ready` (DB connectivity + clean Prisma migration ledger).
+- `GET /api/v1/status` — indexed height, last-observed chain tip, lag, freshness, projection
+  cursors, unresolved failure counts — from `IndexerCursor` (no indexer change).
+- `GET /api/v1/blocks`, `/blocks/:height` — keyset pagination (N+1 lookahead), attributed
+  proposer read only from materialized `BlockProposerAttribution`, `?include=raw` detail-only.
+- Cross-cutting: API config (`API_DATABASE_URL` + read-only role), `createPrismaClient(url?)`
+  extended to honor it, error/envelope/serializer/pagination, CORS. `db:generate/typecheck/build/
+  test/lint` green. 22→25 apps/api tests.
+
+#### Phase 9b: Generic explorer (completed)
+
+Report: `docs/research/phase-9b-generic-explorer-api-report.md`.
+
+- `GET /api/v1/txs`, `/txs/:hash` (composite keyset; detail joins materialized messages/events +
+  block time; raw detail-only).
+- `GET /api/v1/accounts`, `/accounts/:address` — identity/activity only, **no balances**.
+- `GET /api/v1/search?q=` — references only: block height, block hash, tx hash, account address.
+- `GET /api/v1/decode-failures` (list-only, no raw payload), `GET /api/v1/projections`
+  (cursor + unresolved-failure breakdown).
+- Review fixes (Copilot): whitespace-only `q` → 400; tx cursor `index > MAX_SAFE_INTEGER` → 400.
+
+#### Phase 9c: CoreSlot / validator / liveness / health (completed)
+
+Report: `docs/research/phase-9c-coreslot-validator-liveness-api-report.md`. OpenAPI now 23 paths.
+
+- `GET /api/v1/coreslots`, `/coreslots/:slotId` (+ quick health; `?include=raw`).
+- `GET /coreslots/:slotId/events` (lifecycle+metadata+payout; composite cursor
+  `[height,kind,eventId]`, predicate pushed per-kind), `/windows`, `/key-rotations`,
+  `/proposed-blocks`, `/liveness`, `/health`.
+- `GET /api/v1/network/proposers` (attributed leaderboard, slotId tie-break),
+  `/network/validator-set?height=` (half-open active windows), `/network/liveness-risk`.
+- Search extended with CoreSlot references (slotId / 40-hex consensus / operator+payout role).
+- Liveness surface = summaries/health/network-risk only; never raw evidence; status strings verbatim.
+- Hardening: `parseUint64` + `INT64_MAX` (+ length cap) across all cursor/digit inputs → out-of-range
+  is a clean 400, not a Postgres 500. apps/api 86 tests.
+
+#### Phase 9d: Rewards / supply / account-balance API (completed)
+
+Report: `docs/research/phase-9d-rewards-supply-api-report.md`. OpenAPI now **32 paths**; apps/api 113 tests.
+
+- `GET /api/v1/rewards/epochs`, `/epochs/:epoch`, `/coreslots/:slotId/rewards`, `/rewards/claims`
+  (claim **history only**), `/rewards/balances` (excludes `sampleKind="supply"` by default),
+  `/rewards/params`, `/rewards/treasury-payments`.
+- `GET /api/v1/supply` (only `RewardsBalanceSample('supply')`, latest or `?height=` exact; never summed
+  from balances), `GET /api/v1/accounts/:address/balances` (only `AccountBalanceCurrent`; unsampled →
+  `200 { sampled:false, sampledAtHeight:null, balances:[] }`, never a fabricated zero).
+- `EpochReward` is aggregate context (`rewardSemantics:"aggregate_projection"`), NOT claim truth;
+  sampled rows carry `source:"sampled"` + `sampledAtHeight`. The Phase-7.2 gate is a **machine-readable
+  in-data field** (`productionClaimReadiness` + `claimSemantics` on claims/slot rewards), not envelope
+  drift. No live `ClaimableRewards`, no claimable production truth.
+  - **Correction (2026-06-28, Phase 7.2 + 12a):** the gate value was flipped from
+    `"gated_by_phase_7_2"` to `"read_only_no_claim_action"` once 7.2 landed. The explorer is
+    deliberately read-only: it displays observed rewards + historical claim events; claiming is
+    CLI-only (`twilightd`), documented externally, never an in-app action.
+
+Deferred from 9a–9c (candidate follow-ups): `twilightvalcons` bech32 search (needs a pure bech32
+dep), `/network/params` (network-scoped `CoreSlotParameterChange`), and the API hardening punted to
+Phase 13 (rate limiting, security headers, cache-control/ETag, a real linter — `npm run lint` is
+currently a no-op).
+
+### Phase 9d-0 (indexer): Balance & Supply Observed Snapshots (completed)
+
+Report: `docs/research/phase-9d-0-account-supply-snapshot-report.md`. Indexer-only; no API; no
+ChainClient changes (`getSupply()`/`getBalances()` already existed). These are **observed samples**,
+not rebuildable projections — a balance is `x/bank` current state and cannot be reconstructed from
+indexed events, so the indexer samples them via a chain read, height-tagged.
+
+What shipped (`balance_snapshot_v1` projection quartet):
+
+- **Supply reuses `RewardsBalanceSample(sampleKind="supply")`** (the schema already reserved it) — NO
+  dedicated `SupplySnapshot` model. `sampleKey = "{height}:supply:-:-:{denom}"`, all denoms.
+- **New `AccountBalanceCurrent`** model — current balance per `address`+`denom` (`balanceKey` unique),
+  bounded to distinct CoreSlot operator/payout addresses (not every account), `source:"sampled"`.
+- Reads all chain state first, writes atomically in one transaction; on chain-read failure halts the
+  cursor + records a `ProjectionFailure` and writes ZERO rows (no partial/guessed snapshot).
+- Live-validated: supply `utwlt=2000000000000 @3196` matched `/cosmos/bank/v1beta1/supply`; account
+  rows matched `/balances/{address}`; REST-down drill halted cleanly.
+
+If truly live (not sampled) balances are ever wanted, that is a deliberate separate chain-reading
+service, explicitly outside the read-only API.
+
+### Phase 10: Web Foundation and Generic Explorer (completed)
+
+Reports: `phase-10-web-design-and-execution-plan.md`, `phase-10a-web-foundation-report.md`,
+`phase-10b-generic-explorer-pages-report.md`.
+
+Delivered `apps/web` — a strictly DB-only Next.js 14 app-router + Tailwind explorer consuming the
+Phase 9 API only (client-leaning: TanStack Query v5, no RSC data fetching, no mutations):
+
+- **10a (foundation):** extracted the reference `auction` theme (CSS-var tokens); typed OpenAPI client
+  generated from `openapi.json` (`apiGet`) + thin wrapper (envelope / `error.code` / opaque-cursor);
+  string-safe formatters (BigInt `utwlt→TWLT`, raw preserved); layout/nav shell; **Overview/home**;
+  global **search** shell (typed picker on ambiguity); the freshness model (API-down / indexer-lag /
+  projection-fail / sample-old / no-sample); standard states; `/api` diagnostics.
+- **10b (generic pages):** `apiGetPath` for templated paths; first keyset pagination
+  (`useInfiniteQuery`, opaque cursors, `nextCursor:null` stops); **blocks**, **transactions**,
+  **accounts** lists + details; block→txs via `/txs?height=`; lazy `include=raw`; account sampled
+  balances (`sampled:false` → "no sample", never `0`). Account tx-history omitted (the Phase 9 API has
+  no address/signer tx filter — not invented).
+
+Invariants honored: heights/ids/amounts/cursors stay strings (no `Number()`); only generated-type
+fields rendered (no invented fields); reward/claim caveats kept visible; background via CSS-var theme
+tokens (no hardcoded hex). No old zkOS/dark-pool/BTC bridge IA carried forward. apps/web: 62 tests,
+13 routes; Codex PASS on 10a and 10b.
+
+### Phase 11: Twilight-Specific Pages + Operator (completed)
+
+Reports: `phase-11-twilight-surfaces-plan.md`, `phase-11a-coreslot-surfaces-report.md`,
+`phase-11bc-network-liveness-operator-report.md`. Delivered the **operator-forward**, CoreSlot-backed
+Twilight surfaces over the 9c/9d API:
+
+- **11a — CoreSlot list/detail:** `/coreslots`, `/coreslots/[slotId]` with reusable
+  `slotId`-parameterized sections (health, liveness, proposed-blocks, authority history
+  [events/key-rotations/windows], a caveated rewards subsection, raw).
+- **11b+c — Liveness / Network / Operator:** `/liveness` (halt-risk + a bounded, non-blocking per-slot
+  health fan-out), `/network` (validator-set-at-height + proposer leaderboard), and the first-class
+  **`/operator/[address]`** — resolved via `/coreslots?operatorAddress=` (operator→consensus→payout
+  fallback; one operator = one CoreSlot, chain rule), reusing the CoreSlot detail. Operator-forward
+  identity: `displayName` (moniker ?? address) + an **extension-ready** `parseOperatorMetadata` adapter;
+  block proposers / validator-set / leaderboard all link to the operator.
+
+apps/web: 94 tests; Codex PASS on 11a and 11b+c. **Deferred to Phase 12:** rewards economics (epoch
+detail, claims, balances, treasury/params) and tokenomics/halving — Phase 11 ships only a caveated
+per-slot rewards subsection.
+
+### Phase 12: Rewards Economics (completed)
+
+> **Note (2026-06-28):** Phase 12 was scoped as the rewards/supply economic surfaces (NOT the
+> originally-listed "Operator Education and Onboarding", which is renumbered to **Phase 15** — see
+> below). Posture (locked): *make economic state understandable without implying live financial
+> action* — **read-only**, no claim actions; claiming is CLI-only (`twilightd`), documented externally.
+
+Reports: `phase-12-rewards-supply-plan.md` (plan + §17 caveat audit + §18 contract-delta audit),
+`phase-12b-rewards-hub-report.md`, `phase-12c-supply-crosslinks-report.md`. Delivered the read-only
+`/rewards/*` + `/supply` economic surfaces over the 9d API:
+
+- **12a — plan + post-7.2 audit:** locked the read-only posture; promoted the rewards contract fields
+  surfaced by the live 7.2 fixture (`cumulativeEmitted`/`distributionMethod`); flipped
+  `productionClaimReadiness` `gated_by_phase_7_2` → `read_only_no_claim_action`; audited which caveat
+  literals are contract fields (rendered verbatim) vs hardcoded.
+- **12b — `/rewards` hub + epoch detail:** `/rewards` (epochs, claims, balances, treasury, params
+  sections) + `/rewards/epochs/[epoch]`; a non-actionable **Claiming card** (locked copy + CLI as
+  doc-only `<pre>`, no button/wallet/link); `RewardCaveat` banner + string-safe `RewardAmount`. 7
+  rewards query hooks. Caveats rendered from API rows, never hardcoded.
+- **12c — `/supply` + cross-links:** the read-only `/supply` page (sampled denom→amount + `source` +
+  freshness; no invented economics; no-sample = 404→NotFound, never 0); the `/rewards/claims?slotId=`
+  route (searchParams → the 12b claims filter); claim-history cross-link riding along on CoreSlot +
+  operator pages; operator→`/rewards`; and the only contract-safe account→`/supply` link (no invented
+  `?claimant=` relation).
+
+Invariants honored: read-only (no mutations/wallet/claim), string-safe (BigInt `formatAmount`, raw
+preserved, no `Number()`), caveat-as-data (caveat literals are contract fields), `error.code` branching,
+boundary + theme guards. **No API contract change** in 12b/12c (both `openapi:check` green).
+apps/web: **113 tests**; both 12b and 12c **Codex PASS** (12c also 3-lens adversarial PASS).
+Tagged `explorer-phase-12-rewards-economics`.
+
+### Operator Education & Onboarding → Phase 15
+
+The originally-listed "Operator Education and Onboarding" (renumbered after Phase 12 became Rewards
+Economics) is now **Phase 15**, sequenced after Phase 14. Its full goal/scope lives in the Phase 15
+section below (after Deployment & Operations).
+
+### Phase 13: Explorer Hardening & Release Readiness (completed)
+
+Status: **COMPLETE (RC, localnet).** All sub-phases delivered + adversarial + Codex reviewed PASS; the
+RC gate (`npm run rc-check`, incl. `RC_LIVE=1`) is GREEN, the ~2,500-block localnet soak ran GREEN (53
+checks), and it is tagged `explorer-phase-13`. Reports: `phase-13a-explorer-hardening-audit`,
+`phase-13b-{code-remediation,ux-polish,filters}`, `phase-13c-{1-linter-static-guards,server-hardening}`,
+`phase-13d-{1-rc-checklist,3-soak-{plan,report},4}` + `docs/operations/explorer-release-readiness.md`.
+Deferred (Issue #41 acceptance): the primary **devnet** soak. The bullets below are the original plan —
+all delivered.
+
+Plan: `phase-13-explorer-hardening-plan.md` (sub-phases 13a–13d; defines the Phase 14/15 split). Makes
+the explorer **trustworthy, consistent, and release-ready as software** — distinct from
+deployable-as-infrastructure (Phase 14). Each sub-phase is gated by its own report + adversarial +
+Codex review:
+
+- **13a — full explorer audit:** catalogue every correctness/consistency/usability defect, each
+  assigned a fix-home; grep-able checks become durable guards. Deliverable:
+  `phase-13a-explorer-hardening-audit.md`.
+- **13b — remediation (code + ux):** 13b-code fixes correctness findings (stray `Number()` on chain
+  data, DB/RPC-in-web, OpenAPI drift, stale `gated_by_phase_7_2`, `sampled:false`, raw eager-fetch),
+  converts each grep-able check into a guard, and pulls in FU-1 (genesis `ProjectionFailure`
+  durability); 13b-ux does nav/IA/breadcrumbs/copy/empty-state/caveat-consistency/a11y polish (not
+  redesign).
+- **13c — cheap-but-real hardening (build):** a real linter across api/indexer/packages (warn-only
+  first; today `npm run lint` is a no-op outside web); API security headers, cache-control/ETag, CORS
+  review; in-process rate limiting (behind an interface a shared store can later implement);
+  version/git-SHA truthfulness + CHANGELOG; error observability.
+- **13d — release-candidate pass (verify):** an executable RC checklist (pass/fail), a scale/soak run
+  against the devnet **and** an extended localnet soak, bundle/perf + a11y verification, and the
+  env-var contract. Deliverable: `docs/operations/explorer-release-readiness.md`. RC gate = checklist
+  green + review PASS.
+
+### Phase 14: Deployment & Operations
+
+The infrastructure deliberately split out of Phase 13; a full plan follows once 13 is accepted.
 
 Goal:
 
-- Expose indexed data through a stable explorer API.
+- Make the system deployable, monitorable, and recoverable as a service.
 
 Scope:
 
-- health/live/ready.
-- indexer status and lag.
-- blocks and block detail.
-- txs and tx detail.
-- accounts and balances.
-- search.
-- CoreSlot projections.
-- rewards projections.
-- operator liveness/economics.
+- Docker app containers (web/api/indexer) + production Docker Compose (today only a dev-only
+  single-Postgres compose exists).
+- migration/deploy workflow; reindex/reset workflow.
+- indexer lag monitoring; gap detection + missing-height repair; retry/backoff; multi-RPC fallback.
+- DB backup strategy; nginx/TLS; CI/CD (run the RC checklist on every PR).
+- shared-store (Redis) rate limiting for multi-instance; optional `GrpcChainClient`; deeper
+  integration tests.
 
-### Phase 10: Web Foundation and Generic Explorer
+Sequencing: some reliability hardening should move earlier than final deployment hardening.
+Gap detection, indexer lag monitoring, and basic live-node smoke checks should exist before
+public API/web exposure. Retry/backoff and multi-RPC fallback can be staged later but should
+not be forgotten.
 
-Goal:
+### Phase 15: Operator Education & Onboarding (deferred)
 
-- Build the web app shell and generic explorer pages.
-
-Scope:
-
-- dark Twilight theme adapted from reference explorer.
-- dashboard.
-- blocks.
-- txs.
-- accounts.
-- search.
-- supply/network/API status.
-
-Do not bring old zkOS/dark-pool/BTC bridge pages forward.
-
-### Phase 11: Twilight-Specific Pages
-
-Goal:
-
-- Build CoreSlot, rewards, and operator-facing pages.
-
-Scope:
-
-- CoreSlot list/detail.
-- lifecycle timeline.
-- key rotation/payout/metadata history.
-- rewards overview.
-- epoch detail.
-- claims.
-- operator self-service page.
-- operator economics.
-- authority-action audit log.
-- network liveness view.
-- tokenomics/halving view.
-
-### Phase 12: Operator Education and Onboarding
+Sequenced after Phase 14 (mostly static content + live params over the existing API, so it can also run
+in parallel with 14). Originally listed as the first "Phase 12" before that number went to Rewards
+Economics.
 
 Goal:
 
@@ -878,85 +1133,52 @@ Scope:
 This can be built earlier once API/web scaffolding exists because it is mostly static plus
 live params.
 
-### Phase 13: Deployment and Production Hardening
-
-Goal:
-
-- Make the system deployable and operable.
-
-Scope:
-
-- Docker Compose / production packaging.
-- migration/deploy workflow.
-- nginx/TLS later.
-- indexer lag monitoring.
-- retry/backoff.
-- reindex/reset workflow.
-- gap detection and missing-height repair.
-- DB backup strategy.
-- rate limiting.
-- multi-RPC fallback.
-- deeper integration tests.
-- optional `GrpcChainClient`.
-
-Sequencing: some reliability hardening should move earlier than final deployment hardening.
-Gap detection, indexer lag monitoring, and basic live-node smoke checks should exist before
-public API/web exposure. Retry/backoff and multi-RPC fallback can be staged later but should
-not be forgotten.
-
 ## 7. Updated Phase Count
 
-From this checkpoint:
+The entire backend/projection stack is complete: CoreSlot semantic (6a), key rotation + temporal map
+(6b), rewards (7/7.1), and the full liveness stack (8a → 8b → 8c-0b/0c → 8c-1/2/3), all live-proven.
+The public DB-only API is **complete (9a → 9b → 9c → 9d)**, and the **9d-0** indexer balance/supply
+snapshots are done — so the entire backend + API surface is built and live-validated.
 
-CoreSlot metadata/lifecycle/payout/params projection (Phase 6a) is complete.
+Remaining:
 
-- MVP usable explorer: roughly 5 phases remain.
-  1. CoreSlot key rotation + temporal map.
-  2. Rewards projection.
-  3. API foundation.
-  4. web foundation.
-  5. Twilight-specific pages.
+- MVP usable explorer: web foundation + generic pages (10), the Twilight surfaces + operator page
+  (11), and rewards economics (12: 12a/12b/12c) are **done** — as is explorer hardening (13, RC-tagged).
+- Production-grade operator explorer: the above + Phase 13 (explorer hardening & release readiness —
+  which also absorbs the API hardening deferred from 9a–9c: rate limiting, security headers,
+  cache-control/ETag, a real linter), Phase 14 (deployment & operations), and Phase 15 (operator
+  education & onboarding).
 
-- Production-grade operator explorer: roughly 7 phases remain.
-  1. CoreSlot key rotation + temporal map.
-  2. Rewards projection.
-  3. Liveness ingestion/projection.
-  4. API foundation.
-  5. web and Twilight pages.
-  6. operator education/onboarding.
-  7. deployment/hardening.
+Open evidence tasks (not phase blockers): the optional broader liveness drills (multi-node halt →
+network `critical`; rotation-mid-outage). **Phase 7.2 (live rewards-claim fixture) is now done**
+(merged #32) — the live `MsgClaimRewards`/`reward_claimed` path is exercised and the rewards/identity
+projector event-schema mismatches it exposed are fixed; the rewards posture is read-only.
 
-The phases can be batched differently, but the dependencies should not be blurred:
+Phase 9d-0 indexer snapshot phase (DONE): `balance_snapshot_v1` materialized supply via
+`RewardsBalanceSample('supply')` + per-address `AccountBalanceCurrent` observed samples, which the 9d
+API exposes (marked sampled). See the Phase 9d-0 section in §6.
 
-- liveness depends on CoreSlot temporal mapping.
-- operator economics depends on rewards projection.
-- authority audit depends on lifecycle/params projections.
+Dependencies that must not be blurred:
+
+- operator economics depends on rewards projection (built; 7.2 for live claims).
+- authority audit depends on lifecycle/params projections (built).
+- per-operator liveness/health pages depend on 8c-3 (built).
 - onboarding/explainer can land early once the web/API shell exists.
 
 ## 8. Current Open Questions
 
-1. What is the exact validator-set effective boundary for activation/key rotation?
-   - Phase 6b-3 localnet evidence pinned inactivation, reactivation, and delayed key
-     rotation membership at `validatorUpdateHeight + 2`.
-   - Phase 6b-4 implemented `validatorUpdateHeight + 2` and the fix was live-confirmed:
-     a full reingest + combined reset/replay over the localnet fixture range reproduced the
-     reactivation (3567 -> 3569) and delayed key-rotation (3582 -> 3584) membership boundaries
-     exactly against `/validators?height`, with slot 4 `CoreSlotConsensusKeyRotation` reaching
-     `applied` once `finalize_block_events` were ingested.
-   - Suspension, removal, immediate-applied rotation, and lifecycle events with explicit
-     `effective_height` still need live fixture coverage (corrected by consistency, not yet
-     live-proven). The inactivation close boundary is unit-tested but was not exercisable in
-     the live range (no indexed genesis-activation window to close).
-   - Phase 8c-0 explains *why* there was no genesis-activation window to close: genesis CoreSlots
-     emit no indexable event. Once the genesis seed lands, slot 4's seeded genesis window closes at
-     its 3554/3556 inactivation, making that boundary live-exercisable.
+1. ~~What is the exact validator-set effective boundary for activation/key rotation?~~
+   **RESOLVED — live-proven (2026-06-26 behavioral validation).** `validatorUpdateHeight + 2` is the
+   confirmed boundary, now empirically matched against live `/validators` for inactivate (3010→drop
+   3012), reactivate (3017→return 3019), suspend (3187→drop 3189), reactivate (3190→return 3192), and
+   key rotation (applied 3049→window switch 3051). The genesis-window **close** path ran on live data
+   (slot 4 genesis window closed at 3012; slot 2/3 genesis windows closed on suspend/rotation), and
+   **remove** was exercised (slot 5 register→activate→inactivate→remove). Do not use `H+1`.
 
-2. Should `BlockSignature` be added as generic indexed data or projection data?
-   - Recommended: canonical-adjacent generic data because it comes directly from `/block`.
-   - `BlockSignature` should be treated as canonical-adjacent generic data, but still
-     rebuildable. It is parsed from stored raw CometBFT block JSON, assuming `Block.rawJson`
-     preserves the `/block` response including `last_commit.signatures`. No new RPC call is
-     required to rebuild `BlockSignature` if the raw block payload is already stored.
+2. ~~Should `BlockSignature` be added as generic indexed data or projection data?~~
+   **RESOLVED.** Implemented as the rebuildable projection `block_signatures_v1`, parsed from stored
+   `Block.rawJson` `last_commit.signatures` (no new RPC call to rebuild). Canonical-adjacent but
+   derived/rebuildable, consistent with the projection model.
 
 3. How much bech32 consensus-address decoding should live in `packages/chain-client`?
    - Recommended: low-level transport remains hex-only; API/search layer normalizes user
@@ -1003,27 +1225,29 @@ The phases can be batched differently, but the dependencies should not be blurre
 
 ## 10. Immediate Next Step
 
-Recommended next implementation step:
+**Phase 13 (explorer hardening & release readiness) is complete** — 13a audit → 13b (code remediation +
+UX polish + status filters) → 13c (linter/static guards + Fastify server hardening) → 13d (RC pass: an
+executable `npm run rc-check` checklist + the `RC_LIVE=1` live tier, a ~2,500-block localnet soak that ran
+**GREEN, 53 checks**, a perf audit, and compile-enforced table a11y). Independently **adversarial + Codex
+reviewed PASS**, **RC-tagged `explorer-phase-13`**. The backend/API (9a–9d, 9d-0), web (10/11/12), and
+Phase 7.2 (live rewards-claim fixture — rewards posture read-only `read_only_no_claim_action`, claiming is
+CLI-only) were already complete.
 
-**Phase 9: API foundation** — the full liveness backend stack (8a → 8b → 8c-0b/0c → 8c-1 → 8c-2 →
-8c-3) is complete and live-validated, so the next step is exposing indexed/derived data through a
-stable explorer API (health/live/ready, indexer status, blocks/txs/accounts/search, CoreSlot +
-rewards projections, operator liveness/health/economics). Web (Phase 10) and Twilight-specific pages
-(Phase 11) follow.
+**Recommended next implementation step: Phase 14 (deployment & operations).** The readiness register
+(`docs/operations/explorer-release-readiness.md` §5) lists the deploy items deferred from 13c/13d:
+rate-limit proxy keying + a shared (Redis) store, fail-closed env resolution, the production CORS
+allow-list, build-metadata injection, and indexer lag-monitoring / gap-detection. **One Phase-13d
+acceptance item is still open (Issue #41): the primary devnet soak** — the soak scripts are devnet-shaped
+(observe + ingest), so it is an observe-and-record run once devnet access is wired (or amend #41 to make
+devnet a Phase-14 follow-up). (The forward-only `missing_reward_records` reconcile that was tracked here is
+now **fixed** — a snapshot-side `reconcilePendingClaims` in `rewards-snapshot`, verified by a live 16→0
+proof; see readiness §5.)
 
-The operator-liveness data dependency that gated the operator UX milestone is now fully satisfied:
+The operator-liveness data dependency that gated the operator UX milestone is fully satisfied:
 `CoreSlotHealthSnapshot` + `NetworkLivenessRiskSnapshot` give per-operator health and network
 halt-risk directly.
 
-Broader liveness fixtures still worth exercising before product surfaces (not blockers): multi-node
-simultaneous outage (network `critical`), and a consensus-key rotation mid-outage (to live-exercise
-the `observed_attributed_slot_not_expected` boundary guard). Phase 7.2 live rewards claim fixture
-also remains open before rewards economics pages rely on live claim behavior.
-
-Phase 7.2 can run in parallel later once a finalized claimable rewards epoch exists. It does
-not block this work, but should happen before rewards API/web/operator-economics claim
-surfaces are considered production-ready.
-
-Phase 7.2 can run in parallel later once a finalized claimable rewards epoch exists. It does
-not block Phase 8a, but should happen before rewards API/web/operator-economics claim
-surfaces are considered production-ready.
+Still worth exercising before/around production (not phase blockers): multi-node simultaneous outage
+(network `critical`), and a consensus-key rotation *mid-outage* (the rotation guard ran clean on a
+healthy chain, not yet during a concurrent outage). The live behavioral validation (2026-06-26) already
+closed the lifecycle/rotation/boundary live-coverage gaps.

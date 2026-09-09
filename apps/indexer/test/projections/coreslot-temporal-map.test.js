@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  CORESLOT_KEY_ROTATION_PROJECTION,
   CORESLOT_KEY_ROTATION_STATUS,
+  CORESLOT_LIFECYCLE_PROJECTION,
   CORESLOT_TEMPORAL_MAP_PROJECTION,
 } from '../../dist/projections/types.js';
 import {
   VALIDATOR_SET_MEMBERSHIP_OFFSET,
+  capEndHeightAtTemporalMapCursor,
   findConsensusWindowAtHeight,
   findSlotConsensusWindowAtHeight,
+  minUpstreamCursorHeight,
   projectCoreSlotTemporalMapHeight,
   projectCoreSlotTemporalMapRange,
   seedCoreSlotGenesisTemporalMap,
@@ -324,6 +328,65 @@ describe('CoreSlot temporal consensus map projection', () => {
 
     assert.equal(prisma.windows.length, 0);
     assert.equal(prisma.projectionFailures[0].failureKind, 'invalid_consensus_address');
+  });
+
+  it('FU-1: a genesis ProjectionFailure is stamped at the 0n sentinel and survives the height-1 cleanup', async () => {
+    const prisma = new TemporalMockPrisma();
+
+    // A malformed active genesis slot -> a genesis-seed ProjectionFailure.
+    await seedCoreSlotGenesisTemporalMap({
+      prisma,
+      chainId: CHAIN_ID,
+      client: genesisClient([genesisSlot({ slotId: '1', consensusAddress: 'bad' })]),
+    });
+    assert.equal(prisma.projectionFailures.length, 1);
+    assert.equal(prisma.projectionFailures[0].failureKind, 'invalid_consensus_address');
+    // Durability: stamped below any real block height (which starts at 1).
+    assert.equal(prisma.projectionFailures[0].sourceHeight, 0n);
+
+    // Control: a (non-genesis) failure at height 1, resolved:false. The height-1 per-height cleanup
+    // MUST delete this — proving the cleanup is genuinely live — while the 0n genesis failure survives.
+    // (Pre-fix the genesis failure was itself stamped at 1n and got deleted right here, with the control.)
+    const projectionName = prisma.projectionFailures[0].projectionName;
+    prisma.projectionFailures.push({
+      failureKey: 'control-1n',
+      projectionName,
+      sourceHeight: 1n,
+      failureKind: 'temporal_window_conflict',
+      resolved: false,
+    });
+    assert.equal(prisma.projectionFailures.length, 2);
+
+    await projectCoreSlotTemporalMapHeight({ prisma, chainId: CHAIN_ID, height: 1n });
+
+    // The 1n control is deleted; the 0n genesis failure remains.
+    assert.equal(
+      prisma.projectionFailures.length,
+      1,
+      'height-1 cleanup deletes the 1n control but keeps the 0n genesis failure',
+    );
+    assert.equal(prisma.projectionFailures[0].sourceHeight, 0n);
+    assert.equal(prisma.projectionFailures[0].failureKind, 'invalid_consensus_address');
+  });
+
+  it('FU-1 root: a malformed rotation stamps its failure at the processing height, never the 0n genesis sentinel', async () => {
+    const prisma = new TemporalMockPrisma();
+    // status=applied, but appliedHeight + effectiveHeight are null -> sourceHeight must fall back to the
+    // processing height (not 0n). Found at height 15 via requestedHeight; produces effective_height_invalid.
+    prisma.seedRotation(CORESLOT_KEY_ROTATION_STATUS.applied, {
+      requestedHeight: 15n,
+      appliedHeight: null,
+      effectiveHeight: null,
+      cancelledHeight: null,
+    });
+
+    await projectCoreSlotTemporalMapHeight({ prisma, chainId: CHAIN_ID, height: 15n });
+
+    assert.equal(prisma.projectionFailures.length, 1);
+    assert.equal(prisma.projectionFailures[0].failureKind, 'effective_height_invalid');
+    // Root fix: stamped at the processing height (15n), NOT the 0n genesis sentinel — so a genesis
+    // re-seed cleanup at 0n can never collaterally delete it. (Pre-fix this was 0n.)
+    assert.equal(prisma.projectionFailures[0].sourceHeight, 15n);
   });
 
   it('records temporal_window_conflict for duplicate active genesis consensus addresses', async () => {
@@ -828,3 +891,153 @@ function cloneMap(map) {
 function cursorKey(value) {
   return `${value.projectionName}:${value.chainId}`;
 }
+
+// ISSUE #56: temporal-map must cap its endHeight at the LOWEST upstream cursor (coreslot-lifecycle +
+// coreslot-key-rotation) so it never processes a height whose upstream events don't exist yet (which would
+// open no window but still advance the cursor — a permanent silent gap).
+describe('minUpstreamCursorHeight (#56)', () => {
+  function readerPrisma(heights) {
+    return {
+      projectionCursor: {
+        async findFirst(args) {
+          const name = args?.where?.projectionName;
+          const h = heights[name];
+          return h === undefined ? null : { lastProjectedHeight: h };
+        },
+      },
+    };
+  }
+
+  it('returns the lowest upstream cursor', async () => {
+    const min = await minUpstreamCursorHeight(
+      readerPrisma({ [CORESLOT_LIFECYCLE_PROJECTION]: 100n, [CORESLOT_KEY_ROTATION_PROJECTION]: 150n }),
+      CHAIN_ID,
+    );
+    assert.equal(min, 100n);
+  });
+
+  it('caps at a lagging key-rotation upstream', async () => {
+    const min = await minUpstreamCursorHeight(
+      readerPrisma({ [CORESLOT_LIFECYCLE_PROJECTION]: 200n, [CORESLOT_KEY_ROTATION_PROJECTION]: 50n }),
+      CHAIN_ID,
+    );
+    assert.equal(min, 50n);
+  });
+
+  it('treats a missing upstream cursor as 0n (stalls until the upstream has run)', async () => {
+    const min = await minUpstreamCursorHeight(
+      readerPrisma({ [CORESLOT_KEY_ROTATION_PROJECTION]: 150n }),
+      CHAIN_ID,
+    );
+    assert.equal(min, 0n);
+  });
+
+  it('coerces string/number cursor heights to bigint', async () => {
+    const min = await minUpstreamCursorHeight(
+      readerPrisma({ [CORESLOT_LIFECYCLE_PROJECTION]: '300', [CORESLOT_KEY_ROTATION_PROJECTION]: 120 }),
+      CHAIN_ID,
+    );
+    assert.equal(min, 120n);
+  });
+});
+
+// ISSUE #56 (integration, review note N3): the cap means temporal-map is driven only up to the upstream
+// cursor. This pins the bug-fix behavior end-to-end: a height beyond the (capped) endHeight is NOT skipped
+// — the window for it is deferred and then BUILT once the cap rises past it (rather than lost forever).
+describe('temporal-map honors a capped endHeight without skipping windows (#56)', () => {
+  it('defers a window beyond the cap, then builds it once the cap rises', async () => {
+    const prisma = new TemporalMockPrisma();
+    // An activation at height 100; its window would open at 100 + VALIDATOR_SET_MEMBERSHIP_OFFSET.
+    prisma.lifecycleEvents.push(lifecycle('coreslot_activated', 100n, {
+      id: 100n,
+      sourceEventId: 100n,
+      slotId: 7n,
+      consensusAddress: OLD,
+    }));
+
+    // Run 1: endHeight capped at 50 (upstreams behind the activate). The range must NOT reach height 100.
+    await projectCoreSlotTemporalMapRange({
+      prisma,
+      chainId: CHAIN_ID,
+      startHeight: 10n,
+      endHeight: 50n,
+    });
+    assert.equal(prisma.windows.length, 0, 'no window built while endHeight is capped below the activate');
+    const cursor1 = prisma.projectionCursors.get(
+      cursorKey({ projectionName: CORESLOT_TEMPORAL_MAP_PROJECTION, chainId: CHAIN_ID }),
+    );
+    assert.equal(
+      cursor1?.lastProjectedHeight,
+      50n,
+      'cursor advances only to the cap, never past the not-yet-projected activate height',
+    );
+
+    // Run 2: the cap rises past the activate (upstreams caught up). The window is now built, not lost.
+    await projectCoreSlotTemporalMapRange({
+      prisma,
+      chainId: CHAIN_ID,
+      startHeight: 51n,
+      endHeight: 150n,
+    });
+    assert.equal(prisma.windows.length, 1, 'window is built once the cap rises past the activate height');
+    assert.equal(prisma.windows[0].slotId, 7n);
+    assert.equal(
+      prisma.windows[0].effectiveFromHeight,
+      100n + VALIDATOR_SET_MEMBERSHIP_OFFSET,
+    );
+  });
+});
+
+// #59: the shared cap helper the three downstream window-consumers use. Baking the temporal-map projection
+// name in here (vs passing it per call site) is what removes the "wrong upstream" regression risk, so these
+// cases assert it reads temporal-map specifically, caps DOWN only, and stalls (0n) when the cursor is absent.
+describe('capEndHeightAtTemporalMapCursor (#59 shared cap)', () => {
+  const reader = (heights) => ({
+    projectionCursor: {
+      async findFirst(args) {
+        const name = args?.where?.projectionName;
+        return name in heights ? { lastProjectedHeight: heights[name] } : null;
+      },
+    },
+  });
+
+  it('does not over-cap when the request is below the temporal-map cursor', async () => {
+    const { endHeight, temporalMapCursor } = await capEndHeightAtTemporalMapCursor(
+      reader({ [CORESLOT_TEMPORAL_MAP_PROJECTION]: 100n }),
+      CHAIN_ID,
+      50n,
+    );
+    assert.equal(endHeight, 50n);
+    assert.equal(temporalMapCursor, 100n);
+  });
+
+  it('caps DOWN to the temporal-map cursor when the request is beyond it', async () => {
+    const { endHeight, temporalMapCursor } = await capEndHeightAtTemporalMapCursor(
+      reader({ [CORESLOT_TEMPORAL_MAP_PROJECTION]: 50n }),
+      CHAIN_ID,
+      100n,
+    );
+    assert.equal(endHeight, 50n);
+    assert.equal(temporalMapCursor, 50n);
+  });
+
+  it('returns 0n (stalls the downstream) when temporal-map has never run', async () => {
+    const { endHeight, temporalMapCursor } = await capEndHeightAtTemporalMapCursor(
+      reader({}),
+      CHAIN_ID,
+      100n,
+    );
+    assert.equal(endHeight, 0n);
+    assert.equal(temporalMapCursor, 0n);
+  });
+
+  it('reads the TEMPORAL-MAP cursor specifically (a wrong projection name would read 0n)', async () => {
+    // Only temporal-map has a cursor here; any other name resolves to null -> 0n -> endHeight 0n.
+    const { endHeight } = await capEndHeightAtTemporalMapCursor(
+      reader({ [CORESLOT_TEMPORAL_MAP_PROJECTION]: 77n, coreslot_liveness_v1: 999n }),
+      CHAIN_ID,
+      1000n,
+    );
+    assert.equal(endHeight, 77n);
+  });
+});

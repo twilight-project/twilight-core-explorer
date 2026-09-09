@@ -10,7 +10,7 @@ import {
   CORESLOT_KEY_ROTATION_REQUESTED_EVENT_TYPE,
   CORESLOT_KEY_ROTATION_STATUS,
   CORESLOT_KEY_ROTATION_TYPE_URL,
-  CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
+  isRotationCancelEventType,
   type ProjectionFailureInput,
   type ProjectionFailureKind,
   withProjectionFailureKey,
@@ -162,9 +162,7 @@ export async function projectCoreSlotKeyRotationHeight(
       const rotatedEvents = events.filter(
         (event) => event.type === CORESLOT_KEY_ROTATED_EVENT_TYPE,
       );
-      const cancelledEvents = events.filter(
-        (event) => event.type === CORESLOT_ROTATION_CANCELLED_EVENT_TYPE,
-      );
+      const cancelledEvents = events.filter((event) => isRotationCancelEventType(event.type));
 
       const messages = successfulTxHashes.size === 0
         ? []
@@ -463,7 +461,7 @@ async function projectCancelledEvent(
     await createFailure(tx, {
       event,
       failureKind: 'invalid_slot_id',
-      error: `Invalid slot_id on coreslot_rotation_cancelled: ${readEventAttr(event, 'slot_id')}`,
+      error: `Invalid slot_id on ${event.type}: ${readEventAttr(event, 'slot_id')}`,
     });
     counters.failuresCreated += 1;
     return;
@@ -499,7 +497,7 @@ async function projectCancelledEvent(
     await createFailure(tx, {
       event,
       failureKind: 'rotation_correlation_failed',
-      error: `${matches.length} requested rotations matched one coreslot_rotation_cancelled event.`,
+      error: `${matches.length} requested rotations matched one ${event.type} event.`,
     });
     counters.failuresCreated += 1;
     return;

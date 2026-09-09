@@ -1,0 +1,85 @@
+'use client';
+
+import { Coins } from 'lucide-react';
+import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { Table, Td, Th, Tr } from '@/components/ui/Table';
+import { FilterBar } from '@/components/list/FilterBar';
+import { QueryBoundary } from '@/components/QueryBoundary';
+import { SampledAtNote } from '@/components/freshness/Freshness';
+import { useStatus, useSupply } from '@/lib/api/queries';
+import { deriveSampleAge } from '@/lib/freshness';
+import { RewardAmount } from '@/components/rewards/RewardAmount';
+
+/**
+ * Sampled total supply (Phase 12c). Renders ONLY the observed denom -> amount sample at a sampled
+ * height, with the `source:"sampled"` caveat + freshness. Deliberately NOT a computed economic
+ * breakdown: no circulating / bonded / total-vs-available labels, no cap / halving / emission
+ * schedule (none of which the contract exposes). When there is no sample the contract returns 404,
+ * surfaced here as ErrorState/NotFound (never a fabricated 0).
+ */
+export function SupplyView({ height }: { height?: string | undefined }) {
+  const supply = useSupply(height);
+  const status = useStatus();
+
+  return (
+    <Card>
+      <CardHeader
+        icon={Coins}
+        iconTone="rewards"
+        title="Total supply (sampled)"
+        action={
+          height ? (
+            <span className="font-mono text-xs text-text-muted">at height {height}</span>
+          ) : (
+            <span className="font-mono text-xs text-text-muted">latest sample</span>
+          )
+        }
+      />
+      <CardBody>
+        {/* URL-synced historical lookup (Phase 12c deferral): ?height= re-renders the page and
+            re-keys the query; the API answers with the sample at/near that height or 404. */}
+        <div className="mb-3">
+          <FilterBar
+            fields={[{ param: 'height', label: 'Sample at height', kind: 'digits' }]}
+            values={{ height }}
+          />
+        </div>
+        <QueryBoundary query={supply} context="Supply" loadingRows={3}>
+          {(res) => {
+            const latestIndexed = status.data?.data.indexer?.lastIndexedHeight ?? null;
+            const age = deriveSampleAge(res.data.sampledAtHeight, latestIndexed);
+            return (
+              <div className="space-y-3">
+                <p className="text-xs text-text-muted">
+                  Observed total supply at a sampled height — not a computed economic breakdown.
+                  source: <span className="font-mono">{res.data.source}</span>.
+                </p>
+                <Table
+                  caption="Token supply by denomination"
+                  head={
+                    <>
+                      <Th>Denom</Th>
+                      <Th>Amount</Th>
+                    </>
+                  }
+                >
+                  {/* The contract returns 200 only with a non-empty supply at a sampled height;
+                      the no-sample case is a 404 (-> ErrorState/NotFound via QueryBoundary). */}
+                  {res.data.supply.map((c) => (
+                    <Tr key={c.denom}>
+                      <Td mono>{c.denom}</Td>
+                      <Td mono>
+                        <RewardAmount raw={c.amount} denom={c.denom} />
+                      </Td>
+                    </Tr>
+                  ))}
+                </Table>
+                <SampledAtNote sampledAtHeight={res.data.sampledAtHeight} age={age} />
+              </div>
+            );
+          }}
+        </QueryBoundary>
+      </CardBody>
+    </Card>
+  );
+}

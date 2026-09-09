@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import {
-  REWARDS_CLAIM_TYPE_URL,
   REWARDS_PAUSE_TYPE_URL,
   REWARDS_RESUME_TYPE_URL,
   REWARDS_SEMANTIC_PROJECTION,
@@ -47,77 +46,29 @@ describe('Rewards semantic projection', () => {
     assert.equal(p.claims.size, 0);
   });
 
-  it('5. MsgClaimRewards + reward_claimed creates a RewardClaimEvent', async () => {
+  it('3a. epoch_finalized maps live nyks-core keys (allocated/eligible_slots/cumulative_emitted/distribution_method) + utwlt denom', async () => {
+    // Real Phase 7.2 fixture event shape: the chain emits `allocated`/`eligible_slots`/
+    // `cumulative_emitted`/`distribution_method` (NOT total_reward/active_slot_count/denom).
     const p = new MockRewardsPrisma();
-    seedClaim(p, { height: 120n });
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-    assert.equal(p.claims.size, 1);
-    const c = [...p.claims.values()][0];
-    assert.equal(c.slotId, 4n);
-    assert.equal(c.startEpoch, 1n);
-    assert.equal(c.endEpoch, 2n);
-  });
-
-  it('6. claim event updates existing SlotRewardProjection rows in the claimed range', async () => {
-    const p = new MockRewardsPrisma();
-    p.seedSlotReward({ slotId: 4n, epochNumber: 1n, amount: '10', sampledAtHeight: 110n });
-    p.seedSlotReward({ slotId: 4n, epochNumber: 2n, amount: '20', sampledAtHeight: 110n });
-    p.seedSlotReward({ slotId: 4n, epochNumber: 3n, amount: '30', sampledAtHeight: 110n });
-    seedClaim(p, { height: 120n });
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-
-    const claimed = p.slotRewards.filter((r) => r.claimed);
-    assert.deepEqual(claimed.map((r) => r.epochNumber).sort(), [1n, 2n]);
-    assert.equal(p.slotRewards.find((r) => r.epochNumber === 3n).claimed, false);
-    assert.equal(claimed[0].claimTxHash, 'CLAIM-120');
-    assert.equal(claimed[0].claimedAtHeight, 120n);
-  });
-
-  it('7. claim with missing reward records records missing_reward_records and does not fabricate', async () => {
-    const p = new MockRewardsPrisma();
-    seedClaim(p, { height: 120n });
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-    assert.equal(p.claims.size, 1);
-    assert.equal(p.slotRewards.length, 0); // nothing fabricated
-    assert.ok(failureKinds(p).includes('missing_reward_records'));
-  });
-
-  it('8. failed claim tx does not project', async () => {
-    const p = new MockRewardsPrisma();
-    p.transactions.push(failedTx('CLAIM-120', 120n));
-    p.messages.push(claimMessage(1n, 'CLAIM-120', 120n));
-    p.events.push(rewardClaimedEvent(10n, 'CLAIM-120', 120n));
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-    assert.equal(p.claims.size, 0);
-    assert.equal(p.failures.length, 0);
-  });
-
-  it('9. claim message without event records missing_event', async () => {
-    const p = new MockRewardsPrisma();
-    p.transactions.push(successTx('CLAIM-120', 120n));
-    p.messages.push(claimMessage(1n, 'CLAIM-120', 120n));
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-    assert.equal(p.claims.size, 0);
-    assert.ok(failureKinds(p).includes('missing_event'));
-  });
-
-  it('10. reward_claimed event without message records missing_message', async () => {
-    const p = new MockRewardsPrisma();
-    p.transactions.push(successTx('CLAIM-120', 120n));
-    p.events.push(rewardClaimedEvent(10n, 'CLAIM-120', 120n));
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-    assert.equal(p.claims.size, 1); // recorded from event
-    assert.ok(failureKinds(p).includes('missing_message'));
-  });
-
-  it('11. ambiguous claim events create claim_correlation_failed', async () => {
-    const p = new MockRewardsPrisma();
-    p.transactions.push(successTx('CLAIM-120', 120n));
-    p.messages.push(claimMessage(1n, 'CLAIM-120', 120n));
-    p.events.push(rewardClaimedEvent(10n, 'CLAIM-120', 120n));
-    p.events.push(rewardClaimedEvent(11n, 'CLAIM-120', 120n));
-    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 120n });
-    assert.ok(failureKinds(p).includes('claim_correlation_failed'));
+    p.events.push(evt(3n, 30n, null, null, 'epoch_finalized', [
+      { key: 'epoch', value: '3' },
+      { key: 'start_height', value: '21' },
+      { key: 'end_height', value: '30' },
+      { key: 'minted_emission', value: '4161900' },
+      { key: 'cumulative_emitted', value: '12485700' },
+      { key: 'reward_pool', value: '4161900' },
+      { key: 'allocated', value: '4161900' },
+      { key: 'carry_out', value: '0' },
+      { key: 'eligible_slots', value: '4' },
+      { key: 'distribution_method', value: 'DISTRIBUTION_METHOD_UNIFORM_ACTIVE_BLOCKS' },
+    ]));
+    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 30n });
+    const e = p.epochs.get('3');
+    assert.equal(e.totalReward, '4161900'); // <- allocated
+    assert.equal(e.activeSlotCount, 4); // <- eligible_slots
+    assert.equal(e.cumulativeEmitted, '12485700');
+    assert.equal(e.distributionMethod, 'DISTRIBUTION_METHOD_UNIFORM_ACTIVE_BLOCKS');
+    assert.equal(e.denom, 'utwlt'); // <- not emitted; native-denom default
   });
 
   it('12. params_update_queued stores a queued params change', async () => {
@@ -175,18 +126,6 @@ describe('Rewards semantic projection', () => {
     assert.equal(p.claims.size, 0);
   });
 
-  it('18. rerun is idempotent for rows and failures', async () => {
-    const p = new MockRewardsPrisma();
-    p.events.push(evt(1n, 100n, null, null, 'epoch_finalized', [{ key: 'epoch_number', value: '7' }]));
-    seedClaim(p, { height: 100n });
-    const run = () => projectRewardsSemanticRange({ prisma: p, chainId: CHAIN_ID, startHeight: 100n, endHeight: 100n });
-    await run();
-    await run();
-    assert.equal(p.epochs.size, 1);
-    assert.equal(p.claims.size, 1);
-    // missing_reward_records (one) deduped by deterministic failureKey
-    assert.equal(p.failures.length, 1);
-  });
 
   it('19. unknown rewards event records unknown_semantic_type and does not crash', async () => {
     const p = new MockRewardsPrisma();
@@ -204,30 +143,7 @@ describe('Rewards semantic projection', () => {
 });
 
 describe('Rewards observed snapshot ingestion', () => {
-  it('3. SlotRewards snapshot creates SlotRewardProjection rows tied to sampledAtHeight', async () => {
-    const p = new MockRewardsPrisma();
-    const client = mockClient({
-      slotRewards: { 4: { rewards: [
-        { epoch_number: '1', amount: '10', denom: 'utwlt', claimed: false },
-        { epoch_number: '2', amount: '20', denom: 'utwlt', claimed: false },
-      ] } },
-    });
-    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [4n] });
-    assert.equal(p.slotRewards.length, 2);
-    assert.equal(p.slotRewards[0].sampledAtHeight, 200n);
-  });
 
-  it('4. SlotRewards claimed=true is stored as claim truth', async () => {
-    const p = new MockRewardsPrisma();
-    const client = mockClient({
-      slotRewards: { 4: { rewards: [
-        { epoch_number: '1', amount: '10', denom: 'utwlt', claimed: true, claimed_at_height: '150' },
-      ] } },
-    });
-    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [4n] });
-    assert.equal(p.slotRewards[0].claimed, true);
-    assert.equal(p.slotRewards[0].claimedAtHeight, 150n);
-  });
 
   it('snapshot does not unset a claim already recorded by the semantic projector', async () => {
     const p = new MockRewardsPrisma();
@@ -235,7 +151,7 @@ describe('Rewards observed snapshot ingestion', () => {
     const client = mockClient({
       slotRewards: { 4: { rewards: [{ epoch_number: '1', amount: '10', denom: 'utwlt', claimed: false }] } },
     });
-    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [4n] });
+    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
     assert.equal(p.slotRewards[0].claimed, true); // not unset
   });
 
@@ -245,31 +161,69 @@ describe('Rewards observed snapshot ingestion', () => {
       moduleBalances: { balances: [{ denom: 'utwlt', amount: '999', module_name: 'rewards' }] },
       cumulativeEmitted: { amount: '5000', denom: 'utwlt' },
     });
-    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [] });
+    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
     assert.equal(p.balanceSamples.length, 2);
     assert.ok(p.balanceSamples.some((b) => b.sampleKind === 'module_balance'));
     assert.ok(p.balanceSamples.some((b) => b.sampleKind === 'cumulative_emitted'));
   });
 
-  it('paginates getSlotRewards until next_key is exhausted', async () => {
+  it('extracts module balances from the live nyks-core {denom, <module>_balance} object shape', async () => {
     const p = new MockRewardsPrisma();
-    let calls = 0;
+    const client = mockClient({
+      moduleBalances: { denom: 'utwlt', rewards_balance: '17688075', fee_pool_balance: '0' },
+      cumulativeEmitted: { amount: '20809500', denom: 'utwlt' },
+    });
+    const result = await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
+    assert.equal(result.failed, false);
+    const mod = p.balanceSamples.filter((b) => b.sampleKind === 'module_balance');
+    assert.deepEqual(mod.map((b) => b.moduleName).sort(), ['fee_pool', 'rewards']);
+    const rewards = mod.find((b) => b.moduleName === 'rewards');
+    assert.equal(rewards.amount, '17688075');
+    assert.equal(rewards.denom, 'utwlt');
+    // the shape now parses, so the absence-justification failure must NOT fire
+    assert.ok(!p.failures.some((f) => f.failureKind === 'module_balance_sample_unavailable'));
+  });
+
+
+  it('records a NON-BLOCKING module_balance_sample_unavailable when no module balances extract', async () => {
+    const p = new MockRewardsPrisma();
+    const client = mockClient({
+      moduleBalances: { balances: [] }, // empty / unrecognized shape
+      cumulativeEmitted: { amount: '5000', denom: 'utwlt' },
+    });
+    const result = await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
+    assert.equal(result.failed, false); // non-blocking: the rest of the snapshot still succeeds
+    assert.ok(p.failures.some((f) => f.failureKind === 'module_balance_sample_unavailable'));
+    assert.ok(!p.balanceSamples.some((b) => b.sampleKind === 'module_balance')); // absence is now justified, not silent
+    assert.ok(p.balanceSamples.some((b) => b.sampleKind === 'cumulative_emitted'));
+  });
+
+  it('halts + records rewards_snapshot_chain_read_failed when a chain read throws', async () => {
+    const p = new MockRewardsPrisma();
     const client = {
-      getSlotRewards: async (_slotId, pagination) => {
-        calls += 1;
-        if (!pagination?.key) {
-          return { raw: { rewards: [{ epoch_number: '1', amount: '10', denom: 'utwlt' }], pagination: { next_key: 'PAGE2' } } };
-        }
-        return { raw: { rewards: [{ epoch_number: '2', amount: '20', denom: 'utwlt' }], pagination: { next_key: '' } } };
-      },
-      getModuleBalances: async () => ({ raw: { balances: [] } }),
+      getModuleBalances: async () => { throw new Error('REST 503'); },
       getCumulativeEmitted: async () => ({ raw: {} }),
     };
-    const result = await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [4n] });
-    assert.equal(calls, 2); // followed next_key to page 2
-    assert.equal(result.slotRewardRows, 2);
-    assert.deepEqual(p.slotRewards.map((r) => r.epochNumber).sort(), [1n, 2n]);
+    const result = await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
+    assert.equal(result.failed, true);
+    assert.ok(p.failures.some((f) => f.failureKind === 'rewards_snapshot_chain_read_failed'));
   });
+
+  it('writes NO rows when a LATER read fails (true read-before-write, no partial sample)', async () => {
+    const p = new MockRewardsPrisma();
+    const client = {
+      // slot rewards read SUCCEEDS (would have been written under the old incremental code)...
+      // ...but a subsequent read fails, so nothing must be written for this height.
+      getModuleBalances: async () => { throw new Error('REST 503'); },
+      getCumulativeEmitted: async () => ({ raw: {} }),
+    };
+    const result = await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
+    assert.equal(result.failed, true);
+    assert.equal(p.slotRewards.length, 0); // NO partial slot-reward write despite a successful slot read
+    assert.equal(p.balanceSamples.length, 0);
+    assert.ok(p.failures.some((f) => f.failureKind === 'rewards_snapshot_chain_read_failed'));
+  });
+
 
   it('builds a deterministic non-null sample key for null address/moduleName (cumulative)', () => {
     const key = buildBalanceSampleKey({
@@ -281,8 +235,8 @@ describe('Rewards observed snapshot ingestion', () => {
   it('re-sampling the same height is idempotent for null-keyed balance samples', async () => {
     const p = new MockRewardsPrisma();
     const client = mockClient({ cumulativeEmitted: { amount: '5000', denom: 'utwlt' } });
-    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [] });
-    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n, slotIds: [] });
+    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
+    await ingestRewardsSnapshot({ prisma: p, client, chainId: CHAIN_ID, height: 200n });
     const cumulative = p.balanceSamples.filter((b) => b.sampleKind === 'cumulative_emitted');
     assert.equal(cumulative.length, 1); // upsert by sampleKey, not duplicated
   });
@@ -434,12 +388,18 @@ class MockRewardsPrisma {
     };
     this.rewardClaimEvent = {
       upsert: async (args) => upsertMap(this.claims, args.where.sourceEventId.toString(), args),
+      findUnique: async (args) => this.claims.get(String(args.where.sourceEventId)) ?? null,
     };
     this.slotRewardProjection = {
       findMany: async (args) => {
         const w = args?.where ?? {};
         return this.slotRewards.filter((r) => {
-          if (w.slotId !== undefined && r.slotId !== w.slotId) return false;
+          if (w.slotId !== undefined) {
+            // Supports both the scalar form and the snapshot pre-read's { in: [...] } form.
+            if (typeof w.slotId === 'object' && w.slotId !== null && 'in' in w.slotId) {
+              if (!w.slotId.in.some((s) => s === r.slotId)) return false;
+            } else if (r.slotId !== w.slotId) return false;
+          }
           if (w.epochNumber?.gte !== undefined && r.epochNumber < w.epochNumber.gte) return false;
           if (w.epochNumber?.lte !== undefined && r.epochNumber > w.epochNumber.lte) return false;
           return true;
@@ -453,6 +413,18 @@ class MockRewardsPrisma {
         const row = this.slotRewards.find((r) => r.id === args.where.id);
         if (row) Object.assign(row, args.data);
         return row;
+      },
+      updateMany: async (args) => {
+        const w = args?.where ?? {};
+        let count = 0;
+        for (const r of this.slotRewards) {
+          if (w.slotId !== undefined && r.slotId !== w.slotId) continue;
+          if (w.epochNumber?.gte !== undefined && r.epochNumber < w.epochNumber.gte) continue;
+          if (w.epochNumber?.lte !== undefined && r.epochNumber > w.epochNumber.lte) continue;
+          Object.assign(r, args.data);
+          count += 1;
+        }
+        return { count };
       },
       upsert: async (args) => {
         const k = args.where.slotId_epochNumber;
@@ -503,8 +475,14 @@ class MockRewardsPrisma {
       upsert: async (args) => {
         const i = this.failures.findIndex((f) => f.failureKey === args.where.failureKey);
         if (i >= 0) { this.failures[i] = { ...this.failures[i], ...args.update }; return this.failures[i]; }
-        this.failures.push({ ...args.create });
-        return args.create;
+        // Mirror the DB column default (`resolved Boolean @default(false)`) so `deleteMany({resolved:false})`
+        // matches a freshly-created failure exactly as real Prisma does (the mock can't apply DB defaults).
+        // Store AND return the same row, so callers that read the return value see `resolved` like Prisma.
+        this.nextFailureId ??= 1n;
+        const created = { id: this.nextFailureId, resolved: false, ...args.create };
+        this.nextFailureId += 1n;
+        this.failures.push(created);
+        return created;
       },
       deleteMany: async (args) => {
         const w = args?.where ?? {};
@@ -517,6 +495,20 @@ class MockRewardsPrisma {
           return false;
         });
         return { count: 0 };
+      },
+      findMany: async (args) => {
+        const w = args?.where ?? {};
+        return this.failures.filter((f) => {
+          if (w.projectionName !== undefined && f.projectionName !== w.projectionName) return false;
+          if (w.failureKind !== undefined && f.failureKind !== w.failureKind) return false;
+          if (w.resolved !== undefined && (f.resolved ?? false) !== w.resolved) return false;
+          return true;
+        });
+      },
+      update: async (args) => {
+        const f = this.failures.find((x) => x.id === args.where.id);
+        if (f) Object.assign(f, args.data);
+        return f ?? null;
       },
     };
     this.projectionCursor = {

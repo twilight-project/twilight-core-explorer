@@ -5,8 +5,8 @@ export interface ChainClient {
   getBlockResults(height: bigint): Promise<BlockResultsSource>;
   getTx(hash: string): Promise<TxSource>;
   getTxsByHeight(height: bigint): Promise<TxSource[]>;
-  getSupply(): Promise<SupplySource[]>;
-  getBalances(address: string): Promise<ModuleSnapshot>;
+  getSupply(height?: bigint): Promise<SupplySource[]>;
+  getBalances(address: string, height?: bigint): Promise<ModuleSnapshot>;
   getCoreSlotParams(): Promise<ModuleSnapshot>;
   getCoreSlots(): Promise<ModuleSnapshot>;
   getActiveCoreSlots(): Promise<ModuleSnapshot>;
@@ -17,20 +17,33 @@ export interface ChainClient {
   getLastAppliedValidators(): Promise<ModuleSnapshot>;
   getReservedConsensusAddress(consensusAddress: string): Promise<ModuleSnapshot>;
   getRewardWeight(slotId: bigint): Promise<ModuleSnapshot>;
+  getSelectionPolicy(slotId: bigint): Promise<ModuleSnapshot>;
+  getSelectionPolicyVersion(slotId: bigint, policyVersion: bigint): Promise<ModuleSnapshot>;
+  getSelectionPolicyAtHeight(slotId: bigint, atHeight: bigint): Promise<ModuleSnapshot>;
   getRewardsParams(): Promise<ModuleSnapshot>;
   getEpochInfo(): Promise<ModuleSnapshot>;
   getNextHalving(): Promise<ModuleSnapshot>;
   getEpochReward(epoch: bigint): Promise<ModuleSnapshot>;
-  getSlotRewards(slotId: bigint, pagination?: PaginationRequest): Promise<ModuleSnapshot>;
-  getClaimableRewards(
-    slotId: bigint,
-    startEpoch: bigint,
-    endEpoch: bigint,
-  ): Promise<ModuleSnapshot>;
-  getCumulativeEmitted(): Promise<ModuleSnapshot>;
+  // Entitlements replace the retired claim queries as the unit of reward truth.
+  getEpochEntitlements(epoch: bigint, pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getSlotEntitlement(slotId: bigint, epoch: bigint): Promise<ModuleSnapshot>;
+  getEpochBoundaries(epoch: bigint): Promise<ModuleSnapshot>;
+  getRewardsPauseState(): Promise<ModuleSnapshot>;
+  getEpochConfigVersions(pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getRewardConfigVersions(pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getCumulativeEmitted(height?: bigint): Promise<ModuleSnapshot>;
   getSupplySchedule(): Promise<ModuleSnapshot>;
   getCurrentEpochActiveBlocks(): Promise<ModuleSnapshot>;
-  getModuleBalances(): Promise<ModuleSnapshot>;
+  getModuleBalances(height?: bigint): Promise<ModuleSnapshot>;
+  // x/mining — settlement workflow.
+  getSettlementClock(): Promise<ModuleSnapshot>;
+  getSettlement(slotId: bigint, epoch: bigint): Promise<ModuleSnapshot>;
+  getOpenSettlements(slotId: bigint, pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getDistributionModeVersions(pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getSelectionParamsVersions(pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getSettlementParamsVersions(pagination?: PaginationRequest): Promise<ModuleSnapshot>;
+  getTargetEpochInterpretation(targetEpoch: bigint): Promise<ModuleSnapshot>;
+  getEconomicAddressValidation(address: string): Promise<ModuleSnapshot>;
 }
 
 export interface GenesisSource {

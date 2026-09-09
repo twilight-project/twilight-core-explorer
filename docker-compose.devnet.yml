@@ -130,7 +130,9 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+        # ${VAR-default} (no colon), NOT ${VAR:-default}: EMPTY is a meaningful value here — it
+        # selects the same-origin posture — so the default must only apply when the var is UNSET.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL-http://localhost:8080}
         # Build-time too: `next start` serves rewrites from the BUILD's routes-manifest.
         API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:8080}
     image: twilight-explorer-web:devnet

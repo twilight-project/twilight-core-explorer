@@ -18,6 +18,7 @@ const ROUTES: { path: string; h1: RegExp }[] = [
   { path: '/validators?tab=history', h1: /coreslots/i },
   { path: '/economy', h1: /epoch .+ paid|rewards & supply/i },
   { path: '/economy?tab=entitlements', h1: /epoch .+ paid|rewards & supply/i },
+  { path: '/economy?tab=settlements', h1: /epoch .+ paid|rewards & supply/i },
   { path: '/economy?tab=supply', h1: /epoch .+ paid|rewards & supply/i },
   // Old IA routes must land on the merged destinations (next.config redirects).
   { path: '/coreslots', h1: /coreslots/i },

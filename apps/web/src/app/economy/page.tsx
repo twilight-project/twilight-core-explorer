@@ -5,6 +5,7 @@ import { EntitlementsSection } from '@/components/rewards/sections/EntitlementsS
 import { BalancesSection } from '@/components/rewards/sections/BalancesSection';
 import { TreasurySection } from '@/components/rewards/sections/TreasurySection';
 import { ParamsSection } from '@/components/rewards/sections/ParamsSection';
+import { SettlementsStatusSection } from '@/components/economy/SettlementsStatusSection';
 import { SupplyView } from '@/components/supply/SupplyView';
 import { oneParam } from '@/lib/search-params';
 
@@ -12,6 +13,7 @@ export const metadata = { title: 'Economy' };
 
 const TABS = [
   { id: 'epochs', label: 'Epochs' },
+  { id: 'settlements', label: 'Settlements' },
   { id: 'entitlements', label: 'Entitlements' },
   { id: 'supply', label: 'Supply' },
   { id: 'parameters', label: 'Parameters' },
@@ -47,6 +49,7 @@ export default function EconomyPage({
         ariaLabel="Economy views"
       />
       {tab === 'epochs' ? <EpochsSection /> : null}
+      {tab === 'settlements' ? <SettlementsStatusSection /> : null}
       {tab === 'entitlements' ? <EntitlementsSection filter={entitlementsFilter} showFilters /> : null}
       {tab === 'supply' ? (
         <div className="flex flex-col gap-6">

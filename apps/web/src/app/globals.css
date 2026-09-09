@@ -64,16 +64,15 @@
   --border: 38 34 27;
   --border-light: 54 48 38;
 
-  /* expressive — balanced elevation, bordered, sans display, MONO numerals (operator honesty) */
+  /* expressive — balanced elevation, bordered, serif display, MONO numerals (operator honesty) */
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
   --display-tracking: -0.01em;
   --card-border-width: 1px;
-  /* display face — Inter (compact technical sans per brief); hierarchy by size/weight, not face */
-  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  /* --font-metric inherits the :root mono default — heights/amounts stay monospaced */
+  /* display face — the :root Instrument serif (14a): the product's identity no longer changes
+     with the theme toggle. --font-metric inherits the :root mono default. */
 }
 
 /* Light — the same console on paper. Picked automatically for first-time visitors whose OS prefers
@@ -126,8 +125,7 @@
   --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
   --display-tracking: -0.01em;
   --card-border-width: 1px;
-  /* display face — Inter, the same compact technical voice as the dark theme */
-  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* display face — the :root Instrument serif, same as dark (14a) */
 }
 
 /* ---- Spacing/type scale ------------------------------------------------------------------------

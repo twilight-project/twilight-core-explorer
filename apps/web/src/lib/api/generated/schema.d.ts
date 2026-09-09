@@ -898,6 +898,13 @@ export interface paths {
                                 /** @description Decimal height/id as string */
                                 slotId: string;
                                 role?: "operator" | "payout" | "consensus";
+                            } | {
+                                /** @enum {string} */
+                                type: "epoch";
+                                /** @description Decimal height/id as string */
+                                epochNumber: string;
+                                /** @description Decimal height/id as string */
+                                height: string;
                             })[];
                         };
                     };
@@ -2670,6 +2677,8 @@ export interface paths {
                                 height: string;
                                 txHash: string;
                                 msgIndex: number | null;
+                                entitlementAmount: string | null;
+                                recipientCount: number | null;
                             }[];
                             page: {
                                 limit: number;
@@ -2750,6 +2759,94 @@ export interface paths {
                                 denom: string;
                                 /** @description Decimal height/id as string */
                                 lastHeight: string;
+                                entitlementAmount: string | null;
+                                epochCloseHeight: string | null;
+                                latencyBlocks: string | null;
+                            }[];
+                            page: {
+                                limit: number;
+                                nextCursor: string | null;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mining/settlements/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every entitlement vs its finalization: settled, open, and for how long */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    cursor?: string;
+                    slotId?: string;
+                    epoch?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                /** @description Decimal height/id as string */
+                                epochNumber: string;
+                                entitlementAmount: string;
+                                denom: string;
+                                epochCloseHeight: string | null;
+                                settled: boolean;
+                                finalizedHeight: string | null;
+                                finalizationReason: string | null;
+                                latencyBlocks: string | null;
+                                openForBlocks: string | null;
+                            }[];
+                            slots: {
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                settledCount: number;
+                                openCount: number;
+                                medianLatencyBlocks: string | null;
+                                p90LatencyBlocks: string | null;
                             }[];
                             page: {
                                 limit: number;
@@ -2828,6 +2925,9 @@ export interface paths {
                                 denom: string;
                                 /** @description Decimal height/id as string */
                                 lastHeight: string;
+                                entitlementAmount: string | null;
+                                epochCloseHeight: string | null;
+                                latencyBlocks: string | null;
                                 chunks: {
                                     /** @description Decimal height/id as string */
                                     chunkIndex: string;

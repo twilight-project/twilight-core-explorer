@@ -21,6 +21,10 @@ export const SettlementPayoutItem = Type.Object(
     height: HeightString,
     txHash: Type.String(),
     msgIndex: Nullable(Type.Integer()),
+    // "Why this amount" context: the (slot, epoch) entitlement pool this line is a share of, and
+    // how many recipients it was split across. Null when the entitlement was never observed.
+    entitlementAmount: Nullable(Type.String()),
+    recipientCount: Nullable(Type.Integer()),
   },
   { $id: 'SettlementPayoutItem' },
 );
@@ -78,6 +82,7 @@ export interface SettlementPayoutRow {
 
 export function toSettlementPayoutItem(
   r: SettlementPayoutRow,
+  ctx?: { entitlementAmount: string | null; recipientCount: number | null },
 ): Static<typeof SettlementPayoutItem> {
   return {
     id: r.id.toString(),
@@ -91,6 +96,8 @@ export function toSettlementPayoutItem(
     height: r.height.toString(),
     txHash: r.txHash,
     msgIndex: r.msgIndex,
+    entitlementAmount: ctx?.entitlementAmount ?? null,
+    recipientCount: ctx?.recipientCount ?? null,
   };
 }
 
@@ -126,6 +133,9 @@ export const SettlementItem = Type.Object(
     totalPaid: Type.String(),
     denom: Type.String(),
     lastHeight: HeightString,
+    entitlementAmount: Nullable(Type.String()),
+    epochCloseHeight: Nullable(HeightString),
+    latencyBlocks: Nullable(HeightString),
   },
   { $id: 'SettlementItem' },
 );
@@ -163,6 +173,9 @@ export const SettlementDetailResponse = Type.Object(
       totalPaid: Type.String(),
       denom: Type.String(),
       lastHeight: HeightString,
+      entitlementAmount: Nullable(Type.String()),
+      epochCloseHeight: Nullable(HeightString),
+      latencyBlocks: Nullable(HeightString),
       chunks: Type.Array(Type.Object({
         chunkIndex: HeightString,
         recipientCount: Nullable(Type.Integer()),
@@ -209,6 +222,9 @@ export interface SettlementRowShape {
   chunkCount: bigint;
   payoutCount: bigint;
   totalPaid: string;
+  entitlementAmount: string | null;
+  epochCloseHeight: bigint | null;
+  latencyBlocks: bigint | null;
 }
 
 export function toSettlementItem(r: SettlementRowShape): Static<typeof SettlementItem> {
@@ -227,6 +243,9 @@ export function toSettlementItem(r: SettlementRowShape): Static<typeof Settlemen
     totalPaid: r.totalPaid,
     denom: 'utwlt',
     lastHeight: r.lastHeight.toString(),
+    entitlementAmount: r.entitlementAmount,
+    epochCloseHeight: bigToString(r.epochCloseHeight),
+    latencyBlocks: bigToString(r.latencyBlocks),
   };
 }
 
@@ -245,5 +264,101 @@ export function toSettlementChunkItem(r: SettlementChunkRow): Static<typeof Sett
     chunkTotal: r.chunkTotal,
     height: r.height.toString(),
     txHash: r.txHash,
+  };
+}
+
+
+// ---------- settlement status (expected vs settled) ----------
+//
+// Expectation view: one row per (slot, epoch) an entitlement exists for, whether or not the
+// settlement produced observable activity. `settled` is true only on an emitted finalization.
+// The API does not decide "late": it reports how long an open settlement has been open
+// (openForBlocks, vs the latest indexed height) and each slot's historical latency distribution
+// (`slots`); the client compares the two.
+
+export const SettlementStatusItem = Type.Object(
+  {
+    slotId: HeightString,
+    epochNumber: HeightString,
+    entitlementAmount: Type.String(),
+    denom: Type.String(),
+    epochCloseHeight: Nullable(HeightString),
+    settled: Type.Boolean(),
+    finalizedHeight: Nullable(HeightString),
+    finalizationReason: Nullable(Type.String()),
+    latencyBlocks: Nullable(HeightString),
+    openForBlocks: Nullable(HeightString),
+  },
+  { $id: 'SettlementStatusItem' },
+);
+
+export const SettlementSlotSummary = Type.Object(
+  {
+    slotId: HeightString,
+    settledCount: Type.Integer(),
+    openCount: Type.Integer(),
+    medianLatencyBlocks: Nullable(HeightString),
+    p90LatencyBlocks: Nullable(HeightString),
+  },
+  { $id: 'SettlementSlotSummary' },
+);
+
+export const SettlementStatusResponse = Type.Object(
+  {
+    data: Type.Array(SettlementStatusItem),
+    slots: Type.Array(SettlementSlotSummary),
+    page: PageInfoSchema,
+  },
+  { $id: 'SettlementStatusResponse' },
+);
+
+export const SettlementStatusQuery = Type.Object(
+  { limit: LIMIT, cursor: CURSOR, slotId: DIGITS, epoch: DIGITS },
+  { additionalProperties: false },
+);
+
+export interface SettlementStatusRowShape {
+  slotId: bigint;
+  epochNumber: bigint;
+  entitlementAmount: string;
+  denom: string;
+  epochCloseHeight: bigint | null;
+  settled: boolean;
+  finalizedHeight: bigint | null;
+  finalizationReason: string | null;
+  latencyBlocks: bigint | null;
+  openForBlocks: bigint | null;
+}
+
+export function toSettlementStatusItem(
+  r: SettlementStatusRowShape,
+): Static<typeof SettlementStatusItem> {
+  return {
+    slotId: r.slotId.toString(),
+    epochNumber: r.epochNumber.toString(),
+    entitlementAmount: r.entitlementAmount,
+    denom: r.denom,
+    epochCloseHeight: bigToString(r.epochCloseHeight),
+    settled: r.settled,
+    finalizedHeight: bigToString(r.finalizedHeight),
+    finalizationReason: r.finalizationReason,
+    latencyBlocks: bigToString(r.latencyBlocks),
+    openForBlocks: bigToString(r.openForBlocks),
+  };
+}
+
+export function toSettlementSlotSummary(r: {
+  slotId: bigint;
+  settledCount: bigint;
+  openCount: bigint;
+  medianLatencyBlocks: bigint | null;
+  p90LatencyBlocks: bigint | null;
+}): Static<typeof SettlementSlotSummary> {
+  return {
+    slotId: r.slotId.toString(),
+    settledCount: Number(r.settledCount),
+    openCount: Number(r.openCount),
+    medianLatencyBlocks: bigToString(r.medianLatencyBlocks),
+    p90LatencyBlocks: bigToString(r.p90LatencyBlocks),
   };
 }

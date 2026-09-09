@@ -14,6 +14,8 @@ export function searchResultHref(result: SearchResult): string {
       return `/accounts/${encodeURIComponent(result.address)}`;
     case 'coreslot':
       return `/coreslots/${encodeURIComponent(result.slotId)}`;
+    case 'epoch':
+      return `/rewards/epochs/${encodeURIComponent(result.epochNumber)}`;
   }
 }
 
@@ -27,6 +29,8 @@ export function searchResultKindLabel(result: SearchResult): string {
       return 'Account';
     case 'coreslot':
       return result.role ? `CoreSlot (${result.role})` : 'CoreSlot';
+    case 'epoch':
+      return 'Reward epoch';
   }
 }
 
@@ -40,5 +44,7 @@ export function searchResultPrimary(result: SearchResult): string {
       return result.address;
     case 'coreslot':
       return result.slotId;
+    case 'epoch':
+      return result.epochNumber;
   }
 }

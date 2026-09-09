@@ -19,6 +19,7 @@ import { CoreSlotLivenessSection } from './sections/CoreSlotLivenessSection';
 import { CoreSlotProposedBlocksSection } from './sections/CoreSlotProposedBlocksSection';
 import { CoreSlotAuthorityHistorySection } from './sections/CoreSlotAuthorityHistorySection';
 import { CoreSlotSettlementsSection } from './sections/CoreSlotSettlementsSection';
+import { CoreSlotParticipantsChart } from './sections/CoreSlotParticipantsChart';
 import { CoreSlotRewardsSection } from './sections/CoreSlotRewardsSection';
 import { CoreSlotRawSection } from './sections/CoreSlotRawSection';
 
@@ -196,6 +197,7 @@ export function CoreSlotDetail({
       {tab === 'rewards' ? (
         <>
           <CoreSlotSettlementsSection slotId={slotId} />
+          <CoreSlotParticipantsChart slotId={slotId} />
           <CoreSlotRewardsSection slotId={c.slotId} />
         </>
       ) : null}

@@ -2281,6 +2281,32 @@
                                 ]
                               }
                             }
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "epochNumber",
+                              "height"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "epoch"
+                                ]
+                              },
+                              "epochNumber": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "height": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              }
+                            }
                           }
                         ],
                         "title": "SearchResult"
@@ -6796,7 +6822,9 @@
                           "denom",
                           "height",
                           "txHash",
-                          "msgIndex"
+                          "msgIndex",
+                          "entitlementAmount",
+                          "recipientCount"
                         ],
                         "properties": {
                           "id": {
@@ -6840,6 +6868,26 @@
                             "type": "string"
                           },
                           "msgIndex": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "entitlementAmount": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "recipientCount": {
                             "anyOf": [
                               {
                                 "type": "integer"
@@ -6991,7 +7039,10 @@
                           "payoutCount",
                           "totalPaid",
                           "denom",
-                          "lastHeight"
+                          "lastHeight",
+                          "entitlementAmount",
+                          "epochCloseHeight",
+                          "latencyBlocks"
                         ],
                         "properties": {
                           "slotId": {
@@ -7065,9 +7116,315 @@
                             "pattern": "^\\d+$",
                             "description": "Decimal height/id as string",
                             "type": "string"
+                          },
+                          "entitlementAmount": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "epochCloseHeight": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "latencyBlocks": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "title": "SettlementItem"
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "limit": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mining/settlements/status": {
+      "get": {
+        "summary": "Every entitlement vs its finalization: settled, open, and for how long",
+        "tags": [
+          "mining"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "slotId",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "epoch",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "slots",
+                    "page"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "slotId",
+                          "epochNumber",
+                          "entitlementAmount",
+                          "denom",
+                          "epochCloseHeight",
+                          "settled",
+                          "finalizedHeight",
+                          "finalizationReason",
+                          "latencyBlocks",
+                          "openForBlocks"
+                        ],
+                        "properties": {
+                          "slotId": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "epochNumber": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "entitlementAmount": {
+                            "type": "string"
+                          },
+                          "denom": {
+                            "type": "string"
+                          },
+                          "epochCloseHeight": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "settled": {
+                            "type": "boolean"
+                          },
+                          "finalizedHeight": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "finalizationReason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "latencyBlocks": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "openForBlocks": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "title": "SettlementStatusItem"
+                      }
+                    },
+                    "slots": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "slotId",
+                          "settledCount",
+                          "openCount",
+                          "medianLatencyBlocks",
+                          "p90LatencyBlocks"
+                        ],
+                        "properties": {
+                          "slotId": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "settledCount": {
+                            "type": "integer"
+                          },
+                          "openCount": {
+                            "type": "integer"
+                          },
+                          "medianLatencyBlocks": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "p90LatencyBlocks": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "title": "SettlementSlotSummary"
                       }
                     },
                     "page": {
@@ -7185,6 +7542,9 @@
                         "totalPaid",
                         "denom",
                         "lastHeight",
+                        "entitlementAmount",
+                        "epochCloseHeight",
+                        "latencyBlocks",
                         "chunks",
                         "payouts"
                       ],
@@ -7260,6 +7620,40 @@
                           "pattern": "^\\d+$",
                           "description": "Decimal height/id as string",
                           "type": "string"
+                        },
+                        "entitlementAmount": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "epochCloseHeight": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "latencyBlocks": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "chunks": {
                           "type": "array",

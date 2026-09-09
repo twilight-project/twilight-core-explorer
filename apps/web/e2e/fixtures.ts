@@ -40,6 +40,8 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
   '/accounts/aggregate': null,
   '/supply': null,
   '/search': { data: [] },
+  // Status view: shape includes the per-slot latency summaries alongside the page.
+  '/mining/settlements/status': { data: [], slots: [], page: { limit: 25, nextCursor: null } },
   // Settlement detail is object-shaped; the smoke tier only needs it to render, so give it a
   // minimal settled settlement with one recipient.
   '/mining/settlements/1/62': {
@@ -49,6 +51,7 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
       releasedRemainder: '0', finalizedHeight: '22623', finalizeTxHash: 'ABCDEF',
       chunkCount: 1, payoutCount: 1, totalPaid: '10000000', denom: 'utwlt',
       lastHeight: '22623',
+      entitlementAmount: '10000000', epochCloseHeight: '22600', latencyBlocks: '23',
       chunks: [{ chunkIndex: '0', recipientCount: 1, chunkTotal: '10000000', height: '22608', txHash: 'ABCDEF' }],
       payouts: [{
         id: '1', slotId: '1', epochNumber: '62', chunkIndex: '0', payoutIndex: 0,

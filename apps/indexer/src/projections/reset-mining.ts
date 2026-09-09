@@ -4,7 +4,6 @@ export interface ResetMiningProjectionPrisma {
   miningSettlementChunk: { deleteMany(args?: unknown): Promise<unknown> };
   miningSettlementPayout: { deleteMany(args?: unknown): Promise<unknown> };
   miningSettlementFinalization: { deleteMany(args?: unknown): Promise<unknown> };
-  miningSettlementProjection: { deleteMany(args?: unknown): Promise<unknown> };
   projectionFailure: { deleteMany(args?: unknown): Promise<unknown> };
   projectionCursor: { deleteMany(args?: unknown): Promise<unknown> };
   $transaction<T>(fn: (tx: ResetMiningProjectionPrisma) => Promise<T>): Promise<T>;
@@ -22,7 +21,6 @@ export async function resetMiningProjections(
     await tx.miningSettlementChunk.deleteMany();
     await tx.miningSettlementPayout.deleteMany();
     await tx.miningSettlementFinalization.deleteMany();
-    await tx.miningSettlementProjection.deleteMany();
     await tx.projectionFailure.deleteMany({
       where: { projectionName: { in: [...MINING_PROJECTIONS] } },
     });

@@ -90,6 +90,10 @@ export function VerdictBlock() {
         ? `All ${risk.activeSlotCount} CoreSlots are signing;`
         : `${risk.healthySlotCount} of ${risk.activeSlotCount} CoreSlots are healthy;`,
     );
+    // The plain-English reason behind a non-ok halt-risk level, from the liveness projection.
+    if (risk.haltRiskReason && (riskTone === 'danger' || riskTone === 'warning')) {
+      sentenceParts.push(`${risk.haltRiskReason}.`);
+    }
   }
   if (latestEpoch) {
     const when = latestEpoch.blockTime ? ` ${formatRelativeTime(latestEpoch.blockTime)}` : '';

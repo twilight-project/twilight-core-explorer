@@ -540,6 +540,29 @@ export function useSlotSettlements(slotId: string) {
   });
 }
 
+export type SettlementStatusResponse = JsonOf<'/api/v1/mining/settlements/status'>;
+
+/**
+ * Expected vs settled: every (slot, epoch) an entitlement exists for, left-joined against the
+ * finalizations that happened, plus each slot's historical latency distribution. "Late" is a
+ * CLIENT judgment: openForBlocks compared against the slot's p90 latency — the server states
+ * only observations.
+ */
+export function useSettlementStatus(filter?: { slotId?: string | undefined }) {
+  const slotId = filter?.slotId;
+  return useInfiniteQuery({
+    queryKey: ['mining', 'settlement-status', slotId ?? 'all'],
+    queryFn: ({ pageParam }) =>
+      apiGet('/api/v1/mining/settlements/status', {
+        limit: LIST_PAGE,
+        cursor: pageParam,
+        ...(slotId !== undefined ? { slotId } : {}),
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
+  });
+}
+
 export function useSettlement(slotId: string, epoch: string) {
   return useQuery({
     queryKey: ['mining', 'settlement', slotId, epoch],

@@ -431,12 +431,29 @@ export class MockPrisma {
         }
         return args.take ? r.slice(0, args.take) : r;
       },
+      // Mirrors the payout-context groupBy: count of payout lines per (slotId, epochNumber).
+      groupBy: async (args = {}) => {
+        const pairs = args.where?.OR ?? [];
+        const match = (x) =>
+          pairs.length === 0 || pairs.some((c) => x.slotId === c.slotId && x.epochNumber === c.epochNumber);
+        const groups = new Map();
+        for (const x of this._payouts.filter(match)) {
+          const k = `${x.slotId}:${x.epochNumber}`;
+          const g = groups.get(k) ?? { slotId: x.slotId, epochNumber: x.epochNumber, _count: { _all: 0 } };
+          g._count._all += 1;
+          groups.set(k, g);
+        }
+        return [...groups.values()];
+      },
     };
 
     this.slotEntitlementProjection = {
       findMany: async (args = {}) => {
         let r = [...this._entitlements];
         const w = args.where ?? {};
+        if (w.OR) {
+          r = r.filter((e) => w.OR.some((c) => e.slotId === c.slotId && e.epochNumber === c.epochNumber));
+        }
         if (w.slotId !== undefined) {
           if (typeof w.slotId === 'object' && w.slotId !== null && w.slotId.lt !== undefined) {
             r = r.filter((e) => e.slotId < w.slotId.lt);
@@ -565,6 +582,11 @@ export class MockPrisma {
         const pays = this._payouts.filter(
           (x) => x.slotId === p.slotId && x.epochNumber === p.epochNumber,
         );
+        const ent = this._entitlements.find(
+          (e) => e.slotId === p.slotId && e.epochNumber === p.epochNumber,
+        ) ?? null;
+        const epochRow = this._epochs.find((e) => e.epochNumber === p.epochNumber) ?? null;
+        const finAt = fin ? (fin.finalizedHeight ?? fin.height) : null;
         return {
           ...p,
           finalizationReason: fin?.finalizationReason ?? null,
@@ -575,6 +597,10 @@ export class MockPrisma {
             (c) => c.slotId === p.slotId && c.epochNumber === p.epochNumber).length),
           payoutCount: BigInt(pays.length),
           totalPaid: pays.reduce((a, x) => a + BigInt(x.amount), 0n).toString(),
+          entitlementAmount: ent?.entitlementAmount ?? null,
+          epochCloseHeight: epochRow?.height ?? null,
+          latencyBlocks:
+            finAt !== null && epochRow?.height !== undefined ? finAt - epochRow.height : null,
         };
       });
 
@@ -596,6 +622,77 @@ export class MockPrisma {
           ? descBig(a.epochNumber, b.epochNumber)
           : (a.slotId < b.slotId ? -1 : 1));
       return rows;
+    }
+
+    // Settlement status: expected (entitlements) vs settled (finalizations). The percentile
+    // summary query ALSO joins SlotEntitlementProjection, so it must be excluded here (it has
+    // its own branch below).
+    if (sqlText.includes('FROM "SlotEntitlementProjection" ent') && !sqlText.includes('percentile_cont')) {
+      const tip = this._blocks.reduce((m, b) => (b.height > m ? b.height : m), 0n);
+      let rows = this._entitlements.map((ent) => {
+        const fin = this._finalizations
+          .filter((f) => f.slotId === ent.slotId && f.epochNumber === ent.epochNumber)
+          .sort((a, b) => (a.height > b.height ? -1 : 1))[0] ?? null;
+        const epochRow = this._epochs.find((e) => e.epochNumber === ent.epochNumber) ?? null;
+        const finAt = fin ? (fin.finalizedHeight ?? fin.height) : null;
+        return {
+          slotId: ent.slotId,
+          epochNumber: ent.epochNumber,
+          entitlementAmount: ent.entitlementAmount,
+          denom: ent.denom,
+          epochCloseHeight: epochRow?.height ?? null,
+          settled: fin !== null,
+          finalizedHeight: finAt,
+          finalizationReason: fin?.finalizationReason ?? null,
+          latencyBlocks:
+            finAt !== null && epochRow?.height !== undefined && epochRow !== null
+              ? finAt - epochRow.height
+              : null,
+          openForBlocks:
+            fin === null && epochRow !== null ? tip - epochRow.height : null,
+        };
+      });
+      if (values[0] !== null && values[0] !== undefined) rows = rows.filter((r) => r.slotId === values[0]);
+      if (values[2] !== null && values[2] !== undefined) rows = rows.filter((r) => r.epochNumber === values[2]);
+      rows.sort((a, b) =>
+        a.epochNumber !== b.epochNumber
+          ? descBig(a.epochNumber, b.epochNumber)
+          : (a.slotId < b.slotId ? -1 : 1));
+      return rows;
+    }
+
+    // Per-slot latency summaries (percentile aggregate over the same join).
+    if (sqlText.includes('percentile_cont')) {
+      const groups = new Map();
+      for (const ent of this._entitlements) {
+        const fin = this._finalizations
+          .filter((f) => f.slotId === ent.slotId && f.epochNumber === ent.epochNumber)
+          .sort((a, b) => (a.height > b.height ? -1 : 1))[0] ?? null;
+        const epochRow = this._epochs.find((e) => e.epochNumber === ent.epochNumber) ?? null;
+        const finAt = fin ? (fin.finalizedHeight ?? fin.height) : null;
+        const g = groups.get(ent.slotId) ?? { slotId: ent.slotId, settled: 0n, open: 0n, lats: [] };
+        if (fin) g.settled += 1n; else g.open += 1n;
+        if (finAt !== null && epochRow) g.lats.push(Number(finAt - epochRow.height));
+        groups.set(ent.slotId, g);
+      }
+      const pct = (arr, q) => {
+        if (arr.length === 0) return null;
+        const sorted = [...arr].sort((a, b) => a - b);
+        const idx = (sorted.length - 1) * q;
+        const lo = Math.floor(idx);
+        const hi = Math.ceil(idx);
+        const v = sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+        return BigInt(Math.round(v));
+      };
+      return [...groups.values()]
+        .sort((a, b) => (a.slotId < b.slotId ? -1 : 1))
+        .map((g) => ({
+          slotId: g.slotId,
+          settledCount: g.settled,
+          openCount: g.open,
+          medianLatencyBlocks: pct(g.lats, 0.5),
+          p90LatencyBlocks: pct(g.lats, 0.9),
+        }));
     }
 
     if (sqlText.includes('"MiningSettlementPayout"') && !sqlText.includes('WITH pairs AS')) {

@@ -45,6 +45,7 @@ export function SettlementDetail({ slotId, epoch }: { slotId: string; epoch: str
   return (
     <DetailShell
       title={`Settlement · slot ${slotId} · epoch ${epoch}`}
+      description="How one epoch's entitlement was paid out — every chunk and every recipient line."
       backHref={`/coreslots/${encodeURIComponent(slotId)}`}
       backLabel={`CoreSlot ${slotId}`}
     >
@@ -55,8 +56,23 @@ export function SettlementDetail({ slotId, epoch }: { slotId: string; epoch: str
           const remainder = s.releasedRemainder
             ? formatAmount(s.releasedRemainder, s.denom)
             : null;
+          const pool = s.entitlementAmount ? formatAmount(s.entitlementAmount, s.denom) : null;
           return (
             <div className="space-y-6">
+              {/* The split line — "why these amounts", stated before the instrument panel. */}
+              <p className="text-[15px] leading-relaxed text-text-secondary">
+                {pool
+                  ? `Entitlement of ${pool.display} ${pool.symbol}`
+                  : 'An entitlement (not observed by the indexer)'}
+                {`, split across ${s.payoutCount} recipient${s.payoutCount === 1 ? '' : 's'} — `}
+                {`${paid.display} ${paid.symbol} paid out`}
+                {remainder && s.releasedRemainder !== '0'
+                  ? `, ${remainder.display} ${remainder.symbol} released to the operator as remainder.`
+                  : '.'}
+                {s.latencyBlocks !== null
+                  ? ` Settled ${s.latencyBlocks} blocks after the epoch closed.`
+                  : ''}
+              </p>
               <Card>
                 <CardHeader icon={Landmark} iconTone="rewards" title="Settlement" />
                 <CardBody>

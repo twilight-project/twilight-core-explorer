@@ -52,7 +52,36 @@ export function RewardsReceivedSection({ address }: { address: string }) {
       ),
     },
     // Epoch ordinals render verbatim — formatHeight is for block heights, not epoch numbers.
-    { header: 'Epoch', mono: true, cell: (p) => p.epochNumber },
+    // The epoch links to the settlement that paid it: the payout's evidence trail.
+    {
+      header: 'Epoch',
+      mono: true,
+      cell: (p) => (
+        <Link
+          href={`/mining/settlements/${encodeURIComponent(p.slotId)}/${encodeURIComponent(p.epochNumber)}`}
+          className="text-primary hover:text-primary-light"
+        >
+          {p.epochNumber}
+        </Link>
+      ),
+    },
+    {
+      header: 'Why this amount',
+      cell: (p) => {
+        // "entitlement X, split across K recipients" — both from chain rows; when the
+        // entitlement was never observed, say so rather than leaving a blank.
+        if (p.entitlementAmount === null && p.recipientCount === null) {
+          return <span className="text-text-muted">entitlement not observed</span>;
+        }
+        const pool = p.entitlementAmount ? formatAmount(p.entitlementAmount, p.denom) : null;
+        return (
+          <span className="text-text-secondary">
+            {pool ? `of ${pool.display} ${pool.symbol}` : 'of an unobserved pool'}
+            {p.recipientCount !== null ? ` ÷ ${p.recipientCount} recipients` : ''}
+          </span>
+        );
+      },
+    },
     { header: 'Height', mono: true, cell: (p) => formatHeight(p.height) },
     {
       header: 'Tx',
@@ -98,7 +127,7 @@ export function RewardsReceivedSection({ address }: { address: string }) {
           columns={columns}
           rowKey={(p) => p.id}
           context="Rewards received"
-          emptyMessage="No settlement rewards received by this address."
+          emptyMessage="No settlement has paid this address."
         />
       </CardBody>
     </Card>

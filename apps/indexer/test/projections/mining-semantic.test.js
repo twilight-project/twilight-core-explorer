@@ -247,9 +247,6 @@ class MockMiningPrisma {
       upsert: async (args) => upsertBy(this.finalizations, 'sourceEventId', args),
       deleteMany: async () => { this.finalizations.length = 0; },
     };
-    this.miningSettlementProjection = {
-      deleteMany: async () => { this.settlements.length = 0; },
-    };
     this.projectionFailure = {
       upsert: async (args) => {
         const i = this.failures.findIndex((f) => f.failureKey === args.where.failureKey);

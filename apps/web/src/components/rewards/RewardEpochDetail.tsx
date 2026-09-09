@@ -58,7 +58,12 @@ export function RewardEpochDetail({ epoch }: { epoch: string }) {
   ];
 
   return (
-    <DetailShell title={`Epoch ${e.epochNumber}`} backHref="/economy" backLabel="Economy">
+    <DetailShell
+      title={`Epoch ${e.epochNumber}`}
+      description="What this reward epoch emitted, and each slot's entitlement with its settlement."
+      backHref="/economy"
+      backLabel="Economy"
+    >
       <Card>
         <CardBody>
           <RewardCaveat>

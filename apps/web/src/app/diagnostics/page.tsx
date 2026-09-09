@@ -29,6 +29,8 @@ export default function DiagnosticsPage() {
     : undefined;
   const decodeCount = decodeFailures.data ? decodeFailures.data.data.length : undefined;
   const indexerStatus = status.data?.data.indexer?.status;
+  const build = status.data?.data.build;
+  const chainId = status.data?.data.chainId;
   const dash = (pending: boolean) => (pending ? '…' : '—');
 
   return (
@@ -74,6 +76,36 @@ export default function DiagnosticsPage() {
           sub="latest unresolved"
         />
       </div>
+
+      {/* Provenance: what /status already returns, rendered — a read-only product's provenance
+          is part of its trust. */}
+      <Card>
+        <CardHeader icon={Layers} iconTone="infra" title="Provenance" />
+        <CardBody>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-5">
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted">Chain</div>
+              <div className="mt-1 font-mono text-text">{chainId ?? dash(status.isPending)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted">Version</div>
+              <div className="mt-1 font-mono text-text">{build?.version ?? dash(status.isPending)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted">Git sha</div>
+              <div className="mt-1 font-mono text-text">{build?.gitSha ? build.gitSha.slice(0, 12) : dash(status.isPending)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted">Built at</div>
+              <div className="mt-1 font-mono text-text">{build?.builtAt ?? dash(status.isPending)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-text-muted">Environment</div>
+              <div className="mt-1 font-mono text-text">{build?.environment ?? dash(status.isPending)}</div>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader icon={Activity} iconTone="infra" title="Projections" />

@@ -759,10 +759,9 @@ model AccountBalanceCurrent {
 // Two categories, kept strictly separate (same discipline as rewards above):
 //   - Rebuildable semantic rows (mining_semantic_v1), derived only from generic
 //     Message/Event/Transaction rows: MiningSettlementChunk, MiningSettlementFinalization.
-//   - Observed-sample rows (mining_settlement_state_v1): MiningSettlementProjection.
-//     Settlement CREATION is silent — x/mining's EndBlocker emits no events at all — so
-//     current settlement state can only be read back from the chain and is honestly tied to
-//     the height/clock it was sampled at.
+//   (A planned observed-sample model, MiningSettlementProjection, was dead schema — defined
+//   but written by no projector — and was deleted in Phase 14a. Settlement state derives from
+//   the rebuildable rows; a future clock/state projector will bring its own model.)
 // ---------------------------------------------------------------------------
 
 // Rebuildable: one row per accepted MsgSubmitSettlementChunk.
@@ -820,43 +819,6 @@ model MiningSettlementFinalization {
   @@index([slotId, epochNumber])
 }
 
-// Observed sample of a settlement's current state, keyed (slotId, epochNumber).
-// Most of these fields are DERIVED by the chain (remainingAmount, ceiling, deadlineClock,
-// permissionlessFinalizationNow) and are not stored on-chain, so they are only ever true as
-// of sampledAtHeight / sampledSettlementClock. Note the settlement clock is NOT a block
-// height: it only ticks while reward release is enabled.
-model MiningSettlementProjection {
-  id                             BigInt   @id @default(autoincrement())
-  slotId                         BigInt
-  epochNumber                    BigInt
-  distributionModeVersion        BigInt?
-  settlementMode                 String?
-  settlementParamsVersion        BigInt?
-  nextChunkIndex                 BigInt?
-  finalized                      Boolean  @default(false)
-  finalizedHeight                BigInt?
-  finalizationReason             String?
-  entitlementAmount              String?
-  releasedAmount                 String?
-  remainingAmount                String?
-  participantDistributionCeiling String?
-  payoutAddress                  String?
-  createdSettlementClock         BigInt?
-  deadlineClock                  BigInt?
-  permissionlessFinalizationNow  Boolean?
-  sampledAtHeight                BigInt
-  sampledSettlementClock         BigInt?
-  rawSnapshotJson                Json?
-  createdAt                      DateTime @default(now())
-  updatedAtDb                    DateTime @updatedAt
-
-  @@unique([slotId, epochNumber])
-  @@index([slotId])
-  @@index([epochNumber])
-  @@index([finalized])
-  @@index([payoutAddress])
-  @@index([sampledAtHeight])
-}
 
 // ---------------------------------------------------------------------------
 // CoreSlot V2 structural state (devnet-2): settlement address + selection policy.

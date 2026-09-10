@@ -8,10 +8,11 @@ import { formatHeight } from '@/lib/format/height';
 import { formatRelativeTime } from '@/lib/format/time';
 import { statusTone, type BadgeTone } from '@/lib/format/status';
 
-// Redesign: ONE verdict line replaces the 8-KPI grid + 5-item freshness strip. The verdict is
-// DERIVED FROM REAL health (same logic as the old OverviewHeader pill — never hardcoded), the
-// sentence carries the numbers inside prose, and the full freshness grid hides behind a
-// disclosure for the operators who want it.
+// Overview header, quiet by request (14a feedback): a plain "Overview" h1 with a small status
+// chip — a dot and one word — instead of a shouting verdict sentence. The verdict is still
+// DERIVED FROM REAL health (never hardcoded); the sentence and freshness grid live behind the
+// disclosure for whoever wants them. NOTE 'idle' is a HEALTHY indexer state (between ticks) —
+// health is judged by freshness (synced), not by the status word.
 const DOT: Record<BadgeTone, string> = {
   success: 'bg-accent-green shadow-[0_0_0_4px_rgba(61,220,151,.15)]',
   warning: 'bg-accent-yellow shadow-[0_0_0_4px_rgba(255,181,112,.15)]',
@@ -68,12 +69,14 @@ export function VerdictBlock() {
   let verdict: { label: string; tone: BadgeTone };
   if (!indexer) {
     verdict = { label: status.isError ? 'Status unavailable' : 'Loading…', tone: 'neutral' };
-  } else if (indexerTone !== 'success' || !synced) {
-    verdict = { label: synced ? `Indexer ${indexer.status}` : 'Indexer catching up', tone: 'warning' };
+  } else if (indexer.error !== null || indexerTone === 'danger') {
+    verdict = { label: 'Indexer error', tone: 'danger' };
+  } else if (!synced) {
+    verdict = { label: 'Catching up', tone: 'warning' };
   } else if (riskTone === 'danger' || riskTone === 'warning') {
     verdict = { label: `Halt risk: ${risk?.haltRiskLevel}`, tone: riskTone };
   } else {
-    verdict = { label: 'Network is healthy', tone: 'success' };
+    verdict = { label: 'Healthy', tone: 'success' };
   }
 
   const sentenceParts: string[] = [];
@@ -102,15 +105,13 @@ export function VerdictBlock() {
 
   return (
     <div className="flex flex-col gap-3.5">
-      <div className="flex items-center gap-3">
-        <span aria-hidden="true" className={clsx('h-2.5 w-2.5 rounded-full', DOT[verdict.tone])} />
-        <h1 className="font-serif text-3xl tracking-tight text-text">{verdict.label}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="font-serif text-3xl tracking-tight text-text">Overview</h1>
+        <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-card px-3 py-1 text-sm text-text-secondary">
+          <span aria-hidden="true" className={clsx('h-2 w-2 rounded-full', DOT[verdict.tone])} />
+          {verdict.label}
+        </span>
       </div>
-      {sentenceParts.length > 0 ? (
-        <p className="max-w-2xl text-[15px] leading-relaxed text-text-secondary">
-          {sentenceParts.join(' ')}
-        </p>
-      ) : null}
       <button
         type="button"
         aria-expanded={open}
@@ -126,7 +127,13 @@ export function VerdictBlock() {
         Indexer &amp; projection details
       </button>
       {open ? (
-        <div className="grid max-w-4xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-card-border bg-card-border sm:grid-cols-3 lg:grid-cols-5">
+        <>
+          {sentenceParts.length > 0 ? (
+            <p className="max-w-2xl text-[15px] leading-relaxed text-text-secondary">
+              {sentenceParts.join(' ')}
+            </p>
+          ) : null}
+          <div className="grid max-w-4xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-card-border bg-card-border sm:grid-cols-3 lg:grid-cols-5">
           <FreshCell
             label="Chain tip"
             value={indexer ? formatHeight(indexer.latestChainHeight) : '…'}
@@ -156,7 +163,8 @@ export function VerdictBlock() {
             sub={risk ? `${risk.availableSlotCount}/${risk.activeSlotCount} available` : undefined}
             tone={riskTone}
           />
-        </div>
+          </div>
+        </>
       ) : null}
     </div>
   );

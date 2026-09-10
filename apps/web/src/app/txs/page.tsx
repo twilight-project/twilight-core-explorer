@@ -20,13 +20,7 @@ export default function TxsPage({
   const typeGroup = coerceStatus(oneParam(searchParams.type), TX_TYPE_GROUP_OPTIONS);
   return (
     <div className="flex flex-col gap-7">
-      <div className="flex flex-col gap-2.5">
-        <h1 className="font-serif text-3xl text-text">Transactions</h1>
-        <p className="max-w-2xl text-[15px] text-text-secondary">
-          Every indexed transaction, newest first. Filter by success/failure and by message-type
-          group (CoreSlot / Mining / Rewards / Bank).
-        </p>
-      </div>
+      <h1 className="font-serif text-3xl text-text">Transactions</h1>
       <ExplorerTabs />
       <TxsAggregateStrip />
       <div className="flex flex-col gap-3">

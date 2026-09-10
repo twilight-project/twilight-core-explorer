@@ -11,13 +11,7 @@ export const metadata = { title: 'Blocks' };
 export default function BlocksPage() {
   return (
     <div className="flex flex-col gap-7">
-      <div className="flex flex-col gap-2.5">
-        <h1 className="font-serif text-3xl text-text">Blocks</h1>
-        <p className="max-w-2xl text-[15px] text-text-secondary">
-          Every indexed block, newest first — height, age, transaction count, and the CoreSlot
-          that proposed it.
-        </p>
-      </div>
+      <h1 className="font-serif text-3xl text-text">Blocks</h1>
       <ExplorerTabs />
       <BlocksAggregateStrip />
       <BlockCadencePanel />

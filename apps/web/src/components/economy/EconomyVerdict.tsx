@@ -40,6 +40,7 @@ export function EconomyVerdict() {
             <span className="font-mono text-text-secondary">{total.display}</span> {total.symbol}
           </>
         ) : null}
+        .
       </p>
     </div>
   );

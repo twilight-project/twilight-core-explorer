@@ -12,10 +12,8 @@ export default function AccountsPage() {
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-2.5">
         <h1 className="font-serif text-3xl text-text">Observed accounts</h1>
-        <p className="max-w-2xl text-[15px] text-text-secondary">
-          Addresses seen by the indexer — first/last activity, transaction count, and kind. An
-          observation log, not a holdings ranking; balances are per-address samples on each
-          account&apos;s page.
+        <p className="max-w-2xl text-sm text-text-muted">
+          An observation log, not a holdings ranking — ordering never implies balance.
         </p>
       </div>
       <ExplorerTabs />

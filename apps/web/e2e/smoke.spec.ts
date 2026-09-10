@@ -57,35 +57,42 @@ for (const { path, h1 } of ROUTES) {
   });
 }
 
-test('desktop: the header search is a real always-visible input with a "/" shortcut', async ({ page, isMobile }) => {
+test('desktop: the ⌘K command search focuses, resolves `slot N`, and submits to /search', async ({ page, isMobile }) => {
   test.skip(!!isMobile, 'desktop only');
   await mockApi(page);
   await page.goto('/');
   await page.getByText(/blocks behind chain tip/).waitFor();
-  // Redesign: no overlay — a real input lives in the header row at all times.
   const input = page.getByRole('searchbox').first();
   await expect(input).toBeVisible();
   // The regression this guards: the old inline slot was ~50px wide — typing was invisible.
   const width = (await input.boundingBox())?.width ?? 0;
-  expect(width).toBeGreaterThan(250);
-  // "/" focuses it from anywhere (skipped while an editable element has focus).
-  await page.keyboard.press('/');
+  expect(width).toBeGreaterThan(150);
+  // ⌘K / Ctrl+K focuses from anywhere.
+  await page.keyboard.press('ControlOrMeta+k');
   await expect(input).toBeFocused();
+  // `slot N` short-circuits straight to the slot page.
+  await input.fill('slot 3');
+  await input.press('Enter');
+  await page.waitForURL(/\/coreslots\/3/);
+  // Anything else goes to /search.
   await input.fill('2C859B3C9B9DBFCD0C484FDE34C81D0810BE75759867E98654AF2AFA2984DCCB');
   await input.press('Enter');
   await page.waitForURL(/\/search\?q=/);
 });
 
-test('mobile: the hamburger disclosure opens the compact nav', async ({ page, isMobile }) => {
-  test.skip(!isMobile, 'mobile project only');
+test('chrome: status strip + mode switch are present on every viewport', async ({ page }) => {
   await mockApi(page);
   await page.goto('/');
-  const toggle = page.getByRole('button', { name: 'Menu' });
-  await expect(toggle).toBeVisible();
-  await toggle.click();
-  const nav = page.getByRole('navigation', { name: 'Primary (compact)' });
-  await expect(nav).toBeVisible();
-  await expect(nav.getByRole('link', { name: /blocks/i })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(nav).not.toBeVisible();
+  // Status strip: chain id in mint, indexed-ago on the right.
+  await expect(page.getByText('twilight-devnet-1').first()).toBeVisible();
+  await expect(page.getByText(/indexed .*ago|indexed …/).first()).toBeVisible();
+  // Mode switch: both segments, Chain default without a linked slot.
+  const modeGroup = page.getByRole('group', { name: 'Mode' });
+  await expect(modeGroup.getByRole('link', { name: 'My node' })).toBeVisible();
+  await expect(modeGroup.getByRole('link', { name: 'Chain' })).toBeVisible();
+  // Chain sub-nav renders its four destinations.
+  const nav = page.getByRole('navigation', { name: 'Primary' });
+  for (const label of ['Blocks', 'Transactions', 'Validators', 'Economy']) {
+    await expect(nav.getByRole('link', { name: label })).toBeVisible();
+  }
 });

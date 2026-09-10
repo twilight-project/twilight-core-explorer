@@ -13,16 +13,16 @@
      unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
      its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
      if a face fails to load. */
-  /* Display role: Inter (user feedback: keep the type simple — the Instrument Serif display
-     face is retired). Hierarchy comes from size/weight/tracking, not a second family. */
-  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter,
-    sans-serif;
-  --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Roboto Mono', monospace;
-  /* Hero-numeral role (KPI/stat values). Mono by default — operator honesty: heights and amounts
+  /* Control-room pair: Instrument Sans for UI + headings, Fira Code for every number, hash,
+     address, caption and label. Hierarchy comes from size/weight/tracking, not extra families. */
+  --font-serif: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI,
+    Roboto, sans-serif;
+  --font-mono: var(--font-fira-code), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Fira Code', monospace;
+  /* Hero-numeral role (KPI/stat values). Mono — operator honesty: heights and amounts
      stay monospaced so digits align and cannot be misread. */
-  --font-metric: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --font-metric: var(--font-fira-code), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
   /* KPI category legend. Every category hue except violet already exists as a per-theme --accent-*
      (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. Violet has
@@ -30,51 +30,54 @@
   --accent-violet: 167 139 250;
 }
 
-/* Dark — the default operator console: warm gold on a near-black ground. */
+/* Dark — the Control Room: mint on ink (primary deliverable of the control-room handoff).
+   Handoff hexes mapped onto the EXISTING variable names so every component class keeps working:
+   bg #0E1013 · bg-deep #0A0C0E (code/search/status strip → --background-secondary) ·
+   panel #14171B (→ --card) · line #22262C (→ --card-border/--border) · line-soft #1A1E23
+   (→ --card-hover, row dividers) · line-strong #2C3138 (→ --border-light) · mint #5EEAD4
+   (→ --primary/--accent-green: accent, healthy, links) · red #FB7185 · amber #FBBF24. */
 [data-theme='dark'] {
-  --page: 10 8 5;
-  --background: 10 8 5;
-  --background-secondary: 15 13 9;
-  --background-tertiary: 28 24 16;
-  --background-primary: 6 5 3;
+  --page: 14 16 19;
+  --background: 14 16 19;
+  --background-secondary: 10 12 14;
+  --background-tertiary: 34 38 44;
+  --background-primary: 10 12 14;
 
-  --card: 22 19 13;
-  --card-hover: 28 24 16;
-  --card-border: 38 34 27;
+  --card: 20 23 27;
+  --card-hover: 26 30 35;
+  --card-border: 34 38 44;
 
-  --primary: 245 197 66;
-  --primary-light: 255 215 102;
-  --primary-dark: 200 158 46;
+  --primary: 94 234 212;
+  --primary-light: 153 246 228;
+  --primary-dark: 45 212 191;
 
-  --accent-blue: 78 163 255;
-  --accent-orange: 255 154 61;
-  --accent-yellow: 255 181 112;
-  --accent-green: 61 220 151;
-  --accent-red: 255 107 107;
+  --accent-blue: 125 211 252;
+  --accent-orange: 251 146 60;
+  --accent-yellow: 251 191 36;
+  --accent-green: 94 234 212;
+  --accent-red: 251 113 133;
 
-  --accent-gold: 245 197 66;
-  --accent-gold-light: 255 215 102;
-  --accent-gold-dark: 200 158 46;
-  --accent-amber: 255 181 112;
-  --accent-burgundy: 40 24 12;
+  --accent-gold: 94 234 212;
+  --accent-gold-light: 153 246 228;
+  --accent-gold-dark: 45 212 191;
+  --accent-amber: 251 191 36;
+  --accent-burgundy: 19 41 37;
 
-  --text: 233 234 242;
-  --text-secondary: 201 202 214;
-  /* WCAG 1.4.3: ~7:1 on the warm-black --background. */
-  --text-muted: 154 157 180;
+  --text: 230 232 235;
+  --text-secondary: 195 200 206;
+  /* WCAG 1.4.3: ≈5.9:1 on the ink --background. */
+  --text-muted: 139 145 153;
 
-  --border: 38 34 27;
-  --border-light: 54 48 38;
+  --border: 34 38 44;
+  --border-light: 44 49 56;
 
-  /* expressive — balanced elevation, bordered, serif display, MONO numerals (operator honesty) */
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
-  --display-tracking: -0.01em;
+  /* ruled-ledger shape language: tight radii (4/6/8/10 per handoff), hairlines over shadows */
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --display-tracking: -0.025em;
   --card-border-width: 1px;
-  /* display face — the :root Instrument serif (14a): the product's identity no longer changes
-     with the theme toggle. --font-metric inherits the :root mono default. */
 }
 
 /* Light — the same console on paper. Picked automatically for first-time visitors whose OS prefers
@@ -82,23 +85,23 @@
    pairs are AA-verified against both --background and --card by theme-tokens.test.ts — keep them
    passing when retuning. */
 [data-theme='light'] {
-  --page: 250 249 245;
-  --background: 250 249 245;
-  --background-secondary: 243 241 234;
-  --background-tertiary: 232 229 219;
+  --page: 246 248 248;
+  --background: 246 248 248;
+  --background-secondary: 238 241 241;
+  --background-tertiary: 224 230 230;
   --background-primary: 255 255 255;
 
   --card: 255 255 255;
-  --card-hover: 248 246 240;
-  --card-border: 214 209 196;
+  --card-hover: 242 246 245;
+  --card-border: 209 216 216;
 
-  /* Ink-gold: the warm-gold identity carried at text-safe depth. Status/brand text also sits on
-     10%-tint surfaces (badges, the lag banner) over this paper ground, which RAISES the effective
-     background — every pair below clears AA on the tint blend too (guarded by theme-tokens.test.ts;
-     the live-browser axe run caught the first tuning at 4.48:1 on exactly that blend). */
-  --primary: 122 96 20;
-  --primary-light: 102 80 16;
-  --primary-dark: 87 68 14;
+  /* Ink-teal: the mint identity carried at text-safe depth. Status/brand text also sits on
+     10%-tint surfaces (badges, the lag banner) over this ground, which RAISES the effective
+     background — every pair below must clear AA on the tint blend too (guarded by
+     theme-tokens.test.ts). */
+  --primary: 13 110 100;
+  --primary-light: 17 94 89;
+  --primary-dark: 19 78 74;
 
   --accent-blue: 29 100 189;
   --accent-orange: 180 83 9;
@@ -106,26 +109,26 @@
   --accent-green: 13 107 76;
   --accent-red: 185 28 28;
 
-  --accent-gold: 122 96 20;
-  --accent-gold-light: 102 80 16;
-  --accent-gold-dark: 87 68 14;
+  --accent-gold: 13 110 100;
+  --accent-gold-light: 17 94 89;
+  --accent-gold-dark: 19 78 74;
   --accent-amber: 138 90 5;
-  --accent-burgundy: 240 231 214;
+  --accent-burgundy: 222 238 235;
 
-  --text: 26 26 31;
-  --text-secondary: 68 70 80;
-  /* WCAG 1.4.3: ≈5.7:1 on the paper --background. */
-  --text-muted: 96 99 112;
+  --text: 24 28 30;
+  --text-secondary: 62 70 74;
+  /* WCAG 1.4.3: ≈5.7:1 on the --background. */
+  --text-muted: 92 101 106;
 
-  --border: 214 209 196;
-  --border-light: 196 190 175;
+  --border: 209 216 216;
+  --border-light: 187 197 197;
 
-  /* expressive — the console shape language on paper: bordered cards, soft warm shadow */
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
-  --display-tracking: -0.01em;
+  /* the ledger shape language on paper: hairlines, tight radii */
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+  --shadow-card: 0 0 0 1px rgba(20, 32, 30, 0.05);
+  --display-tracking: -0.025em;
   --card-border-width: 1px;
 }
 
@@ -197,6 +200,33 @@ html {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--border-light));
+}
+
+/* Status-strip cursor: a steady 1.2s step blink (control-room handoff). */
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.animate-cursor-blink {
+  animation: cursor-blink 1.2s steps(1) infinite;
+}
+
+/* New ledger rows fade in from a mint tint (600ms), per the handoff's live-prepend note. */
+@keyframes ledger-flash {
+  0% {
+    background-color: rgb(var(--primary) / 0.12);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.animate-ledger-flash {
+  animation: ledger-flash 600ms ease-out 1;
 }
 
 /* Skeleton shimmer used by loading states */

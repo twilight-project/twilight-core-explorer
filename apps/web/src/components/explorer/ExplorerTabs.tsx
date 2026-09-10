@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
-import { EXPLORER_LINKS } from '@/components/Header';
+const EXPLORER_LINKS = [
+  { label: 'Blocks', href: '/blocks' },
+  { label: 'Transactions', href: '/txs' },
+  { label: 'Accounts', href: '/accounts' },
+];
 
 // The Explorer destination's three streams as a tab row shared by /blocks, /txs and /accounts —
 // the redesign's replacement for the removed header dropdown. Route-driven (usePathname), same

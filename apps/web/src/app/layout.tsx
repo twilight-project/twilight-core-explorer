@@ -1,26 +1,26 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Roboto_Mono } from 'next/font/google';
+import { Fira_Code, Instrument_Sans } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { StatusStrip } from '@/components/StatusStrip';
 import { GlobalStatusBanner } from '@/components/freshness/GlobalStatusBanner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
 import './globals.css';
 
-// `dark` is the default theme — the warm-gold
-// "Twilight Console" look. `legacy` is opt-in via env.
+// `dark` (the mint-on-ink Control Room) is the default theme; `light` is its paper counterpart.
 const UI_THEME = (process.env.NEXT_PUBLIC_UI_THEME ?? 'dark').toLowerCase();
 const theme: 'dark' | 'light' = UI_THEME === 'light' ? 'light' : 'dark';
 
 // Faces are bound to UNIQUE css vars (not the role names). globals.css maps the semantic roles
-// (--font-sans / --font-serif / --font-mono) onto these, so loading a face and assigning it to a
-// role stay independent — which is what lets a theme repoint its display face with one CSS line.
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-roboto-mono' });
-
-// One family for everything except numerals: Inter for body AND display (user feedback: keep the
-// type simple — the serif display face is retired), Roboto Mono for heights/hashes/amounts.
+// (--font-sans / --font-serif / --font-mono / --font-metric) onto these. Control-room pair:
+// Instrument Sans for UI + headings, Fira Code for every number, hash, address and caption.
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin'],
+  variable: '--font-instrument-sans',
+});
+const firaCode = Fira_Code({ subsets: ['latin'], variable: '--font-fira-code' });
 
 export const metadata: Metadata = {
   // `%s` is filled by each route's `metadata.title`; routes without one fall back to `default`.
@@ -39,14 +39,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       data-theme={theme}
-      className={`${inter.variable} ${robotoMono.variable}`}
+      className={`${instrumentSans.variable} ${firaCode.variable}`}
     >
       <body className="bg-background text-text">
-        {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults.
+        {/* Apply the persisted brand theme before paint (no FOUC); overrides SSR defaults.
             Also migrates any theme id stored before the set was reduced to dark/light, so a stale
             value cannot leave the page with no palette. With no persisted choice, an OS light-mode
-            preference selects the light theme — an
-            explicit toggle pick always wins thereafter. */}
+            preference selects the light theme — an explicit toggle pick always wins thereafter. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
@@ -62,6 +61,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </a>
         <div className="min-h-screen bg-background flex flex-col">
           <Providers>
+            <StatusStrip />
             <Header />
             <GlobalStatusBanner />
             <main
@@ -69,7 +69,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               tabIndex={-1}
               // No focus:outline-none — the global :focus-visible ring shows where focus lands after
               // "Skip to main content" is activated, so keyboard users see the destination (PR #40).
-              className="flex-1 w-full lg:w-[1432px] lg:mx-auto px-4 sm:px-6 lg:px-[156px] pt-6 pb-6 lg:pb-12"
+              className="mx-auto w-full max-w-[1200px] flex-1 px-5 pb-20 pt-8"
             >
               {children}
             </main>

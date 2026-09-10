@@ -10,6 +10,8 @@ const ROUTES: { path: string; h1: RegExp }[] = [
   // `/` routes per mode (Chain without a linked slot); the chain verdict states the answer.
   { path: '/', h1: /network is healthy|blocks behind|coreslots down|chain/i },
   { path: '/chain', h1: /network is healthy|blocks behind|coreslots down|chain/i },
+  // /node without a linked slot: the centered link prompt.
+  { path: '/node', h1: /my node/i },
   { path: '/blocks', h1: /blocks/i },
   { path: '/blocks/42', h1: /block 42/i },
   { path: '/txs', h1: /transactions/i },
@@ -96,4 +98,20 @@ test('chrome: status strip + mode switch are present on every viewport', async (
   for (const label of ['Blocks', 'Transactions', 'Validators', 'Economy']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
   }
+});
+
+test('my node: linking a slot opens the dashboard and the strip shows it', async ({ page, isMobile }) => {
+  test.skip(!!isMobile, 'desktop only');
+  await mockApi(page);
+  await page.goto('/node');
+  await expect(page.getByText(/enter your operator address or slot/i)).toBeVisible();
+  const input = page.getByLabel('Operator address or slot id');
+  await input.fill('slot 2');
+  await page.getByRole('button', { name: 'Open' }).click();
+  // The dashboard mounts for the linked slot (fixtures return an honest not-found detail,
+  // so the error state naming the CoreSlot is the success criterion for the gate itself).
+  await expect(page.getByText(/coreslot/i).first()).toBeVisible();
+  // And the link persists.
+  await page.goto('/node');
+  await expect(page.getByText(/enter your operator address or slot/i)).not.toBeVisible();
 });

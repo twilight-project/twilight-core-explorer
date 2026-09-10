@@ -21,8 +21,8 @@ import {
  * entitlement with no finalization is a settlement the chain still owes. "Late" means open
  * longer than the slot's own p90 finalization latency.
  */
-export function SettlementsStatusSection() {
-  const query = useSettlementStatus();
+export function SettlementsStatusSection({ slotId }: { slotId?: string | undefined } = {}) {
+  const query = useSettlementStatus(slotId !== undefined ? { slotId } : undefined);
 
   const slots = query.data?.pages[0]?.slots ?? [];
   const bySlot = new Map<string, SettlementSlotSummary>(slots.map((s) => [s.slotId, s]));

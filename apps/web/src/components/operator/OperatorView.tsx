@@ -72,7 +72,7 @@ export function OperatorView({ address }: { address: string }) {
             <MonoCopy value={operatorAddress} head={14} tail={8} label="operator address" />
           </div>
           {slots.length > 1 ? (
-            <div className="rounded-xl border border-accent-yellow/30 bg-accent-yellow/10 px-4 py-2 text-xs text-accent-yellow">
+            <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-xs text-primary">
               Multiple CoreSlots matched this address (unexpected — one operator should own one CoreSlot).
               Showing slot {primarySlot.slotId}.
             </div>

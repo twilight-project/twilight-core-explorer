@@ -24,7 +24,7 @@ export function PaginationLoader() {
 
 export function InvalidInput({ message = 'That input is not valid.' }: { message?: string }) {
   return (
-    <div className="rounded-xl border border-accent-yellow/30 bg-accent-yellow/10 px-4 py-3 text-sm text-accent-yellow">
+    <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
       {message}
     </div>
   );
@@ -92,7 +92,7 @@ export function ErrorState({
     if (error.code === ERROR_CODES.notReady) {
       // Backfill/warm-up is an expected state, not a failure — amber, not red.
       return (
-        <div className="rounded-xl border border-accent-yellow/30 bg-accent-yellow/10 px-4 py-3 text-sm text-accent-yellow">
+        <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
           {prefix}Still indexing — this data isn&apos;t ready yet.
         </div>
       );

@@ -39,6 +39,10 @@ export const TxListItem = Type.Object(
     memo: Nullable(Type.String()),
     messageTypes: Type.Array(Type.String()),
     signerAddresses: Type.Array(Type.String()),
+    // First fee coin, for list surfaces that show a per-tx fee (block ledger). Null on
+    // fee-less txs or unexpected fee shapes — never invented.
+    feeAmount: Nullable(Type.String()),
+    feeDenom: Nullable(Type.String()),
   },
   { $id: 'TxListItem' },
 );
@@ -210,7 +214,28 @@ export function toTxsAggregate(window: number, txs: AggregateTxRow[]): Static<ty
   };
 }
 
+/** First fee coin out of the stored fee JSON; nulls when absent or oddly shaped. */
+function firstFeeCoin(feeJson: unknown): { amount: string | null; denom: string | null } {
+  if (typeof feeJson === 'object' && feeJson !== null && !Array.isArray(feeJson)) {
+    const coins = (feeJson as { amount?: unknown }).amount;
+    const first = Array.isArray(coins) ? coins[0] : undefined;
+    if (
+      typeof first === 'object' &&
+      first !== null &&
+      typeof (first as { amount?: unknown }).amount === 'string' &&
+      typeof (first as { denom?: unknown }).denom === 'string'
+    ) {
+      return {
+        amount: (first as { amount: string }).amount,
+        denom: (first as { denom: string }).denom,
+      };
+    }
+  }
+  return { amount: null, denom: null };
+}
+
 export function toTxListItem(row: TxRow): Static<typeof TxListItem> {
+  const fee = firstFeeCoin(row.feeJson);
   return {
     hash: row.hash,
     height: row.height.toString(),
@@ -222,6 +247,8 @@ export function toTxListItem(row: TxRow): Static<typeof TxListItem> {
     memo: row.memo,
     messageTypes: toStringArray(row.messageTypesJson),
     signerAddresses: toStringArray(row.signerAddressesJson),
+    feeAmount: fee.amount,
+    feeDenom: fee.denom,
   };
 }
 

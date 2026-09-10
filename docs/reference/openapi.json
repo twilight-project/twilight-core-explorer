@@ -1180,7 +1180,9 @@
                           "gasWanted",
                           "memo",
                           "messageTypes",
-                          "signerAddresses"
+                          "signerAddresses",
+                          "feeAmount",
+                          "feeDenom"
                         ],
                         "properties": {
                           "hash": {
@@ -1252,6 +1254,26 @@
                             "items": {
                               "type": "string"
                             }
+                          },
+                          "feeAmount": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "feeDenom": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "title": "TxListItem"

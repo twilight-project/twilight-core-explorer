@@ -470,6 +470,8 @@ export interface paths {
                                 memo: string | null;
                                 messageTypes: string[];
                                 signerAddresses: string[];
+                                feeAmount: string | null;
+                                feeDenom: string | null;
                             }[];
                             page: {
                                 limit: number;

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Instrument_Serif, Roboto_Mono, Sora, Space_Grotesk } from 'next/font/google';
+import { Inter, Roboto_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -17,20 +17,10 @@ const theme: 'dark' | 'light' = UI_THEME === 'light' ? 'light' : 'dark';
 // (--font-sans / --font-serif / --font-mono) onto these, so loading a face and assigning it to a
 // role stay independent — which is what lets a theme repoint its display face with one CSS line.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const instrumentSerif = Instrument_Serif({
-  subsets: ['latin'],
-  weight: ['400'],
-  variable: '--font-instrument',
-  adjustFontFallback: false,
-});
 const robotoMono = Roboto_Mono({ subsets: ['latin'], variable: '--font-roboto-mono' });
 
-// Per-theme DISPLAY faces. Each [data-theme] block repoints --font-serif (the display role) to one
-// of these so headings change voice with the brand: Console (auction) → Inter (compact technical),
-// Orbit → Sora (modern geometric), Minimal → Space Grotesk (tight technical grotesk). Legacy keeps
-// Instrument Serif (the default). Body stays Inter across all themes; numerals stay mono everywhere.
-const sora = Sora({ subsets: ['latin'], variable: '--font-sora' });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-grotesk' });
+// One family for everything except numerals: Inter for body AND display (user feedback: keep the
+// type simple — the serif display face is retired), Roboto Mono for heights/hashes/amounts.
 
 export const metadata: Metadata = {
   // `%s` is filled by each route's `metadata.title`; routes without one fall back to `default`.
@@ -49,7 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       data-theme={theme}
-      className={`${inter.variable} ${instrumentSerif.variable} ${robotoMono.variable} ${sora.variable} ${spaceGrotesk.variable}`}
+      className={`${inter.variable} ${robotoMono.variable}`}
     >
       <body className="bg-background text-text">
         {/* Apply the persisted brand theme + density before paint (no FOUC); overrides SSR defaults.

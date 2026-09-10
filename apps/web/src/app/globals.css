@@ -13,7 +13,9 @@
      unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
      its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
      if a face fails to load. */
-  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  /* Display role: Inter (user feedback: keep the type simple — the Instrument Serif display
+     face is retired). Hierarchy comes from size/weight/tracking, not a second family. */
+  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter,
     sans-serif;
   --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -69,9 +71,7 @@
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
-  /* Instrument Serif is already narrow — negative tracking makes it read congested (user
-     feedback). Neutral tracking for the serif display voice. */
-  --display-tracking: 0em;
+  --display-tracking: -0.01em;
   --card-border-width: 1px;
   /* display face — the :root Instrument serif (14a): the product's identity no longer changes
      with the theme toggle. --font-metric inherits the :root mono default. */
@@ -125,9 +125,8 @@
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
-  --display-tracking: 0em;
+  --display-tracking: -0.01em;
   --card-border-width: 1px;
-  /* display face — the :root Instrument serif, same as dark (14a) */
 }
 
 /* ---- Spacing/type scale ------------------------------------------------------------------------
@@ -163,6 +162,12 @@ body {
 h1,
 h2 {
   letter-spacing: var(--display-tracking, -0.01em);
+}
+
+/* Inter needs weight (not a family switch) to read as a heading. Element-level, so any
+   explicit font-weight utility on a heading still wins. */
+h1 {
+  font-weight: 600;
 }
 
 /* Keep in-page anchor targets (e.g. the skip link → #main) clear of the sticky header. */

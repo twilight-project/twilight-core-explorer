@@ -53,14 +53,16 @@
 
   --accent-blue: 125 211 252;
   --accent-orange: 251 146 60;
-  --accent-yellow: 251 191 36;
+  /* No yellow in this product (user decision): warning-tinted UI renders in the theme mint;
+     the STATE still reads from its label (open/settled, degraded), never from hue alone. */
+  --accent-yellow: 94 234 212;
   --accent-green: 94 234 212;
   --accent-red: 251 113 133;
 
   --accent-gold: 94 234 212;
   --accent-gold-light: 153 246 228;
   --accent-gold-dark: 45 212 191;
-  --accent-amber: 251 191 36;
+  --accent-amber: 94 234 212;
   --accent-burgundy: 19 41 37;
 
   --text: 230 232 235;
@@ -105,14 +107,14 @@
 
   --accent-blue: 29 100 189;
   --accent-orange: 180 83 9;
-  --accent-yellow: 138 90 5;
+  --accent-yellow: 13 110 100;
   --accent-green: 13 107 76;
   --accent-red: 185 28 28;
 
   --accent-gold: 13 110 100;
   --accent-gold-light: 17 94 89;
   --accent-gold-dark: 19 78 74;
-  --accent-amber: 138 90 5;
+  --accent-amber: 13 110 100;
   --accent-burgundy: 222 238 235;
 
   --text: 24 28 30;

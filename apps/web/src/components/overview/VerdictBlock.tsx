@@ -14,7 +14,7 @@ import { statusTone, type BadgeTone } from '@/lib/format/status';
 // HEALTHY indexer state (between ticks) — health is judged by freshness + error, never the word.
 const DOT: Record<BadgeTone, string> = {
   success: 'bg-accent-green shadow-[0_0_0_4px_rgba(61,220,151,.15)]',
-  warning: 'bg-accent-yellow shadow-[0_0_0_4px_rgba(255,181,112,.15)]',
+  warning: 'bg-accent-yellow shadow-[0_0_0_4px_rgba(94,234,212,.15)]',
   danger: 'bg-accent-red shadow-[0_0_0_4px_rgba(255,107,107,.15)]',
   neutral: 'bg-text-muted',
   info: 'bg-primary',

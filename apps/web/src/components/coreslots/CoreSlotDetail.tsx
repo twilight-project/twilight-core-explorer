@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Tabs, activeTab, type TabDef } from '@/components/ui/Tabs';
 import { MonoCopy } from '@/components/ui/MonoCopy';
 import { CopyButton } from '@/components/ui/CopyButton';
-import { JsonView } from '@/components/detail/JsonView';
+import { MetadataFields, PubkeyInline } from '@/components/detail/MetadataFields';
 import { OperatorLink } from '@/components/operator/OperatorLink';
 import { ErrorState, InvalidInput, LoadingState } from '@/components/states/States';
 import { useCoreSlot } from '@/lib/api/queries';
@@ -117,10 +117,10 @@ export function CoreSlotDetail({
         {c.removedHeight ? <span className="font-mono">{formatHeight(c.removedHeight)}</span> : '—'}
       </FieldRow>
       <FieldRow label="Consensus pubkey">
-        <JsonView value={c.consensusPubkey} />
+        <PubkeyInline value={c.consensusPubkey} />
       </FieldRow>
       <FieldRow label="Metadata">
-        <JsonView value={c.metadata} />
+        <MetadataFields value={c.metadata} />
       </FieldRow>
     </div>
   );

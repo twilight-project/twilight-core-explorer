@@ -1,9 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/Badge';
-import { Tabs, activeTab, type TabDef } from '@/components/ui/Tabs';
-import { MonoCopy } from '@/components/ui/MonoCopy';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { OperatorLink } from '@/components/operator/OperatorLink';
 import { EmptyState, ErrorState, InvalidInput, LoadingState } from '@/components/states/States';
 import { RawSection } from '@/components/detail/RawSection';
@@ -13,68 +12,57 @@ import { useBlock, useBlockRaw, useStatus } from '@/lib/api/queries';
 import { deriveHeightIndexingState } from '@/lib/freshness';
 import { formatHeight } from '@/lib/format/height';
 import { formatAbsoluteTime, formatRelativeTime } from '@/lib/format/time';
-import { statusTone } from '@/lib/format/status';
 
-const TABS = (txCount: number): TabDef[] => [
-  { id: 'summary', label: 'Summary' },
-  { id: 'transactions', label: `Transactions (${txCount})` },
-  { id: 'raw', label: 'Raw' },
-];
-
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-card-border py-3 text-sm">
-      <span className="shrink-0 text-text-muted">{label}</span>
-      <span className="min-w-0 text-right">{children}</span>
+    <div className="flex flex-col gap-[3px] border-b border-card-hover py-2.5">
+      <span className="text-xs text-text-muted">{label}</span>
+      <span className="break-all font-mono text-[13px]">{children}</span>
     </div>
   );
 }
 
-function BackRow({ height }: { height?: string }) {
+function NavLine({ height }: { height?: string }) {
   const h = height && /^[1-9]\d*$/.test(height) ? BigInt(height) : null;
   return (
-    <div className="flex items-center justify-between">
-      <Link href="/blocks" className="text-sm text-text-muted hover:text-text">
-        ← Blocks
+    <div className="flex gap-4 font-mono text-xs text-text-muted">
+      <Link href="/chain" className="hover:text-text">
+        ← chain
       </Link>
       {h !== null ? (
-        <div className="flex items-center gap-1.5 font-mono text-sm">
+        <>
+          <span aria-hidden="true">·</span>
           {h > 1n ? (
-            <Link
-              href={`/blocks/${(h - 1n).toString()}`}
-              className="rounded-lg border border-card-border px-2.5 py-1 text-text-secondary hover:text-text"
-            >
-              ← {formatHeight((h - 1n).toString())}
+            <Link href={`/blocks/${(h - 1n).toString()}`} className="hover:text-text">
+              ‹ {formatHeight((h - 1n).toString())}
             </Link>
           ) : null}
-          <Link
-            href={`/blocks/${(h + 1n).toString()}`}
-            className="rounded-lg border border-card-border px-2.5 py-1 text-text-secondary hover:text-text"
-          >
-            {formatHeight((h + 1n).toString())} →
+          <Link href={`/blocks/${(h + 1n).toString()}`} className="hover:text-text">
+            {formatHeight((h + 1n).toString())} ›
           </Link>
-        </div>
+        </>
       ) : null}
     </div>
   );
 }
 
-// Redesign block page: verdict first ("Block N — 3 transactions, proposed by CoreSlot 1"),
-// prev/next height stepping in the header row, then tabs Summary / Transactions / Raw.
-// The raw payload query only mounts on the Raw tab.
-export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: string | string[] | undefined }) {
+// Control-room block page: nav line (← chain · ‹ prev next ›), caption (age · proposed by),
+// the h1, a transactions ledger, `+ raw block` (lazy), and the facts rail on the right.
+export function BlockDetail({ height }: { height: string; tab?: string | string[] | undefined }) {
   // Client-side, string-safe malformed-height check (no Number()): a canonical positive integer
   // (rejects "0", leading zeros, and empty). The API still validates (invalid_height / not_found)
   // and ErrorState branches on error.code.
   const valid = /^[1-9]\d*$/.test(height);
   const query = useBlock(valid ? height : '');
   const status = useStatus();
+  const [rawOpen, setRawOpen] = useState(false);
+  const raw = useBlockRaw(valid ? height : '', rawOpen);
 
   if (!valid) {
     return (
       <div className="flex flex-col gap-7">
-        <BackRow />
-        <h1 className="font-serif text-3xl text-text">Block {height}</h1>
+        <NavLine />
+        <h1 className="text-4xl font-semibold leading-[1.1]">Block {height}</h1>
         <InvalidInput message="Block height must be a positive integer." />
       </div>
     );
@@ -82,7 +70,7 @@ export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: str
   if (query.isPending) {
     return (
       <div className="flex flex-col gap-7">
-        <BackRow height={height} />
+        <NavLine height={height} />
         <LoadingState rows={6} />
       </div>
     );
@@ -95,10 +83,8 @@ export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: str
       : { kind: 'unknown' as const };
     return (
       <div className="flex flex-col gap-7">
-        <BackRow height={height} />
-        <h1 className="font-serif text-3xl text-text">
-          Block {formatHeight(height)}
-        </h1>
+        <NavLine height={height} />
+        <h1 className="text-4xl font-semibold leading-[1.1]">Block {formatHeight(height)}</h1>
         {heightState.kind === 'pending' ? (
           <EmptyState
             message={`Block ${formatHeight(height)} isn’t indexed yet — the indexer is at ${formatHeight(
@@ -119,83 +105,61 @@ export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: str
   }
 
   const b = query.data.data;
-  const tabs = TABS(b.txCount);
-  const tab = activeTab(tabs, rawTab);
-  const proposer = b.proposer.operatorAddress ?? b.proposer.address ?? b.proposer.rawAddress;
 
   return (
-    <div className="flex flex-col gap-7">
-      <BackRow height={b.height} />
+    <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="flex min-w-0 flex-col gap-7">
+        <NavLine height={b.height} />
 
-      <div className="flex flex-col gap-2.5">
-        <h1 className="font-serif text-3xl text-text">
-          Block {formatHeight(b.height)}
-        </h1>
-        <p className="flex flex-wrap items-center gap-x-2 text-[15px] text-text-secondary">
-          <span>
-            {b.txCount === 0
-              ? 'No transactions'
-              : `${b.txCount} transaction${b.txCount === 1 ? '' : 's'}`}
-            {' · '}
-            {formatRelativeTime(b.time)}
-          </span>
-          <span className="text-text-muted">·</span>
-          <span className="inline-flex items-center gap-1.5">
-            proposed by{' '}
+        <div className="flex flex-col gap-3">
+          <div className="font-mono text-xs uppercase tracking-[.1em] text-text-muted">
+            {formatRelativeTime(b.time)} · proposed by{' '}
             {b.proposer.operatorAddress ? (
               <OperatorLink operatorAddress={b.proposer.operatorAddress} />
             ) : (
-              <span className="font-mono">{proposer ?? 'unknown'}</span>
+              <span>{b.proposer.slotId ? `slot ${b.proposer.slotId}` : 'unknown'}</span>
             )}
-          </span>
-        </p>
+            {b.proposer.slotId && b.proposer.operatorAddress ? ` · slot ${b.proposer.slotId}` : ''}
+          </div>
+          <h1 className="text-4xl font-semibold leading-[1.1] tracking-[-0.025em]">
+            Block {formatHeight(b.height)}
+          </h1>
+        </div>
+
+        <div className="font-mono text-xs uppercase tracking-[.08em] text-primary">
+          ⸸ {b.txCount} transaction{b.txCount === 1 ? '' : 's'}
+        </div>
+        <div className="-mt-4">
+          <BlockTxsSection height={b.height} />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setRawOpen((o) => !o)}
+          className="self-start font-mono text-[12.5px] text-text-muted hover:text-text"
+        >
+          {rawOpen ? '− hide raw block' : '+ raw block'}
+        </button>
+        {rawOpen ? <RawSection expanded onToggle={() => setRawOpen((o) => !o)} query={raw} /> : null}
       </div>
 
-      <Tabs
-        tabs={tabs}
-        active={tab}
-        hrefFor={(id) =>
-          id === 'summary'
-            ? `/blocks/${encodeURIComponent(height)}`
-            : `/blocks/${encodeURIComponent(height)}?tab=${id}`
-        }
-        ariaLabel="Block views"
-      />
-
-      {tab === 'summary' ? (
-        <div className="grid max-w-4xl grid-cols-1 gap-x-12 md:grid-cols-2">
-          <FieldRow label="Hash">
-            <MonoCopy value={b.hash} head={16} tail={10} label="block hash" />
-          </FieldRow>
-          <FieldRow label="Time">{formatAbsoluteTime(b.time)}</FieldRow>
-          <FieldRow label="Chain">{b.chainId ?? '—'}</FieldRow>
-          <FieldRow label="Attribution">
-            {b.proposer.attributionStatus ? (
-              <Badge tone={statusTone(b.proposer.attributionStatus)}>
-                {b.proposer.attributionStatus}
-              </Badge>
-            ) : (
-              '—'
-            )}
-          </FieldRow>
-          <FieldRow label="App hash">
-            <MonoCopy value={b.appHash} label="app hash" />
-          </FieldRow>
-          <FieldRow label="Last block hash">
-            <MonoCopy value={b.lastBlockHash} label="last block hash" />
-          </FieldRow>
-        </div>
-      ) : null}
-
-      {tab === 'transactions' ? <BlockTxsSection height={b.height} /> : null}
-
-      {tab === 'raw' ? <RawTab height={height} /> : null}
+      {/* Facts rail */}
+      <div className="border-l border-card-border pl-6 text-[13px] lg:mt-10">
+        <Fact label="hash">
+          {b.hash ? (
+            <span className="inline-flex items-start gap-1.5">
+              <span className="break-all">{b.hash}</span>
+              <CopyButton value={b.hash} label="block hash" />
+            </span>
+          ) : (
+            '—'
+          )}
+        </Fact>
+        <Fact label="time">{formatAbsoluteTime(b.time)}</Fact>
+        <Fact label="app hash">{b.appHash}</Fact>
+        <Fact label="previous">{b.lastBlockHash}</Fact>
+        <Fact label="chain">{b.chainId ?? '—'}</Fact>
+      </div>
     </div>
   );
-}
-
-// Mounted only while the Raw tab is active, so the raw payload is fetched on demand.
-function RawTab({ height }: { height: string }) {
-  const raw = useBlockRaw(height, true);
-  return <RawSection expanded onToggle={() => {}} query={raw} />;
 }

@@ -7,8 +7,9 @@ import { mockApi } from './fixtures';
 // h1, throw NO uncaught page errors, and pass axe on serious/critical findings.
 
 const ROUTES: { path: string; h1: RegExp }[] = [
-  // Quiet header (14a feedback): plain h1, health lives in the status chip beside it.
-  { path: '/', h1: /overview/i },
+  // `/` routes per mode (Chain without a linked slot); the chain verdict states the answer.
+  { path: '/', h1: /network is healthy|blocks behind|coreslots down|chain/i },
+  { path: '/chain', h1: /network is healthy|blocks behind|coreslots down|chain/i },
   { path: '/blocks', h1: /blocks/i },
   { path: '/blocks/42', h1: /block 42/i },
   { path: '/txs', h1: /transactions/i },

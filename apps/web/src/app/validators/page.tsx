@@ -1,6 +1,6 @@
 import { Tabs, activeTab } from '@/components/ui/Tabs';
 import { ValidatorsVerdict } from '@/components/validators/ValidatorsVerdict';
-import { ActiveSlotsTable } from '@/components/validators/ActiveSlotsTable';
+import { ValidatorsTable } from '@/components/validators/ValidatorsTable';
 import { CoreSlotsList } from '@/components/coreslots/CoreSlotsList';
 import { ProposerDistributionChart } from '@/components/network/ProposerDistributionChart';
 import { ProposerLeaderboard } from '@/components/network/ProposerLeaderboard';
@@ -38,7 +38,7 @@ export default function ValidatorsPage({
       />
       {tab === 'active' ? (
         <div className="flex flex-col gap-6">
-          <ActiveSlotsTable />
+          <ValidatorsTable />
           <PerSlotHealthTable />
         </div>
       ) : null}

@@ -21,7 +21,7 @@ export default function TxsPage({
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-2.5">
-        <h1 className="font-serif text-3xl tracking-tight text-text">Transactions</h1>
+        <h1 className="font-serif text-3xl text-text">Transactions</h1>
         <p className="max-w-2xl text-[15px] text-text-secondary">
           Every indexed transaction, newest first. Filter by success/failure and by message-type
           group (CoreSlot / Mining / Rewards / Bank).

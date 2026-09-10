@@ -106,7 +106,7 @@ export function VerdictBlock() {
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-serif text-3xl tracking-tight text-text">Overview</h1>
+        <h1 className="font-serif text-3xl text-text">Overview</h1>
         <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-card px-3 py-1 text-sm text-text-secondary">
           <span aria-hidden="true" className={clsx('h-2 w-2 rounded-full', DOT[verdict.tone])} />
           {verdict.label}

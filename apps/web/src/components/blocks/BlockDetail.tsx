@@ -74,7 +74,7 @@ export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: str
     return (
       <div className="flex flex-col gap-7">
         <BackRow />
-        <h1 className="font-serif text-3xl tracking-tight text-text">Block {height}</h1>
+        <h1 className="font-serif text-3xl text-text">Block {height}</h1>
         <InvalidInput message="Block height must be a positive integer." />
       </div>
     );
@@ -96,7 +96,7 @@ export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: str
     return (
       <div className="flex flex-col gap-7">
         <BackRow height={height} />
-        <h1 className="font-serif text-3xl tracking-tight text-text">
+        <h1 className="font-serif text-3xl text-text">
           Block {formatHeight(height)}
         </h1>
         {heightState.kind === 'pending' ? (
@@ -128,7 +128,7 @@ export function BlockDetail({ height, tab: rawTab }: { height: string; tab?: str
       <BackRow height={b.height} />
 
       <div className="flex flex-col gap-2.5">
-        <h1 className="font-serif text-3xl tracking-tight text-text">
+        <h1 className="font-serif text-3xl text-text">
           Block {formatHeight(b.height)}
         </h1>
         <p className="flex flex-wrap items-center gap-x-2 text-[15px] text-text-secondary">

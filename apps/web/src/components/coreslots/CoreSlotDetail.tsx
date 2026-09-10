@@ -68,7 +68,7 @@ export function CoreSlotDetail({
         <Link href="/validators?tab=registry" className="text-sm text-text-muted hover:text-text">
           ← CoreSlots
         </Link>
-        {title ? <h1 className="font-serif text-3xl tracking-tight text-text">{title}</h1> : null}
+        {title ? <h1 className="font-serif text-3xl text-text">{title}</h1> : null}
         {node}
       </div>
     );
@@ -168,7 +168,7 @@ export function CoreSlotDetail({
             <Badge tone={statusTone(c.health.summaryStatus)}>{c.health.summaryStatus}</Badge>
           ) : null}
         </div>
-        <h1 className="font-serif text-3xl tracking-tight text-text">{verdict}</h1>
+        <h1 className="font-serif text-3xl text-text">{verdict}</h1>
         {operatorMeta.moniker ? (
           <p className="text-[15px] text-text-secondary">
             Operated by <span className="text-text">{operatorMeta.moniker}</span>

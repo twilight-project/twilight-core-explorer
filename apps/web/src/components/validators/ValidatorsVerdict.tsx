@@ -23,21 +23,38 @@ export function ValidatorsVerdict() {
 
   const title = risk
     ? risk.healthySlotCount === risk.activeSlotCount
-      ? `${risk.activeSlotCount} CoreSlots, all signing`
-      : `${risk.activeSlotCount} CoreSlots, ${risk.activeSlotCount - risk.healthySlotCount} unhealthy`
+      ? `All ${risk.activeSlotCount} signing`
+      : `${risk.activeSlotCount - risk.healthySlotCount} of ${risk.activeSlotCount} unhealthy`
     : 'CoreSlots';
   const riskColor =
     statusTone(risk?.haltRiskLevel) === 'success' ? 'text-accent-green' : 'text-accent-yellow';
 
+  const healthy = risk ? risk.healthySlotCount === risk.activeSlotCount : true;
+
   return (
     <div className="flex flex-col gap-2.5">
-      <h1 className="font-serif text-3xl tracking-tight text-text">{title}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="font-serif text-3xl text-text">Validators</h1>
+        {risk ? (
+          <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-card px-3 py-1 text-sm text-text-secondary">
+            <span
+              aria-hidden="true"
+              className={
+                healthy
+                  ? 'h-2 w-2 rounded-full bg-accent-green'
+                  : 'h-2 w-2 rounded-full bg-accent-yellow'
+              }
+            />
+            {title}
+          </span>
+        ) : null}
+      </div>
       {risk ? (
-        <p className="max-w-2xl text-[15px] leading-relaxed text-text-secondary">
-          {bpsToPercent(risk.availablePowerBps)} of signing power is available. Halt risk is{' '}
-          <span className={riskColor}>{risk.haltRiskLevel}</span>.
+        <p className="max-w-2xl text-sm text-text-muted">
+          {bpsToPercent(risk.availablePowerBps)} of signing power available · halt risk{' '}
+          <span className={riskColor}>{risk.haltRiskLevel}</span>
           {rotatedOut > 0
-            ? ` ${rotatedOut} rotated-out slot${rotatedOut === 1 ? '' : 's'} remain in the registry.`
+            ? ` · ${rotatedOut} rotated-out slot${rotatedOut === 1 ? '' : 's'} in the registry`
             : ''}
         </p>
       ) : null}

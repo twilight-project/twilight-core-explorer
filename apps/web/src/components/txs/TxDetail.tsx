@@ -146,7 +146,7 @@ export function TxDetail({ hash, tab: rawTab }: { hash: string; tab?: string | s
     return (
       <div className="flex flex-col gap-7">
         <BackLink />
-        <h1 className="font-serif text-3xl tracking-tight text-text">Transaction</h1>
+        <h1 className="font-serif text-3xl text-text">Transaction</h1>
         <ErrorState error={query.error} context="Transaction" />
       </div>
     );
@@ -180,7 +180,7 @@ export function TxDetail({ hash, tab: rawTab }: { hash: string; tab?: string | s
             </Link>
           </span>
         </div>
-        <h1 className="font-serif text-3xl tracking-tight text-text">
+        <h1 className="font-serif text-3xl text-text">
           {summarizeTxDetail(t.messages)}
         </h1>
         <div className="flex flex-wrap items-center gap-3">

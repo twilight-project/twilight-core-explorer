@@ -69,7 +69,9 @@
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
-  --display-tracking: -0.01em;
+  /* Instrument Serif is already narrow — negative tracking makes it read congested (user
+     feedback). Neutral tracking for the serif display voice. */
+  --display-tracking: 0em;
   --card-border-width: 1px;
   /* display face — the :root Instrument serif (14a): the product's identity no longer changes
      with the theme toggle. --font-metric inherits the :root mono default. */
@@ -123,7 +125,7 @@
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
-  --display-tracking: -0.01em;
+  --display-tracking: 0em;
   --card-border-width: 1px;
   /* display face — the :root Instrument serif, same as dark (14a) */
 }

@@ -78,13 +78,33 @@ describe('CoreSlotDetail', () => {
     expect(screen.getByText('50')).toBeInTheDocument(); // proposed block height
     history.unmount();
 
-    // Rewards tab: caveat sourced from contract fields, visible + entitlements cross-link.
+    // Rewards tab: the settlements activity table + the single Entitlements section (the old
+    // separate "observed projection" section was removed — one entitlements surface).
+    apiGet.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/mining/settlements') {
+        return { data: [], page: { limit: 25, nextCursor: null } };
+      }
+      if (path === '/api/v1/rewards/entitlements') {
+        return {
+          data: [
+            {
+              slotId: '2', epochNumber: '61', entitlementAmount: '1000000', releasedAmount: '0',
+              denom: 'utwlt', payoutAddress: 'twilight1payout', totalBlocksActive: '360',
+              slotStatusAtEpochClose: 'SLOT_STATUS_ACTIVE', rewardConfigVersion: '1',
+              sampledAtHeight: '100', claimSemantics: 'projection_observed_not_live_claimable',
+            },
+          ],
+          page: { limit: 25, nextCursor: null },
+        };
+      }
+      if (path === '/api/v1/network/signing-heatmap') {
+        return { data: { window: 0, blocksInWindow: 0, fromHeight: null, toHeight: null, heights: [], slots: [] } };
+      }
+      throw new Error(`unexpected apiGet ${path}`);
+    });
     renderWithClient(<CoreSlotDetail slotId="2" tab="rewards" />);
-    expect(await screen.findByText('projection_observed_not_live_claimable')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /view all entitlements/i })).toHaveAttribute(
-      'href',
-      '/economy?tab=entitlements&slotId=2',
-    );
+    expect(await screen.findByText('Entitlements')).toBeInTheDocument();
+    expect(screen.queryByText(/observed projection/i)).not.toBeInTheDocument();
   });
 
   it('non-numeric slot id -> invalid input, no API call', () => {

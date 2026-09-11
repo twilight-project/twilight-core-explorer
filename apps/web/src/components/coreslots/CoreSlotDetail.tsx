@@ -20,7 +20,7 @@ import { CoreSlotProposedBlocksSection } from './sections/CoreSlotProposedBlocks
 import { CoreSlotAuthorityHistorySection } from './sections/CoreSlotAuthorityHistorySection';
 import { CoreSlotSettlementsSection } from './sections/CoreSlotSettlementsSection';
 import { CoreSlotParticipantsChart } from './sections/CoreSlotParticipantsChart';
-import { CoreSlotRewardsSection } from './sections/CoreSlotRewardsSection';
+import { EntitlementsSection } from '@/components/rewards/sections/EntitlementsSection';
 import { CoreSlotRawSection } from './sections/CoreSlotRawSection';
 
 const TABS: TabDef[] = [
@@ -136,7 +136,7 @@ export function CoreSlotDetail({
         <CoreSlotProposedBlocksSection slotId={c.slotId} />
         <CoreSlotAuthorityHistorySection slotId={c.slotId} />
         <CoreSlotSettlementsSection slotId={slotId} />
-        <CoreSlotRewardsSection slotId={c.slotId} />
+        <EntitlementsSection filter={{ slotId }} />
         <CoreSlotRawSection slotId={c.slotId} />
       </>,
     );
@@ -207,7 +207,7 @@ export function CoreSlotDetail({
         <>
           <CoreSlotSettlementsSection slotId={slotId} />
           <CoreSlotParticipantsChart slotId={slotId} />
-          <CoreSlotRewardsSection slotId={c.slotId} />
+          <EntitlementsSection filter={{ slotId }} />
         </>
       ) : null}
       {tab === 'history' ? (

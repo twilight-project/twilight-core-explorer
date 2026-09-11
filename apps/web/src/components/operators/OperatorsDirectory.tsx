@@ -16,7 +16,7 @@ import { statusTone } from '@/lib/format/status';
 // registry list and the operators directory by slotId — both already exist as endpoints.
 
 const GRID =
-  'grid-cols-[52px_1fr_90px_90px_1fr] md:grid-cols-[52px_minmax(160px,1fr)_100px_60px_60px_90px_90px_110px_80px_130px]';
+  'grid-cols-[52px_1fr_90px_90px_1fr] md:grid-cols-[52px_minmax(150px,1fr)_100px_120px_60px_60px_90px_90px_110px_80px_130px]';
 
 export function OperatorsDirectory() {
   const operators = useOperators();
@@ -42,6 +42,7 @@ export function OperatorsDirectory() {
           <span>slot</span>
           <span>operator</span>
           <span>status</span>
+          <span className="hidden md:block">consensus</span>
           <span className="hidden text-right md:block">power</span>
           <span className="hidden text-right md:block">weight</span>
           <span className="hidden text-right md:block">created</span>
@@ -85,6 +86,9 @@ export function OperatorsDirectory() {
                 {reg?.removedHeight ? (
                   <span className="text-accent-red"> @{formatHeight(reg.removedHeight)}</span>
                 ) : null}
+              </span>
+              <span className="hidden truncate font-mono text-[11px] text-text-muted md:block">
+                {reg?.consensusAddress ? shortenMiddle(reg.consensusAddress, 8, 6) : '—'}
               </span>
               <span className="hidden text-right font-mono text-text-muted md:block">
                 {reg?.consensusPower ?? '—'}

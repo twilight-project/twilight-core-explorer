@@ -107,7 +107,9 @@ project_tick() {
   # Operator-status feed samples (phase 15): not chain data, so no SAMPLE_HEIGHT pin — the
   # sampler no-ops when OPERATOR_STATUS_URLS is unset, and a feed outage is a recorded state,
   # never a failed tick.
-  P operator-status || echo "WARN: operator-status sampling failed (non-fatal)" 
+  P operator-status || echo "WARN: operator-status sampling failed (non-fatal)"
+  # Chain-state-only slot fields (reward_weight lives in no message or event): fill-NULL refresh.
+  P slot-registry-refresh || echo "WARN: slot-registry refresh failed (non-fatal)" 
 }
 
 run_once() {

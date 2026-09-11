@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SettlementsStatusSection } from '@/components/economy/SettlementsStatusSection';
-import { EntitlementsSection } from '@/components/rewards/sections/EntitlementsSection';
 import { CoreSlotRewardsSection } from '@/components/coreslots/sections/CoreSlotRewardsSection';
 import { getLinkedSlot } from '@/lib/linked-slot';
 
@@ -38,7 +37,6 @@ export function NodeRewardsPage() {
     <div className="flex flex-col gap-7">
       <h1 className="text-4xl font-semibold leading-[1.1] tracking-[-0.025em]">Rewards</h1>
       <CoreSlotRewardsSection slotId={slotId} />
-      <EntitlementsSection filter={{ slotId }} />
     </div>
   );
 }

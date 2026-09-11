@@ -53,7 +53,7 @@ export function CoreSlotRewardsSection({ slotId }: { slotId: string }) {
       <CardHeader
         icon={Coins}
         iconTone="rewards"
-        title="Entitlements (observed projection)"
+        title="Entitlements"
         action={
           <Link
             href={`/economy?tab=entitlements&slotId=${encodeURIComponent(slotId)}`}

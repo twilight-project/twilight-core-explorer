@@ -98,6 +98,8 @@ services:
       CHAIN_ID: ${CHAIN_ID}
       TICK_LOOP: "true"
       TICK_INTERVAL_SECONDS: ${PROJECT_INTERVAL_SECONDS:-60}
+      # Operator-status feed sampler (phase 15): slot=baseUrl list; empty = no feeds.
+      OPERATOR_STATUS_URLS: ${OPERATOR_STATUS_URLS-}
     command: ["bash", "scripts/devnet/run-indexer-tick.sh"]
     restart: unless-stopped
 

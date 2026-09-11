@@ -104,6 +104,10 @@ project_tick() {
   else
     echo "WARN: skipping rewards/balance snapshots — need a live SAMPLE_HEIGHT (tip unreadable)"
   fi
+  # Operator-status feed samples (phase 15): not chain data, so no SAMPLE_HEIGHT pin — the
+  # sampler no-ops when OPERATOR_STATUS_URLS is unset, and a feed outage is a recorded state,
+  # never a failed tick.
+  P operator-status || echo "WARN: operator-status sampling failed (non-fatal)" 
 }
 
 run_once() {

@@ -906,3 +906,35 @@ model MiningSettlementPayout {
   @@index([txHash])
   @@index([recipient, height])
 }
+
+// ---------------------------------------------------------------------------
+// Operator-status feed samples (phase 15 / twilight-operator-status-v1).
+// OBSERVED SAMPLES of an OPERATOR's OWN feed — not chain data, not rebuildable, and by
+// contract never authoritative: the chain is the fact, this is the operator's explanation
+// beside it (provenance 'attested'; 'verified' only when a figure matches a chain row).
+// One row per (slot, kind, epoch): the clock row is overwritten each poll, discovery hourly,
+// an epoch row becomes immutable once its state is SETTLEMENT_RECONCILED. A FAILED fetch
+// never clobbers the last good payload — it only updates the lastAttempt* fields, because
+// per the contract 404/429/5xx/unreachable all mean "no status right now, keep the last
+// good sample with its age". ADR-MINIS-0020: rows must never contain per-address data; the
+// projector refuses payloads that do (privacy test enforces).
+model OperatorStatusSample {
+  id             BigInt    @id @default(autoincrement())
+  slotId         BigInt
+  kind           String // discovery | clock | epoch
+  epochNumber    BigInt?
+  // `${slotId}:${kind}:${epochNumber ?? '-'}` — non-null upsert selector (NULLs don't dedupe).
+  sampleKey      String    @unique
+  baseUrl        String // the configured feed base URL the sample came from ('configured' provenance)
+  payloadJson    Json?
+  sampledAt      DateTime? // body sampled_at
+  asHeight       BigInt? // body as_height
+  fetchedAt      DateTime? // last SUCCESSFUL fetch
+  lastAttemptAt  DateTime
+  lastHttpStatus Int?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAtDb    DateTime  @updatedAt
+
+  @@index([slotId, kind])
+}

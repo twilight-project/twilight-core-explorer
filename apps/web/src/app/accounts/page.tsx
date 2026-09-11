@@ -1,4 +1,3 @@
-import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { AccountsAggregateStrip } from '@/components/accounts/AccountsAggregateStrip';
 import { AccountsList } from '@/components/accounts/AccountsList';
 
@@ -16,7 +15,6 @@ export default function AccountsPage() {
           An observation log, not a holdings ranking — ordering never implies balance.
         </p>
       </div>
-      <ExplorerTabs />
       <AccountsAggregateStrip />
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-text">Observed accounts</h2>

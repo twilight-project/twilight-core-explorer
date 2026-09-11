@@ -1,4 +1,3 @@
-import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { TxsAggregateStrip } from '@/components/txs/TxsAggregateStrip';
 import { TxsList } from '@/components/txs/TxsList';
 import { LiveLabel } from '@/components/freshness/LiveLabel';
@@ -21,7 +20,6 @@ export default function TxsPage({
   return (
     <div className="flex flex-col gap-7">
       <h1 className="font-serif text-3xl text-text">Transactions</h1>
-      <ExplorerTabs />
       <TxsAggregateStrip />
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

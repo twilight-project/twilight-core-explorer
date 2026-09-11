@@ -20,7 +20,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states/States
 // honest about its window while fitting the 220px column. The viewer's linked slot gets a
 // `you` tag and the own-row mint tint.
 
-const GRID = 'grid-cols-[56px_1fr_80px_70px] md:grid-cols-[56px_1fr_220px_80px_70px]';
+const GRID = 'grid-cols-[56px_1fr_80px_70px] md:grid-cols-[56px_1fr_200px_80px_70px_70px]';
 
 function pairCells(cells: ('signed' | 'missed' | null)[]): ('signed' | 'missed' | null)[] {
   const out: ('signed' | 'missed' | null)[] = [];
@@ -64,6 +64,7 @@ export function ValidatorsTable() {
         <span>operator</span>
         <span className="hidden md:block">signed · last 100</span>
         <span className="text-right">uptime</span>
+        <span className="hidden text-right md:block">streak</span>
         <span className="text-right">power</span>
       </div>
       {active.map((s) => {
@@ -115,6 +116,14 @@ export function ValidatorsTable() {
               ))}
             </span>
             <span className="text-right font-mono">{h ? bpsToPercent(h.uptimeBps) : '…'}</span>
+            <span
+              className={clsx(
+                'hidden text-right font-mono md:block',
+                h && h.currentMissedStreak > 0 ? 'text-accent-red' : 'text-text-muted',
+              )}
+            >
+              {h ? h.currentMissedStreak : '—'}
+            </span>
             <span className="text-right font-mono text-text-muted">{s.consensusPower ?? '—'}</span>
           </Link>
         );

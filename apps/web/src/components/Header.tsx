@@ -33,7 +33,8 @@ export const CHAIN_SUBNAV: SubnavEntry[] = [
   { label: 'Blocks', href: '/blocks' },
   { label: 'Transactions', href: '/txs' },
   { label: 'Slots', href: '/slots', match: ['/coreslots', '/operator', '/operators'] },
-  { label: 'Economy', href: '/economy', match: ['/rewards', '/mining', '/accounts'] },
+  { label: 'Accounts', href: '/accounts' },
+  { label: 'Economy', href: '/economy', match: ['/rewards', '/mining'] },
 ];
 
 function matchesPrefix(pathname: string, href: string): boolean {

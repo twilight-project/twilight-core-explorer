@@ -1,4 +1,3 @@
-import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { BlocksAggregateStrip } from '@/components/blocks/BlocksAggregateStrip';
 import { BlocksList } from '@/components/blocks/BlocksList';
 import { BlockCadencePanel } from '@/components/blocks/BlockCadencePanel';
@@ -12,7 +11,6 @@ export default function BlocksPage() {
   return (
     <div className="flex flex-col gap-7">
       <h1 className="font-serif text-3xl text-text">Blocks</h1>
-      <ExplorerTabs />
       <BlocksAggregateStrip />
       <BlockCadencePanel />
       <div className="flex flex-col gap-3">

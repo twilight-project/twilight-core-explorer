@@ -17,12 +17,13 @@ describe('mode sub-navs', () => {
     for (const e of NODE_SUBNAV) expect(e.href.startsWith('/node')).toBe(true);
   });
 
-  it('Chain: Overview · Blocks · Transactions · Slots · Economy', () => {
+  it('Chain: Overview · Blocks · Transactions · Slots · Accounts · Economy', () => {
     expect(CHAIN_SUBNAV.map((e) => e.label)).toEqual([
       'Overview',
       'Blocks',
       'Transactions',
       'Slots',
+      'Accounts',
       'Economy',
     ]);
   });
@@ -47,7 +48,7 @@ describe('isSubnavActive', () => {
     expect(at('/operators/3', CHAIN_SUBNAV)).toEqual(['Slots']);
     expect(at('/rewards/epochs/9', CHAIN_SUBNAV)).toEqual(['Economy']);
     expect(at('/mining/settlements/1/62', CHAIN_SUBNAV)).toEqual(['Economy']);
-    expect(at('/accounts/twilight1x', CHAIN_SUBNAV)).toEqual(['Economy']);
+    expect(at('/accounts/twilight1x', CHAIN_SUBNAV)).toEqual(['Accounts']);
   });
 
   it('no cross-mode or cross-entry leaks', () => {

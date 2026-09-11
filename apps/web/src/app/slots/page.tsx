@@ -1,19 +1,15 @@
 import { Tabs, activeTab } from '@/components/ui/Tabs';
 import { ValidatorsVerdict } from '@/components/slots/ValidatorsVerdict';
 import { ValidatorsTable } from '@/components/slots/ValidatorsTable';
-import { CoreSlotsList } from '@/components/coreslots/CoreSlotsList';
 import { OperatorsDirectory } from '@/components/operators/OperatorsDirectory';
 import { ProposerDistributionChart } from '@/components/network/ProposerDistributionChart';
 import { ProposerLeaderboard } from '@/components/network/ProposerLeaderboard';
 import { SigningHeatmap } from '@/components/liveness/SigningHeatmap';
-import { PerSlotHealthTable } from '@/components/liveness/PerSlotHealthTable';
-import { oneParam } from '@/lib/search-params';
 
 export const metadata = { title: 'Slots' };
 
 const TABS = [
-  { id: 'active', label: 'Active' },
-  { id: 'registry', label: 'Registry' },
+  { id: 'overview', label: 'Overview' },
   { id: 'operators', label: 'Operators' },
   { id: 'history', label: 'Network history' },
 ] as const;
@@ -24,10 +20,9 @@ const TABS = [
 export default function ValidatorsPage({
   searchParams,
 }: {
-  searchParams: { tab?: string | string[]; status?: string | string[] };
+  searchParams: { tab?: string | string[] };
 }) {
   const tab = activeTab(TABS, searchParams.tab);
-  const status = oneParam(searchParams.status);
 
   return (
     <div className="flex flex-col gap-7">
@@ -38,13 +33,7 @@ export default function ValidatorsPage({
         hrefFor={(id) => (id === TABS[0].id ? '/slots' : `/slots?tab=${id}`)}
         ariaLabel="Slot views"
       />
-      {tab === 'active' ? (
-        <div className="flex flex-col gap-6">
-          <ValidatorsTable />
-          <PerSlotHealthTable />
-        </div>
-      ) : null}
-      {tab === 'registry' ? <CoreSlotsList status={status} /> : null}
+      {tab === 'overview' ? <ValidatorsTable /> : null}
       {tab === 'operators' ? <OperatorsDirectory /> : null}
       {tab === 'history' ? (
         <div className="flex flex-col gap-6">

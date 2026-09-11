@@ -11,6 +11,7 @@ import {
 import { getLinkedSlot } from '@/lib/linked-slot';
 import { shortenMiddle } from '@/lib/format/address';
 import { bpsToPercent } from '@/lib/format/bps';
+import { isHealthyStatus } from '@/lib/format/status';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states/States';
 
 // The validators ruled table (control-room handoff §3): no cards — a Fira Code header row and
@@ -69,7 +70,7 @@ export function ValidatorsTable() {
         const h = healthBySlot.get(s.slotId) ?? null;
         const cells = pairCells(heatBySlot.get(s.slotId) ?? []);
         const mine = linkedSlotId === s.slotId;
-        const healthy = h === null || h.healthStatus === 'HEALTHY';
+        const healthy = h === null || isHealthyStatus(h.healthStatus);
         return (
           <Link
             key={s.slotId}

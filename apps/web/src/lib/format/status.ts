@@ -25,3 +25,12 @@ export function statusTone(status: string | null | undefined): BadgeTone {
   if (NEUTRAL.includes(s)) return 'neutral';
   return 'info';
 }
+
+/** Case-blind health-word checks — the API serves lowercase ('healthy'), older fixtures
+ *  uppercase; a casing drift must never flip a verdict. */
+export function isHealthyStatus(status: string | null | undefined): boolean {
+  return (status ?? '').toLowerCase() === 'healthy';
+}
+export function isDownStatus(status: string | null | undefined): boolean {
+  return (status ?? '').toLowerCase() === 'down';
+}

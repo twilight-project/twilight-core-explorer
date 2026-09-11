@@ -14,6 +14,7 @@ import { asRecord, feedNumber } from '@/lib/operator-feed';
 import { averageBlockSeconds, deriveEpochEta, formatEta } from '@/lib/epoch-eta';
 import { getLinkedSlot } from '@/lib/linked-slot';
 import { formatHeight } from '@/lib/format/height';
+import { isHealthyStatus } from '@/lib/format/status';
 
 // The one thing always on screen (control-room handoff): a 32px Fira Code strip with the
 // chain's vitals. Every value is real and already-polled (the underlying hooks refetch on
@@ -85,7 +86,7 @@ export function StatusStrip() {
 
   const ownSigning =
     linkedSlotId !== null && ownHealth.data?.data.isActiveAtLatest === true
-      ? ownHealth.data.data.healthStatus === 'HEALTHY'
+      ? isHealthyStatus(ownHealth.data.data.healthStatus)
       : null;
 
   return (

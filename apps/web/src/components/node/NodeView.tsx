@@ -19,6 +19,7 @@ import { formatRelativeTime } from '@/lib/format/time';
 import { formatAmount } from '@/lib/format/amount';
 import { bpsToPercent } from '@/lib/format/bps';
 import { deriveSettlementState } from '@/lib/settlement-state';
+import { isDownStatus, isHealthyStatus } from '@/lib/format/status';
 import { clsx } from 'clsx';
 
 // The My-node dashboard (control-room handoff §1) — also reused (without the payout rail) for
@@ -60,8 +61,8 @@ export function NodeView({ slotId, ownNode = true }: { slotId: string; ownNode?:
 
   // Verdict: signing normally / degraded / down, from the health projection.
   const missedRecent = h?.missedCount ?? 0;
-  const down = h ? !h.isActiveAtLatest || h.healthStatus === 'DOWN' : false;
-  const degraded = !down && h !== null && h.healthStatus !== 'HEALTHY';
+  const down = h ? !h.isActiveAtLatest || isDownStatus(h.healthStatus) : false;
+  const degraded = !down && h !== null && !isHealthyStatus(h.healthStatus);
   const title = down
     ? `Down${h?.latestMissedHeight ? ` since block ${formatHeight(h.latestMissedHeight)}` : ''}.`
     : degraded

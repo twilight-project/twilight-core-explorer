@@ -12,7 +12,7 @@ import { ErrorState, InvalidInput, LoadingState } from '@/components/states/Stat
 import { useCoreSlot } from '@/lib/api/queries';
 import { parseOperatorMetadata } from '@/lib/operator-metadata';
 import { formatHeight } from '@/lib/format/height';
-import { statusTone } from '@/lib/format/status';
+import { isHealthyStatus, statusTone } from '@/lib/format/status';
 import { bpsToPercent } from '@/lib/format/bps';
 import { CoreSlotHealthSection } from './sections/CoreSlotHealthSection';
 import { CoreSlotLivenessSection } from './sections/CoreSlotLivenessSection';
@@ -143,7 +143,7 @@ export function CoreSlotDetail({
   }
 
   const tab = activeTab(TABS, rawTab);
-  const healthy = c.health?.healthStatus === 'HEALTHY';
+  const healthy = isHealthyStatus(c.health?.healthStatus);
   const verdict = c.health
     ? `CoreSlot ${c.slotId} — ${c.health.healthStatus.toLowerCase()}${
         c.health.isActiveAtLatest ? ', signing' : ', not signing'

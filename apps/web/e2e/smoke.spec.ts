@@ -18,6 +18,10 @@ const ROUTES: { path: string; h1: RegExp }[] = [
   { path: '/accounts', h1: /observed accounts|account/i },
   { path: '/validators', h1: /validators/i },
   { path: '/validators?tab=registry', h1: /validators/i },
+  { path: '/validators?tab=operators', h1: /validators/i },
+  // The operator profile ("mine with us" deep link) + the /operators index redirect.
+  { path: '/operators/3', h1: /slot-3|coreslot 3 operator/i },
+  { path: '/operators', h1: /validators/i },
   { path: '/validators?tab=history', h1: /validators/i },
   { path: '/economy', h1: /economy/i },
   { path: '/economy?tab=entitlements', h1: /economy/i },

@@ -216,6 +216,8 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
       const settlementCheck = slot.settlementAddress
         ? await getSettlementAccountViolations(app.prisma, slot.settlementAddress)
         : null;
+      const discoverySample = await getFeedSample(app.prisma, slotId, 'discovery');
+      const now = new Date();
 
       return {
         data: {
@@ -237,6 +239,17 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
             epochNumber: t.epochNumber.toString(),
             recipients: Number(t.recipients),
           })),
+          discovery:
+            discoverySample?.payloadJson != null
+              ? {
+                  payload: discoverySample.payloadJson,
+                  fetchedAt: discoverySample.fetchedAt?.toISOString() ?? null,
+                  ageSeconds: discoverySample.fetchedAt
+                    ? Math.floor((now.getTime() - discoverySample.fetchedAt.getTime()) / 1000)
+                    : null,
+                  provenance: 'attested' as const,
+                }
+              : null,
           settlementAccountCheck: settlementCheck
             ? {
                 settlementAddress: slot.settlementAddress as string,

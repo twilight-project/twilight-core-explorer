@@ -169,11 +169,20 @@ export function CoreSlotDetail({
           ) : null}
         </div>
         <h1 className="font-serif text-3xl text-text">{verdict}</h1>
-        {operatorMeta.moniker ? (
-          <p className="text-[15px] text-text-secondary">
-            Operated by <span className="text-text">{operatorMeta.moniker}</span>
-          </p>
-        ) : null}
+        <p className="text-[15px] text-text-secondary">
+          {operatorMeta.moniker ? (
+            <>
+              Operated by <span className="text-text">{operatorMeta.moniker}</span>
+              {' · '}
+            </>
+          ) : null}
+          <Link
+            href={`/operators/${encodeURIComponent(slotId)}`}
+            className="text-primary hover:text-primary-light"
+          >
+            Operator profile →
+          </Link>
+        </p>
       </div>
 
       <Tabs

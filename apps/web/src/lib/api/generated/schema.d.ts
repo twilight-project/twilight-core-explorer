@@ -3211,6 +3211,13 @@ export interface paths {
                                     /** @enum {string} */
                                     provenance: "chain";
                                 } | null;
+                                discovery: {
+                                    payload: unknown;
+                                    fetchedAt: string | null;
+                                    ageSeconds: number | null;
+                                    /** @enum {string} */
+                                    provenance: "attested";
+                                } | null;
                                 rules: {
                                     distributionMethod: string | null;
                                     latestParams: unknown;

@@ -8239,6 +8239,7 @@
                         "verdict",
                         "recipientsTrend",
                         "settlementAccountCheck",
+                        "discovery",
                         "rules"
                       ],
                       "properties": {
@@ -8496,6 +8497,51 @@
                                   "type": "string",
                                   "enum": [
                                     "chain"
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "discovery": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "payload",
+                                "fetchedAt",
+                                "ageSeconds",
+                                "provenance"
+                              ],
+                              "properties": {
+                                "payload": {},
+                                "fetchedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "ageSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "provenance": {
+                                  "type": "string",
+                                  "enum": [
+                                    "attested"
                                   ]
                                 }
                               }

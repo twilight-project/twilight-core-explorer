@@ -5,9 +5,12 @@ import {
   useCoreSlotHealth,
   useLatestBlocks,
   useLivenessRisk,
+  useOperatorClock,
+  useOperators,
   useRewardsEpochs,
   useStatus,
 } from '@/lib/api/queries';
+import { asRecord, feedNumber } from '@/lib/operator-feed';
 import { averageBlockSeconds, deriveEpochEta, formatEta } from '@/lib/epoch-eta';
 import { getLinkedSlot } from '@/lib/linked-slot';
 import { formatHeight } from '@/lib/format/height';
@@ -52,6 +55,34 @@ export function StatusStrip() {
     avgBlockSeconds: avgSecs,
   });
 
+  // Prefer the OPERATOR's clock (attested, with a real close height) when any slot publishes
+  // a fresh feed; fall back to the chain-derived estimate otherwise (phase 15 §5.9 rule).
+  const operators = useOperators();
+  const feedSlot =
+    operators.data?.data.find((o) => o.feed.publishesStatus)?.slotId ?? '';
+  const opClock = useOperatorClock(feedSlot);
+  const opData = opClock.data?.data;
+  let opEta: { epoch: number; label: string } | null = null;
+  if (opData && opData.status === 'ok' && !opData.stale && indexer) {
+    const target = asRecord(asRecord(opData.payload)['current_target']);
+    const epochN = feedNumber(target['epoch']);
+    const closeH = feedNumber(target['close_height']);
+    if (epochN !== null && closeH !== null && indexer.latestChainHeight !== null) {
+      try {
+        const remaining = BigInt(closeH) - BigInt(indexer.latestChainHeight);
+        if (remaining >= 0n) {
+          const secs = avgSecs !== null ? Math.round(Number(remaining) * avgSecs) : null;
+          opEta = {
+            epoch: epochN,
+            label: secs !== null ? `~${formatEta(secs)}` : `${remaining} blk`,
+          };
+        }
+      } catch {
+        /* malformed heights -> keep the estimate */
+      }
+    }
+  }
+
   const ownSigning =
     linkedSlotId !== null && ownHealth.data?.data.isActiveAtLatest === true
       ? ownHealth.data.data.healthStatus === 'HEALTHY'
@@ -77,7 +108,15 @@ export function StatusStrip() {
             {risk ? `${risk.healthySlotCount}/${risk.activeSlotCount}` : '…'}
           </span>
         </span>
-        {eta ? (
+        {opEta ? (
+          <>
+            <Sep />
+            <span>
+              epoch <span className="text-text">{opEta.epoch}</span> closes in{' '}
+              <span className="text-text">{opEta.label}</span> (op.)
+            </span>
+          </>
+        ) : eta ? (
           <>
             <Sep />
             <span>

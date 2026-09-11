@@ -89,6 +89,16 @@ export const OperatorProfileResponse = Type.Object(
           provenance: Type.Literal('chain'),
         }),
       ),
+      // The feed's discovery document (attested): retention, commitments, draw record,
+      // rate limit. Null when the operator publishes no feed.
+      discovery: Nullable(
+        Type.Object({
+          payload: Type.Any(),
+          fetchedAt: Nullable(Type.String()),
+          ageSeconds: Nullable(Type.Integer()),
+          provenance: Type.Literal('attested'),
+        }),
+      ),
       // §5.5 rules constants, straight from chain rows (raw params — the UI cites, not invents).
       rules: Type.Object({
         distributionMethod: Nullable(Type.String()),

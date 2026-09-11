@@ -49,6 +49,14 @@ export function SettlementDetail({ slotId, epoch }: { slotId: string; epoch: str
       backHref={`/coreslots/${encodeURIComponent(slotId)}`}
       backLabel={`CoreSlot ${slotId}`}
     >
+      <p className="-mt-2 text-sm">
+        <Link
+          href={`/operators/${encodeURIComponent(slotId)}`}
+          className="text-primary hover:text-primary-light"
+        >
+          Operator profile for slot {slotId} →
+        </Link>
+      </p>
       <QueryBoundary query={query} context="Settlement">
         {(res) => {
           const s = res.data;

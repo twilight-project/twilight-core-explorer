@@ -2,6 +2,7 @@ import { Tabs, activeTab } from '@/components/ui/Tabs';
 import { ValidatorsVerdict } from '@/components/validators/ValidatorsVerdict';
 import { ValidatorsTable } from '@/components/validators/ValidatorsTable';
 import { CoreSlotsList } from '@/components/coreslots/CoreSlotsList';
+import { OperatorsDirectory } from '@/components/operators/OperatorsDirectory';
 import { ProposerDistributionChart } from '@/components/network/ProposerDistributionChart';
 import { ProposerLeaderboard } from '@/components/network/ProposerLeaderboard';
 import { SigningHeatmap } from '@/components/liveness/SigningHeatmap';
@@ -13,6 +14,7 @@ export const metadata = { title: 'Validators' };
 const TABS = [
   { id: 'active', label: 'Active' },
   { id: 'registry', label: 'Registry' },
+  { id: 'operators', label: 'Operators' },
   { id: 'history', label: 'Network history' },
 ] as const;
 
@@ -43,6 +45,7 @@ export default function ValidatorsPage({
         </div>
       ) : null}
       {tab === 'registry' ? <CoreSlotsList status={status} /> : null}
+      {tab === 'operators' ? <OperatorsDirectory /> : null}
       {tab === 'history' ? (
         <div className="flex flex-col gap-6">
           <SigningHeatmap />

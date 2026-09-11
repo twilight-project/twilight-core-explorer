@@ -18,6 +18,7 @@ import { formatHeight } from '@/lib/format/height';
 import { formatRelativeTime } from '@/lib/format/time';
 import { formatAmount } from '@/lib/format/amount';
 import { bpsToPercent } from '@/lib/format/bps';
+import { formatRewardWeight } from '@/lib/format/slot';
 import { deriveSettlementState } from '@/lib/settlement-state';
 import { isDownStatus, isHealthyStatus } from '@/lib/format/status';
 import { clsx } from 'clsx';
@@ -114,7 +115,7 @@ export function NodeView({ slotId, ownNode = true }: { slotId: string; ownNode?:
               label="Earned to date"
               value={statusRows.length > 0 ? `${earnedFmt.display} ${earnedFmt.symbol}` : '…'}
             />
-            <Stat label="Reward weight" value={c.rewardWeight ?? '—'} />
+            <Stat label="Reward weight" value={formatRewardWeight(c.rewardWeight)} />
           </div>
         </div>
 

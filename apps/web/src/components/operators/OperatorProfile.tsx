@@ -17,6 +17,7 @@ import {
 import { asRecord, feedString } from '@/lib/operator-feed';
 import { formatAmount } from '@/lib/format/amount';
 import { formatHeight } from '@/lib/format/height';
+import { formatRewardWeight, formatSlotStatus } from '@/lib/format/slot';
 
 // The Operator Profile (phase 15): the page an operator hands a prospective participant.
 // Ordered by the newcomer's three questions — who is this, do they pay, what am I signing up
@@ -96,7 +97,7 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
           </h1>
           <span className="whitespace-nowrap rounded-full border border-primary/40 px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-[.08em] text-primary">
             CoreSlot {p.identity.slotId}
-            {p.identity.status ? ` · ${p.identity.status}` : ''}
+            {formatSlotStatus(p.identity.status) ? ` · ${formatSlotStatus(p.identity.status)}` : ''}
           </span>
         </div>
         {p.verdict ? (
@@ -142,7 +143,7 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
             <span className="font-mono">{p.identity.consensusPower ?? '—'}</span>
           </Fact>
           <Fact label="Reward weight">
-            <span className="font-mono">{p.identity.rewardWeight ?? '—'}</span>
+            <span className="font-mono">{formatRewardWeight(p.identity.rewardWeight)}</span>
           </Fact>
         </div>
         <p className="max-w-3xl text-xs leading-relaxed text-text-muted">

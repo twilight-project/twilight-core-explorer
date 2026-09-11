@@ -9,6 +9,7 @@ import { formatAmount } from '@/lib/format/amount';
 import { formatHeight } from '@/lib/format/height';
 import { shortenMiddle } from '@/lib/format/address';
 import { statusTone } from '@/lib/format/status';
+import { formatRewardWeight, formatSlotStatus } from '@/lib/format/slot';
 
 // The merged Operators + Registry view (phase 14c/15 §4 + user request): ONE table carrying
 // the registry's identity columns (status, power, reward weight, created/removed heights)
@@ -54,7 +55,7 @@ export function OperatorsDirectory() {
         {rows.map((r) => {
           const reg = regBySlot.get(r.slotId);
           const paid = r.verdict ? formatAmount(r.verdict.paid30, r.verdict.denom) : null;
-          const statusWord = r.status ?? reg?.status ?? null;
+          const statusWord = formatSlotStatus(r.status ?? reg?.status);
           return (
             <Link
               key={r.slotId}
@@ -94,7 +95,7 @@ export function OperatorsDirectory() {
                 {reg?.consensusPower ?? '—'}
               </span>
               <span className="hidden text-right font-mono text-text-muted md:block">
-                {reg?.rewardWeight ?? '—'}
+                {formatRewardWeight(reg?.rewardWeight)}
               </span>
               <span className="hidden text-right font-mono text-text-muted md:block">
                 {reg?.createdHeight ? formatHeight(reg.createdHeight) : '—'}

@@ -3069,6 +3069,370 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operator directory: per slot, the chain verdict figures + feed health */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                status: string | null;
+                                operatorAddress: string | null;
+                                moniker: string | null;
+                                verdict: {
+                                    owedAll: number;
+                                    settledAll: number;
+                                    owed30: number;
+                                    settled30: number;
+                                    medianLatencyBlocks: string | null;
+                                    p90LatencyBlocks: string | null;
+                                    paid30: string;
+                                    paidAll: string;
+                                    kept30: string;
+                                    keptAll: string;
+                                    entitlement30: string;
+                                    entitlementAll: string;
+                                    recipients30: number;
+                                    denom: string;
+                                    /** @enum {string} */
+                                    provenance: "chain";
+                                } | null;
+                                /** OperatorFeedHealth */
+                                feed: {
+                                    publishesStatus: boolean;
+                                    baseUrl: string | null;
+                                    lastSuccessAt: string | null;
+                                    ageSeconds: number | null;
+                                    lastError: string | null;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{slotId}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chain-computed operator profile: verdict, trend, checks, rules */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                identity: {
+                                    /** @description Decimal height/id as string */
+                                    slotId: string;
+                                    status: string | null;
+                                    operatorAddress: string | null;
+                                    payoutAddress: string | null;
+                                    settlementAddress: string | null;
+                                    consensusAddress: string | null;
+                                    consensusPower: string | null;
+                                    rewardWeight: string | null;
+                                    createdHeight: string | null;
+                                    metadata: unknown;
+                                    /** @enum {string} */
+                                    provenance: "chain";
+                                };
+                                verdict: {
+                                    owedAll: number;
+                                    settledAll: number;
+                                    owed30: number;
+                                    settled30: number;
+                                    medianLatencyBlocks: string | null;
+                                    p90LatencyBlocks: string | null;
+                                    paid30: string;
+                                    paidAll: string;
+                                    kept30: string;
+                                    keptAll: string;
+                                    entitlement30: string;
+                                    entitlementAll: string;
+                                    recipients30: number;
+                                    denom: string;
+                                    /** @enum {string} */
+                                    provenance: "chain";
+                                } | null;
+                                recipientsTrend: {
+                                    /** @description Decimal height/id as string */
+                                    epochNumber: string;
+                                    recipients: number;
+                                }[];
+                                settlementAccountCheck: {
+                                    settlementAddress: string;
+                                    foreignTxCount: number;
+                                    foreignTxHashes: string[];
+                                    /** @enum {string} */
+                                    provenance: "chain";
+                                } | null;
+                                rules: {
+                                    distributionMethod: string | null;
+                                    latestParams: unknown;
+                                    /** @enum {string} */
+                                    provenance: "chain";
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{slotId}/status/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The operator's own clock (attested), with age and staleness */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "no_status";
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "ok";
+                                /** @enum {string} */
+                                source: "operator";
+                                /** @enum {string} */
+                                provenance: "attested";
+                                baseUrl: string;
+                                /** @enum {string} */
+                                baseUrlProvenance: "configured";
+                                sampledAt: string | null;
+                                asHeight: string | null;
+                                fetchedAt: string | null;
+                                ageSeconds: number | null;
+                                stale: boolean;
+                                staleForward: boolean;
+                                lastError: string | null;
+                                payload: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{slotId}/status/epochs/{epoch}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The operator's per-epoch aggregates (attested) + §6.5 verification vs the chain */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                    epoch: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "no_status";
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "ok";
+                                /** @enum {string} */
+                                source: "operator";
+                                /** @enum {string} */
+                                provenance: "attested";
+                                baseUrl: string;
+                                /** @enum {string} */
+                                baseUrlProvenance: "configured";
+                                sampledAt: string | null;
+                                asHeight: string | null;
+                                fetchedAt: string | null;
+                                ageSeconds: number | null;
+                                stale: boolean;
+                                staleForward: boolean;
+                                lastError: string | null;
+                                payload: unknown;
+                                /** FeedEpochVerification */
+                                verification: {
+                                    result: "verified" | "mismatch" | "unverifiable";
+                                    failedChecks: string[];
+                                    chain: {
+                                        payoutAmounts: string[];
+                                        recipients: number;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/supply": {
         parameters: {
             query?: never;

@@ -7976,6 +7976,1100 @@
         }
       }
     },
+    "/api/v1/operators": {
+      "get": {
+        "summary": "Operator directory: per slot, the chain verdict figures + feed health",
+        "tags": [
+          "operators"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "slotId",
+                          "status",
+                          "operatorAddress",
+                          "moniker",
+                          "verdict",
+                          "feed"
+                        ],
+                        "properties": {
+                          "slotId": {
+                            "pattern": "^\\d+$",
+                            "description": "Decimal height/id as string",
+                            "type": "string"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "operatorAddress": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "moniker": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "verdict": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "owedAll",
+                                  "settledAll",
+                                  "owed30",
+                                  "settled30",
+                                  "medianLatencyBlocks",
+                                  "p90LatencyBlocks",
+                                  "paid30",
+                                  "paidAll",
+                                  "kept30",
+                                  "keptAll",
+                                  "entitlement30",
+                                  "entitlementAll",
+                                  "recipients30",
+                                  "denom",
+                                  "provenance"
+                                ],
+                                "properties": {
+                                  "owedAll": {
+                                    "type": "integer"
+                                  },
+                                  "settledAll": {
+                                    "type": "integer"
+                                  },
+                                  "owed30": {
+                                    "type": "integer"
+                                  },
+                                  "settled30": {
+                                    "type": "integer"
+                                  },
+                                  "medianLatencyBlocks": {
+                                    "anyOf": [
+                                      {
+                                        "pattern": "^\\d+$",
+                                        "description": "Decimal height/id as string",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "p90LatencyBlocks": {
+                                    "anyOf": [
+                                      {
+                                        "pattern": "^\\d+$",
+                                        "description": "Decimal height/id as string",
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "paid30": {
+                                    "type": "string"
+                                  },
+                                  "paidAll": {
+                                    "type": "string"
+                                  },
+                                  "kept30": {
+                                    "type": "string"
+                                  },
+                                  "keptAll": {
+                                    "type": "string"
+                                  },
+                                  "entitlement30": {
+                                    "type": "string"
+                                  },
+                                  "entitlementAll": {
+                                    "type": "string"
+                                  },
+                                  "recipients30": {
+                                    "type": "integer"
+                                  },
+                                  "denom": {
+                                    "type": "string"
+                                  },
+                                  "provenance": {
+                                    "type": "string",
+                                    "enum": [
+                                      "chain"
+                                    ]
+                                  }
+                                },
+                                "title": "OperatorVerdict"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "feed": {
+                            "type": "object",
+                            "required": [
+                              "publishesStatus",
+                              "baseUrl",
+                              "lastSuccessAt",
+                              "ageSeconds",
+                              "lastError"
+                            ],
+                            "properties": {
+                              "publishesStatus": {
+                                "type": "boolean"
+                              },
+                              "baseUrl": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "lastSuccessAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "ageSeconds": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "lastError": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "title": "OperatorFeedHealth"
+                          }
+                        },
+                        "title": "OperatorListItem"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{slotId}/profile": {
+      "get": {
+        "summary": "Chain-computed operator profile: verdict, trend, checks, rules",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "identity",
+                        "verdict",
+                        "recipientsTrend",
+                        "settlementAccountCheck",
+                        "rules"
+                      ],
+                      "properties": {
+                        "identity": {
+                          "type": "object",
+                          "required": [
+                            "slotId",
+                            "status",
+                            "operatorAddress",
+                            "payoutAddress",
+                            "settlementAddress",
+                            "consensusAddress",
+                            "consensusPower",
+                            "rewardWeight",
+                            "createdHeight",
+                            "metadata",
+                            "provenance"
+                          ],
+                          "properties": {
+                            "slotId": {
+                              "pattern": "^\\d+$",
+                              "description": "Decimal height/id as string",
+                              "type": "string"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "operatorAddress": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payoutAddress": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "settlementAddress": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "consensusAddress": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "consensusPower": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "rewardWeight": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "createdHeight": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d+$",
+                                  "description": "Decimal height/id as string",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "metadata": {},
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "chain"
+                              ]
+                            }
+                          }
+                        },
+                        "verdict": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "owedAll",
+                                "settledAll",
+                                "owed30",
+                                "settled30",
+                                "medianLatencyBlocks",
+                                "p90LatencyBlocks",
+                                "paid30",
+                                "paidAll",
+                                "kept30",
+                                "keptAll",
+                                "entitlement30",
+                                "entitlementAll",
+                                "recipients30",
+                                "denom",
+                                "provenance"
+                              ],
+                              "properties": {
+                                "owedAll": {
+                                  "type": "integer"
+                                },
+                                "settledAll": {
+                                  "type": "integer"
+                                },
+                                "owed30": {
+                                  "type": "integer"
+                                },
+                                "settled30": {
+                                  "type": "integer"
+                                },
+                                "medianLatencyBlocks": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d+$",
+                                      "description": "Decimal height/id as string",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "p90LatencyBlocks": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d+$",
+                                      "description": "Decimal height/id as string",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "paid30": {
+                                  "type": "string"
+                                },
+                                "paidAll": {
+                                  "type": "string"
+                                },
+                                "kept30": {
+                                  "type": "string"
+                                },
+                                "keptAll": {
+                                  "type": "string"
+                                },
+                                "entitlement30": {
+                                  "type": "string"
+                                },
+                                "entitlementAll": {
+                                  "type": "string"
+                                },
+                                "recipients30": {
+                                  "type": "integer"
+                                },
+                                "denom": {
+                                  "type": "string"
+                                },
+                                "provenance": {
+                                  "type": "string",
+                                  "enum": [
+                                    "chain"
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "recipientsTrend": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "epochNumber",
+                              "recipients"
+                            ],
+                            "properties": {
+                              "epochNumber": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "recipients": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        },
+                        "settlementAccountCheck": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "settlementAddress",
+                                "foreignTxCount",
+                                "foreignTxHashes",
+                                "provenance"
+                              ],
+                              "properties": {
+                                "settlementAddress": {
+                                  "type": "string"
+                                },
+                                "foreignTxCount": {
+                                  "type": "integer"
+                                },
+                                "foreignTxHashes": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "provenance": {
+                                  "type": "string",
+                                  "enum": [
+                                    "chain"
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "rules": {
+                          "type": "object",
+                          "required": [
+                            "distributionMethod",
+                            "latestParams",
+                            "provenance"
+                          ],
+                          "properties": {
+                            "distributionMethod": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "latestParams": {},
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "chain"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{slotId}/status/clock": {
+      "get": {
+        "summary": "The operator's own clock (attested), with age and staleness",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "no_status"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "source",
+                            "provenance",
+                            "baseUrl",
+                            "baseUrlProvenance",
+                            "sampledAt",
+                            "asHeight",
+                            "fetchedAt",
+                            "ageSeconds",
+                            "stale",
+                            "staleForward",
+                            "lastError",
+                            "payload"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ok"
+                              ]
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "operator"
+                              ]
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "attested"
+                              ]
+                            },
+                            "baseUrl": {
+                              "type": "string"
+                            },
+                            "baseUrlProvenance": {
+                              "type": "string",
+                              "enum": [
+                                "configured"
+                              ]
+                            },
+                            "sampledAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "asHeight": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d+$",
+                                  "description": "Decimal height/id as string",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "fetchedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ageSeconds": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            },
+                            "staleForward": {
+                              "type": "boolean"
+                            },
+                            "lastError": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payload": {}
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{slotId}/status/epochs/{epoch}": {
+      "get": {
+        "summary": "The operator's per-epoch aggregates (attested) + §6.5 verification vs the chain",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "epoch",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "no_status"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "source",
+                            "provenance",
+                            "baseUrl",
+                            "baseUrlProvenance",
+                            "sampledAt",
+                            "asHeight",
+                            "fetchedAt",
+                            "ageSeconds",
+                            "stale",
+                            "staleForward",
+                            "lastError",
+                            "payload",
+                            "verification"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ok"
+                              ]
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "operator"
+                              ]
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "attested"
+                              ]
+                            },
+                            "baseUrl": {
+                              "type": "string"
+                            },
+                            "baseUrlProvenance": {
+                              "type": "string",
+                              "enum": [
+                                "configured"
+                              ]
+                            },
+                            "sampledAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "asHeight": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d+$",
+                                  "description": "Decimal height/id as string",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "fetchedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ageSeconds": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            },
+                            "staleForward": {
+                              "type": "boolean"
+                            },
+                            "lastError": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payload": {},
+                            "verification": {
+                              "type": "object",
+                              "required": [
+                                "result",
+                                "failedChecks",
+                                "chain"
+                              ],
+                              "properties": {
+                                "result": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "verified"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "mismatch"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "unverifiable"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "failedChecks": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "chain": {
+                                  "type": "object",
+                                  "required": [
+                                    "payoutAmounts",
+                                    "recipients"
+                                  ],
+                                  "properties": {
+                                    "payoutAmounts": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "recipients": {
+                                      "type": "integer"
+                                    }
+                                  }
+                                }
+                              },
+                              "title": "FeedEpochVerification"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/supply": {
       "get": {
         "summary": "Total sampled supply (latest or at a specific height)",

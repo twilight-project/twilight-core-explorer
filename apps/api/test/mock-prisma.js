@@ -45,10 +45,18 @@ export class MockPrisma {
     this._paramsChanges = data.paramsChanges ?? [];
     this._treasuryPayments = data.treasuryPayments ?? [];
     this._accountBalances = data.accountBalances ?? [];
+    this._operatorStatusSamples = data.operatorStatusSamples ?? [];
     this._dbDown = data.dbDown ?? false;
     this._failedMigrations = data.failedMigrations ?? 0;
 
     this.indexerCursor = { findFirst: async () => this._indexerCursor };
+
+    this.operatorStatusSample = {
+      findUnique: async ({ where }) =>
+        this._operatorStatusSamples.find((s) => s.sampleKey === where.sampleKey) ?? null,
+      findMany: async ({ where } = {}) =>
+        this._operatorStatusSamples.filter((s) => !where?.kind || s.kind === where.kind),
+    };
 
     this.projectionCursor = {
       findMany: async () => [...this._projectionCursors],
@@ -75,6 +83,11 @@ export class MockPrisma {
     };
 
     this.block = {
+      aggregate: async () => ({
+        _max: {
+          height: this._blocks.reduce((m, b) => (b.height > (m ?? -1n) ? b.height : m), null),
+        },
+      }),
       findMany: async (args = {}) => {
         let rows = [...this._blocks];
         const lt = args.where?.height?.lt;
@@ -379,6 +392,10 @@ export class MockPrisma {
     };
 
     this.rewardEpochProjection = {
+      findFirst: async () => {
+        const r = [...this._epochs].sort((a, b) => (a.epochNumber > b.epochNumber ? -1 : 1));
+        return r[0] ?? null;
+      },
       findMany: async (args = {}) => {
         let r = [...this._epochs];
         const lt = args.where?.epochNumber?.lt;
@@ -499,6 +516,10 @@ export class MockPrisma {
     };
 
     this.rewardsParamsChange = {
+      findFirst: async () => {
+        const r = [...this._paramsChanges].sort((a, b) => (a.height > b.height ? -1 : 1));
+        return r[0] ?? null;
+      },
       findMany: async (args = {}) => {
         let r = [...this._paramsChanges];
         const w = args.where ?? {};
@@ -622,6 +643,91 @@ export class MockPrisma {
           ? descBig(a.epochNumber, b.epochNumber)
           : (a.slotId < b.slotId ? -1 : 1));
       return rows;
+    }
+
+    // Operator verdict aggregates (phase 15 §6.1–6.3): discriminated by the "owedAll" alias.
+    if (sqlText.includes('"owedAll"')) {
+      const groups = new Map();
+      for (const ent of this._entitlements) {
+        if (BigInt(ent.entitlementAmount) <= 0n) continue;
+        const fin = this._finalizations
+          .filter((f) => f.slotId === ent.slotId && f.epochNumber === ent.epochNumber)
+          .sort((a, b) => (a.height > b.height ? -1 : 1))[0] ?? null;
+        const epochRow = this._epochs.find((e) => e.epochNumber === ent.epochNumber) ?? null;
+        const pays = this._payouts.filter(
+          (x) => x.slotId === ent.slotId && x.epochNumber === ent.epochNumber,
+        );
+        const cutoff = values.find((v) => v instanceof Date) ?? new Date(0);
+        const in30 = epochRow?.blockTime ? epochRow.blockTime >= cutoff : false;
+        const g = groups.get(ent.slotId) ?? {
+          slotId: ent.slotId, owedAll: 0n, settledAll: 0n, owed30: 0n, settled30: 0n,
+          lats: [], paid30: 0n, paidAll: 0n, kept30: 0n, keptAll: 0n,
+          ent30: 0n, entAll: 0n, rec30: 0n,
+        };
+        g.owedAll += 1n;
+        if (fin) g.settledAll += 1n;
+        if (in30) { g.owed30 += 1n; if (fin) g.settled30 += 1n; }
+        if (fin && epochRow) g.lats.push(Number((fin.finalizedHeight ?? fin.height) - epochRow.height));
+        const paid = pays.reduce((a, x) => a + BigInt(x.amount), 0n);
+        const kept = fin ? BigInt(fin.releasedRemainder ?? '0') : 0n;
+        const rec = BigInt(new Set(pays.map((x) => x.recipient)).size);
+        g.paidAll += paid; g.keptAll += kept; g.entAll += BigInt(ent.entitlementAmount);
+        if (in30) { g.paid30 += paid; g.kept30 += kept; g.ent30 += BigInt(ent.entitlementAmount); g.rec30 += rec; }
+        groups.set(ent.slotId, g);
+      }
+      const pct = (arr, q) => {
+        if (arr.length === 0) return null;
+        const sorted = [...arr].sort((a, b) => a - b);
+        const idx = (sorted.length - 1) * q;
+        const lo = Math.floor(idx); const hi = Math.ceil(idx);
+        return BigInt(Math.round(sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)));
+      };
+      return [...groups.values()]
+        .sort((a, b) => (a.slotId < b.slotId ? -1 : 1))
+        .map((g) => ({
+          slotId: g.slotId,
+          owedAll: g.owedAll, settledAll: g.settledAll, owed30: g.owed30, settled30: g.settled30,
+          medianLatencyBlocks: pct(g.lats, 0.5), p90LatencyBlocks: pct(g.lats, 0.9),
+          paid30: g.paid30.toString(), paidAll: g.paidAll.toString(),
+          kept30: g.kept30.toString(), keptAll: g.keptAll.toString(),
+          entitlement30: g.ent30.toString(), entitlementAll: g.entAll.toString(),
+          recipients30: g.rec30,
+        }));
+    }
+
+    // Recipients-per-epoch trend (phase 15 §6.4).
+    if (sqlText.includes('count(DISTINCT "recipient")::bigint AS recipients') && sqlText.includes('GROUP BY "epochNumber"')) {
+      const slotId = values.find((v) => typeof v === 'bigint');
+      const byEpoch = new Map();
+      for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
+        const set = byEpoch.get(x.epochNumber) ?? new Set();
+        set.add(x.recipient); byEpoch.set(x.epochNumber, set);
+      }
+      return [...byEpoch.entries()]
+        .sort((a, b) => (a[0] > b[0] ? -1 : 1))
+        .map(([epochNumber, set]) => ({ epochNumber, recipients: BigInt(set.size) }));
+    }
+
+    // Settlement-account check (phase 15 §6.6).
+    if (sqlText.includes('"signerAddressesJson" @>')) {
+      const addrJson = values.find((v) => typeof v === 'string' && v.startsWith('['));
+      const addr = addrJson ? JSON.parse(addrJson)[0] : null;
+      const SETTLE = ['/twilight.mining.v1.MsgSubmitSettlementChunk', '/twilight.mining.v1.MsgFinalizeSettlement'];
+      const rows = this._txs.filter((t) =>
+        (t.signerAddressesJson ?? []).includes(addr) &&
+        (t.messageTypesJson ?? []).some((u) => !SETTLE.includes(u)));
+      if (sqlText.includes('count(*)::bigint AS count')) return [{ count: BigInt(rows.length) }];
+      return rows.map((t) => ({ hash: t.hash, height: t.height, typeUrls: t.messageTypesJson }));
+    }
+
+    // Feed-epoch chain facts (phase 15 §6.5).
+    if (sqlText.includes('array_agg(DISTINCT "amount")')) {
+      const slotId = values[0]; const epoch = values[1];
+      const pays = this._payouts.filter((x) => x.slotId === slotId && x.epochNumber === epoch);
+      return [{
+        amounts: pays.length ? [...new Set(pays.map((x) => x.amount))] : null,
+        recipients: BigInt(new Set(pays.map((x) => x.recipient)).size),
+      }];
     }
 
     // Settlement status: expected (entitlements) vs settled (finalizations). The percentile

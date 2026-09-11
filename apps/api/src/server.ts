@@ -25,6 +25,7 @@ import { projectionsRoutes } from './routes/projections.js';
 import { coreslotsRoutes } from './routes/coreslots.js';
 import { networkRoutes } from './routes/network.js';
 import { miningRoutes } from './routes/mining.js';
+import { operatorsRoutes } from './routes/operators.js';
 import { rewardsRoutes } from './routes/rewards.js';
 import { balancesRoutes } from './routes/balances.js';
 
@@ -66,6 +67,7 @@ export async function buildServer(opts: BuildServerOptions): Promise<FastifyInst
   await app.register(networkRoutes, { prefix: '/api/v1' });
   await app.register(rewardsRoutes, { prefix: '/api/v1' });
   await app.register(miningRoutes, { prefix: '/api/v1' });
+  await app.register(operatorsRoutes, { prefix: '/api/v1' });
   await app.register(balancesRoutes, { prefix: '/api/v1' });
 
   return app;

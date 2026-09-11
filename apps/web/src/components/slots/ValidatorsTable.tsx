@@ -14,13 +14,15 @@ import { bpsToPercent } from '@/lib/format/bps';
 import { isHealthyStatus } from '@/lib/format/status';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states/States';
 
-// The validators ruled table (control-room handoff §3): no cards — a Fira Code header row and
+// The slots Overview table — the ruled table (control-room handoff §3) MERGED with the old
+// per-slot health table: health word, in-set flag and missed streak fold in as columns. A
+// Fira Code header row and
 // hairline rows. Signed-last-100 renders as 50 flex cells, each cell aggregating a PAIR of
 // heights from the 100-block heatmap window (missed if either was missed) so the strip stays
 // honest about its window while fitting the 220px column. The viewer's linked slot gets a
 // `you` tag and the own-row mint tint.
 
-const GRID = 'grid-cols-[56px_1fr_80px_70px] md:grid-cols-[56px_1fr_200px_80px_70px_70px]';
+const GRID = 'grid-cols-[56px_1fr_90px_80px_70px] md:grid-cols-[56px_1fr_170px_100px_80px_70px_70px]';
 
 function pairCells(cells: ('signed' | 'missed' | null)[]): ('signed' | 'missed' | null)[] {
   const out: ('signed' | 'missed' | null)[] = [];
@@ -63,6 +65,7 @@ export function ValidatorsTable() {
         <span>slot</span>
         <span>operator</span>
         <span className="hidden md:block">signed · last 100</span>
+        <span>health</span>
         <span className="text-right">uptime</span>
         <span className="hidden text-right md:block">streak</span>
         <span className="text-right">power</span>
@@ -114,6 +117,19 @@ export function ValidatorsTable() {
                   )}
                 />
               ))}
+            </span>
+            <span className="min-w-0">
+              <span
+                className={clsx(
+                  'font-mono text-xs',
+                  h === null ? 'text-text-muted' : healthy ? 'text-primary' : 'text-accent-red',
+                )}
+              >
+                {h ? h.healthStatus : '…'}
+              </span>
+              {h && !h.isActiveAtLatest ? (
+                <span className="ml-1.5 font-mono text-[11px] text-accent-red">out of set</span>
+              ) : null}
             </span>
             <span className="text-right font-mono">{h ? bpsToPercent(h.uptimeBps) : '…'}</span>
             <span

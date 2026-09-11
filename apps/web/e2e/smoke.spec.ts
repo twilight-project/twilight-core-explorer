@@ -99,7 +99,7 @@ test('chrome: status strip + mode switch are present on every viewport', async (
   await expect(modeGroup.getByRole('link', { name: 'Chain' })).toBeVisible();
   // Chain sub-nav renders its four destinations.
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  for (const label of ['Blocks', 'Transactions', 'Slots', 'Economy']) {
+  for (const label of ['Overview', 'Blocks', 'Transactions', 'Slots', 'Economy']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
   }
 });

@@ -17,8 +17,9 @@ describe('mode sub-navs', () => {
     for (const e of NODE_SUBNAV) expect(e.href.startsWith('/node')).toBe(true);
   });
 
-  it('Chain: Blocks · Transactions · Slots · Economy', () => {
+  it('Chain: Overview · Blocks · Transactions · Slots · Economy', () => {
     expect(CHAIN_SUBNAV.map((e) => e.label)).toEqual([
+      'Overview',
       'Blocks',
       'Transactions',
       'Slots',
@@ -39,7 +40,7 @@ describe('isSubnavActive', () => {
 
   it('chain detail routes light their destination', () => {
     expect(at('/blocks/42', CHAIN_SUBNAV)).toEqual(['Blocks']);
-    expect(at('/chain', CHAIN_SUBNAV)).toEqual(['Blocks']);
+    expect(at('/chain', CHAIN_SUBNAV)).toEqual(['Overview']);
     expect(at('/txs/ABCDEF', CHAIN_SUBNAV)).toEqual(['Transactions']);
     expect(at('/coreslots/3', CHAIN_SUBNAV)).toEqual(['Slots']);
     expect(at('/operator/twilight1x', CHAIN_SUBNAV)).toEqual(['Slots']);

@@ -65,7 +65,7 @@ export function CoreSlotDetail({
       <div className="space-y-6">{node}</div>
     ) : (
       <div className="flex flex-col gap-7">
-        <Link href="/validators?tab=registry" className="text-sm text-text-muted hover:text-text">
+        <Link href="/slots?tab=registry" className="text-sm text-text-muted hover:text-text">
           ← CoreSlots
         </Link>
         {title ? <h1 className="font-serif text-3xl text-text">{title}</h1> : null}
@@ -152,7 +152,7 @@ export function CoreSlotDetail({
 
   return (
     <div className="flex flex-col gap-7">
-      <Link href="/validators?tab=registry" className="text-sm text-text-muted hover:text-text">
+      <Link href="/slots?tab=registry" className="text-sm text-text-muted hover:text-text">
         ← CoreSlots
       </Link>
 

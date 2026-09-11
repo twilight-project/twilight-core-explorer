@@ -34,7 +34,7 @@ export function ValidatorsVerdict() {
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-serif text-3xl text-text">Validators</h1>
+        <h1 className="font-serif text-3xl text-text">Slots</h1>
         {risk ? (
           <span className="inline-flex items-center gap-2 rounded-full border border-card-border bg-card px-3 py-1 text-sm text-text-secondary">
             <span

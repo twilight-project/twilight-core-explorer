@@ -34,7 +34,7 @@ export function SettlementDetail({ slotId, epoch }: { slotId: string; epoch: str
     return (
       <DetailShell
         title="Settlement"
-        backHref="/validators?tab=registry"
+        backHref="/slots?tab=registry"
         backLabel="CoreSlots"
       >
         <InvalidInput message="Slot id and epoch must both be numeric." />

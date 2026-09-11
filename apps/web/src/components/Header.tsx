@@ -31,7 +31,7 @@ export const NODE_SUBNAV: SubnavEntry[] = [
 export const CHAIN_SUBNAV: SubnavEntry[] = [
   { label: 'Blocks', href: '/blocks', match: ['/chain'] },
   { label: 'Transactions', href: '/txs' },
-  { label: 'Validators', href: '/validators', match: ['/coreslots', '/operator'] },
+  { label: 'Slots', href: '/slots', match: ['/coreslots', '/operator', '/operators'] },
   { label: 'Economy', href: '/economy', match: ['/rewards', '/mining', '/accounts'] },
 ];
 

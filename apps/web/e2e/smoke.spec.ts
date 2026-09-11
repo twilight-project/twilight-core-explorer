@@ -16,19 +16,19 @@ const ROUTES: { path: string; h1: RegExp }[] = [
   { path: '/blocks/42', h1: /block 42/i },
   { path: '/txs', h1: /transactions/i },
   { path: '/accounts', h1: /observed accounts|account/i },
-  { path: '/validators', h1: /validators/i },
-  { path: '/validators?tab=registry', h1: /validators/i },
-  { path: '/validators?tab=operators', h1: /validators/i },
+  { path: '/slots', h1: /slots/i },
+  { path: '/slots?tab=registry', h1: /slots/i },
+  { path: '/slots?tab=operators', h1: /slots/i },
   // The operator profile ("mine with us" deep link) + the /operators index redirect.
   { path: '/operators/3', h1: /slot-3|coreslot 3 operator/i },
-  { path: '/operators', h1: /validators/i },
-  { path: '/validators?tab=history', h1: /validators/i },
+  { path: '/operators', h1: /slots/i },
+  { path: '/slots?tab=history', h1: /slots/i },
   { path: '/economy', h1: /economy/i },
   { path: '/economy?tab=entitlements', h1: /economy/i },
   { path: '/economy?tab=settlements', h1: /economy/i },
   { path: '/economy?tab=supply', h1: /economy/i },
   // Old IA routes must land on the merged destinations (next.config redirects).
-  { path: '/coreslots', h1: /validators/i },
+  { path: '/coreslots', h1: /slots/i },
   { path: '/rewards', h1: /economy/i },
   { path: '/supply', h1: /economy/i },
   { path: '/mining/settlements/1/62', h1: /settlement/i },
@@ -99,7 +99,7 @@ test('chrome: status strip + mode switch are present on every viewport', async (
   await expect(modeGroup.getByRole('link', { name: 'Chain' })).toBeVisible();
   // Chain sub-nav renders its four destinations.
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  for (const label of ['Blocks', 'Transactions', 'Validators', 'Economy']) {
+  for (const label of ['Blocks', 'Transactions', 'Slots', 'Economy']) {
     await expect(nav.getByRole('link', { name: label })).toBeVisible();
   }
 });

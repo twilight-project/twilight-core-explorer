@@ -25,9 +25,11 @@ const nextConfig = {
       // Redesign IA: the six standalone section pages merged into /validators and /economy.
       // Exact-path sources, so the surviving detail routes (/coreslots/:slotId,
       // /rewards/epochs/:epoch, /mining/settlements/...) keep working untouched.
-      { source: '/network', destination: '/validators?tab=history', permanent: false },
-      { source: '/liveness', destination: '/validators', permanent: false },
-      { source: '/coreslots', destination: '/validators?tab=registry', permanent: false },
+      { source: '/network', destination: '/slots?tab=history', permanent: false },
+      { source: '/liveness', destination: '/slots', permanent: false },
+      { source: '/coreslots', destination: '/slots?tab=registry', permanent: false },
+      // The destination was renamed Validators → Slots (chain reality: CoreSlot PoA).
+      { source: '/validators', destination: '/slots', permanent: false },
       { source: '/rewards', destination: '/economy', permanent: false },
       { source: '/rewards/entitlements', destination: '/economy?tab=entitlements', permanent: false },
       { source: '/supply', destination: '/economy?tab=supply', permanent: false },

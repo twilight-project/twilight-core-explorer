@@ -1,6 +1,6 @@
 import { Tabs, activeTab } from '@/components/ui/Tabs';
-import { ValidatorsVerdict } from '@/components/validators/ValidatorsVerdict';
-import { ValidatorsTable } from '@/components/validators/ValidatorsTable';
+import { ValidatorsVerdict } from '@/components/slots/ValidatorsVerdict';
+import { ValidatorsTable } from '@/components/slots/ValidatorsTable';
 import { CoreSlotsList } from '@/components/coreslots/CoreSlotsList';
 import { OperatorsDirectory } from '@/components/operators/OperatorsDirectory';
 import { ProposerDistributionChart } from '@/components/network/ProposerDistributionChart';
@@ -9,7 +9,7 @@ import { SigningHeatmap } from '@/components/liveness/SigningHeatmap';
 import { PerSlotHealthTable } from '@/components/liveness/PerSlotHealthTable';
 import { oneParam } from '@/lib/search-params';
 
-export const metadata = { title: 'Validators' };
+export const metadata = { title: 'Slots' };
 
 const TABS = [
   { id: 'active', label: 'Active' },
@@ -35,8 +35,8 @@ export default function ValidatorsPage({
       <Tabs
         tabs={TABS}
         active={tab}
-        hrefFor={(id) => (id === TABS[0].id ? '/validators' : `/validators?tab=${id}`)}
-        ariaLabel="Validator views"
+        hrefFor={(id) => (id === TABS[0].id ? '/slots' : `/slots?tab=${id}`)}
+        ariaLabel="Slot views"
       />
       {tab === 'active' ? (
         <div className="flex flex-col gap-6">

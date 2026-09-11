@@ -17,11 +17,11 @@ describe('mode sub-navs', () => {
     for (const e of NODE_SUBNAV) expect(e.href.startsWith('/node')).toBe(true);
   });
 
-  it('Chain: Blocks · Transactions · Validators · Economy', () => {
+  it('Chain: Blocks · Transactions · Slots · Economy', () => {
     expect(CHAIN_SUBNAV.map((e) => e.label)).toEqual([
       'Blocks',
       'Transactions',
-      'Validators',
+      'Slots',
       'Economy',
     ]);
   });
@@ -41,8 +41,9 @@ describe('isSubnavActive', () => {
     expect(at('/blocks/42', CHAIN_SUBNAV)).toEqual(['Blocks']);
     expect(at('/chain', CHAIN_SUBNAV)).toEqual(['Blocks']);
     expect(at('/txs/ABCDEF', CHAIN_SUBNAV)).toEqual(['Transactions']);
-    expect(at('/coreslots/3', CHAIN_SUBNAV)).toEqual(['Validators']);
-    expect(at('/operator/twilight1x', CHAIN_SUBNAV)).toEqual(['Validators']);
+    expect(at('/coreslots/3', CHAIN_SUBNAV)).toEqual(['Slots']);
+    expect(at('/operator/twilight1x', CHAIN_SUBNAV)).toEqual(['Slots']);
+    expect(at('/operators/3', CHAIN_SUBNAV)).toEqual(['Slots']);
     expect(at('/rewards/epochs/9', CHAIN_SUBNAV)).toEqual(['Economy']);
     expect(at('/mining/settlements/1/62', CHAIN_SUBNAV)).toEqual(['Economy']);
     expect(at('/accounts/twilight1x', CHAIN_SUBNAV)).toEqual(['Economy']);

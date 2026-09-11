@@ -9,6 +9,7 @@ import { formatAmount } from '@/lib/format/amount';
 import { formatHeight } from '@/lib/format/height';
 import { shortenMiddle } from '@/lib/format/address';
 import { statusTone } from '@/lib/format/status';
+import { curatedOperator } from '@/lib/operator-directory';
 import { formatRewardWeight, formatSlotStatus } from '@/lib/format/slot';
 
 // The merged Operators + Registry view (phase 14c/15 §4 + user request): ONE table carrying
@@ -68,7 +69,8 @@ export function OperatorsDirectory() {
               <span className="font-mono">{r.slotId}</span>
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate">
-                  {r.moniker ??
+                  {curatedOperator(r.slotId)?.name ??
+                    r.moniker ??
                     (r.operatorAddress ? shortenMiddle(r.operatorAddress, 12, 6) : '—')}
                 </span>
                 {r.moniker && r.operatorAddress ? (

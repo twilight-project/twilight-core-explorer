@@ -22,6 +22,7 @@ import { asRecord, feedNumber, feedString } from '@/lib/operator-feed';
 import { formatAmount } from '@/lib/format/amount';
 import { formatHeight } from '@/lib/format/height';
 import { formatRewardWeight, formatSlotStatus } from '@/lib/format/slot';
+import { curatedOperator } from '@/lib/operator-directory';
 
 // Operator Profile v2: verdict as four metric triples → sticky join card → track record →
 // epoch timeline → rules + transparency → identity. Same three questions as v1 (who is this,
@@ -38,6 +39,15 @@ function keptRatioPercent(kept: string, entitlement: string): number | null {
   } catch {
     return null;
   }
+}
+
+function AboutRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-card-hover py-2">
+      <span className="shrink-0 text-text-muted">{label}</span>
+      <span className="min-w-0 text-right text-text-secondary">{children}</span>
+    </div>
+  );
 }
 
 function CodeLine({ text }: { text: string }) {
@@ -75,8 +85,10 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
 
   const p = profile.data.data;
   const v = p.verdict;
+  const curated = curatedOperator(p.identity.slotId);
   const meta = asRecord(p.identity.metadata);
   const moniker = feedString(meta['moniker']);
+  const displayName = curated?.name ?? moniker ?? `CoreSlot ${p.identity.slotId} operator`;
   const declaredExtras = Object.fromEntries(Object.entries(meta).filter(([k]) => k !== 'moniker'));
   const discovery = p.discovery ? asRecord(p.discovery.payload) : null;
   const drawRecord = discovery ? feedString(discovery['draw_record']) : null;
@@ -188,7 +200,7 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
       <div className="flex flex-col gap-3.5">
         <div className="flex flex-wrap items-center gap-3.5">
           <h1 className="text-4xl font-semibold leading-none tracking-[-0.025em]">
-            {moniker ?? `CoreSlot ${p.identity.slotId} operator`}
+            {displayName}
           </h1>
           <span className="whitespace-nowrap rounded-full border border-primary/40 px-2.5 py-[3px] font-mono text-[11px] uppercase tracking-[.08em] text-primary">
             CoreSlot {p.identity.slotId}
@@ -206,6 +218,71 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
           are marked <SourceChip kind="attested" /> and checked against the chain.
         </p>
       </div>
+
+      {/* About this operator — the public-facing, plain-language layer. Curated by the
+          explorer until operators publish it on chain, and labelled so (configured). */}
+      {curated ? (
+        <Panel
+          title="About this operator"
+          meta={
+            <>
+              curated by the explorer · <SourceChip kind="configured" />
+            </>
+          }
+        >
+          <div className="flex flex-col gap-4">
+            {curated.disclaimer ? (
+              <p className="rounded-lg border border-accent-orange/40 bg-accent-orange/10 px-4 py-2.5 text-[13px] leading-relaxed text-accent-orange">
+                {curated.disclaimer}
+              </p>
+            ) : null}
+            <div className="grid grid-cols-1 gap-x-10 gap-y-2.5 text-sm md:grid-cols-2">
+              <AboutRow label="Who runs it">{curated.ownedBy}</AboutRow>
+              <AboutRow label="Website">
+                {curated.website ? (
+                  <a
+                    href={curated.website}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-primary hover:text-primary-light"
+                  >
+                    {curated.website.replace(/^https?:\/\//, '')} ↗
+                  </a>
+                ) : (
+                  '—'
+                )}
+              </AboutRow>
+              <AboutRow label="What it does">{curated.service}</AboutRow>
+              <AboutRow label="Rewards given till now">
+                {v ? (
+                  <span>
+                    <span className="font-mono text-text">
+                      {formatAmount(v.paidAll, v.denom).display}
+                    </span>{' '}
+                    {formatAmount(v.paidAll, v.denom).symbol} paid out to participants{' '}
+                    <SourceChip kind="chain" title="Sum of every settlement payout, from indexed events" />
+                  </span>
+                ) : (
+                  'none yet'
+                )}
+              </AboutRow>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-mono text-[11px] uppercase tracking-[.08em] text-text-muted">
+                How rewards are shared
+              </span>
+              <p className="max-w-3xl text-sm leading-relaxed text-text-secondary">
+                {curated.distributionPolicy}
+              </p>
+            </div>
+            {curated.about.map((para, i) => (
+              <p key={i} className="max-w-3xl text-sm leading-relaxed text-text-secondary">
+                {para}
+              </p>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       {/* Do they pay? */}
       <Panel

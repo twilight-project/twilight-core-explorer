@@ -10,18 +10,25 @@ import {
   SettlementPayoutListResponse,
   SettlementPayoutSummaryResponse,
   SettlementPayoutsQuery,
+  SettlementStatusQuery,
+  SettlementStatusResponse,
   toSettlementPayoutItem,
   toSettlementPayoutSummary,
+  toSettlementSlotSummary,
+  toSettlementStatusItem,
 } from '../dto/mining.js';
 import { AccountParams } from '../dto/accounts.js';
 import { ErrorResponse } from '../dto/common.js';
 import {
+  getPayoutContext,
   getPayoutSummary,
   getSettlement,
+  getSettlementSlotSummaries,
   listSettlementChunks,
   listSettlementPayoutLines,
   listSettlementPayouts,
   listSettlements,
+  listSettlementStatus,
 } from '../repositories/mining-repository.js';
 import {
   DEFAULT_LIMIT,
@@ -79,7 +86,12 @@ export async function miningRoutes(fastify: FastifyInstance): Promise<void> {
       const rows = hasMore ? fetched.slice(0, limit) : fetched;
       const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
       const nextCursor = hasMore && last ? encodeKeyset([last.height, last.id]) : null;
-      return { data: rows.map(toSettlementPayoutItem), page: { limit, nextCursor } };
+      // "Why this amount": batch-load each row's (slot, epoch) entitlement pool + recipient count.
+      const ctx = await getPayoutContext(app.prisma, rows);
+      return {
+        data: rows.map((r) => toSettlementPayoutItem(r, ctx.get(`${r.slotId}:${r.epochNumber}`))),
+        page: { limit, nextCursor },
+      };
     },
   );
 
@@ -119,6 +131,49 @@ export async function miningRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  // ---- settlement status: expected vs settled ----
+  app.get(
+    '/mining/settlements/status',
+    {
+      schema: {
+        tags: ['mining'],
+        summary: 'Every entitlement vs its finalization: settled, open, and for how long',
+        querystring: SettlementStatusQuery,
+        response: { 200: SettlementStatusResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const limit = request.query.limit ?? DEFAULT_LIMIT;
+      let beforeEpoch: bigint | undefined;
+      let beforeSlotId: bigint | undefined;
+      if (request.query.cursor !== undefined) {
+        const [e, s] = decodeKeyset(request.query.cursor, 2);
+        beforeEpoch = decodeBigIntPart(e as string);
+        beforeSlotId = decodeBigIntPart(s as string);
+      }
+      const [fetched, slotSummaries] = await Promise.all([
+        listSettlementStatus(app.prisma, {
+          slotId: filterUint64(request.query.slotId),
+          epochNumber: filterUint64(request.query.epoch),
+          beforeEpoch,
+          beforeSlotId,
+          limit: limit + 1,
+        }),
+        getSettlementSlotSummaries(app.prisma),
+      ]);
+      const hasMore = fetched.length > limit;
+      const rows = hasMore ? fetched.slice(0, limit) : fetched;
+      const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
+      const nextCursor = hasMore && last ? encodeKeyset([last.epochNumber, last.slotId]) : null;
+      return {
+        data: rows.map(toSettlementStatusItem),
+        slots: slotSummaries.map(toSettlementSlotSummary),
+        page: { limit, nextCursor },
+      };
+    },
+  );
+
   app.get(
     '/mining/settlements/:slotId/:epoch',
     {
@@ -151,7 +206,7 @@ export async function miningRoutes(fastify: FastifyInstance): Promise<void> {
         data: {
           ...toSettlementItem(settlement),
           chunks: chunks.map(toSettlementChunkItem),
-          payouts: payouts.map(toSettlementPayoutItem),
+          payouts: payouts.map((r) => toSettlementPayoutItem(r)),
         },
       };
     },

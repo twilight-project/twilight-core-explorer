@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useLatestBlocks, useLivenessRisk, useRewardsEpochs } from '@/lib/api/queries';
+import { useLivenessRisk, useRewardsEpochs, useSettlementStatus } from '@/lib/api/queries';
 
 // Redesign: three quiet numbers, each a DOOR to a section — replacing the 8-KPI grid. A value
 // appears once per page, so these three deliberately do not repeat the verdict sentence's
@@ -37,26 +37,19 @@ function bpsToPercent(bps: number | null | undefined): string {
   return frac === 0 ? `${whole}%` : `${whole}.${String(frac).padStart(2, '0')}%`;
 }
 
-/** Mean seconds between the last N blocks, from their timestamps. */
-function averageBlockSeconds(times: (string | null)[]): string {
-  const parsed = times
-    .filter((t): t is string => t !== null)
-    .map((t) => Date.parse(t))
-    .filter((n) => Number.isFinite(n));
-  if (parsed.length < 2) return '…';
-  const spanMs = Math.abs((parsed[0] as number) - (parsed[parsed.length - 1] as number));
-  const avg = spanMs / (parsed.length - 1) / 1000;
-  return `${avg.toFixed(1)}s`;
-}
-
 export function StatDoors() {
   const liveness = useLivenessRisk();
   const epochs = useRewardsEpochs();
-  const blocks = useLatestBlocks(8);
+  const settlements = useSettlementStatus();
 
   const risk = liveness.data?.data;
   const latestEpoch = epochs.data?.pages[0]?.data[0];
-  const blockTimes = blocks.data?.data.map((b) => b.time) ?? [];
+  // Open settlements = entitlements with no finalization yet, summed across slots.
+  const slotSummaries = settlements.data?.pages[0]?.slots;
+  const openSettlements =
+    slotSummaries !== undefined
+      ? String(slotSummaries.reduce((n, s) => n + s.openCount, 0))
+      : '…';
 
   return (
     <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
@@ -73,10 +66,10 @@ export function StatDoors() {
         href="/economy"
       />
       <Door
-        label="Average block time"
-        value={averageBlockSeconds(blockTimes)}
-        section="Blocks"
-        href="/blocks"
+        label="Open settlements"
+        value={openSettlements}
+        section="Economy"
+        href="/economy?tab=settlements"
       />
     </div>
   );

@@ -3,10 +3,10 @@
 import { useRewardsEpochs, useSupply } from '@/lib/api/queries';
 import { formatAmount } from '@/lib/format/amount';
 
-// Verdict header for /economy: the latest closed epoch as the headline, supply + cumulative
-// emission in the sentence. Amounts go through formatAmount (BigInt) — never Number(). The
-// read-only caveat lives here in prose; the separate ClaimingCard is gone (there is no claim
-// step on this chain — x/mining settlement pays participants directly).
+// Quiet header for /economy (14a feedback): a plain h1 with the latest epoch and supply as ONE
+// muted line, not a shouting sentence. Amounts go through formatAmount (BigInt) — never
+// Number(). The no-claim-step caveat moved to the surfaces that show rewards (account page,
+// entitlements) rather than the destination header.
 export function EconomyVerdict() {
   const epochs = useRewardsEpochs();
   const supply = useSupply();
@@ -21,22 +21,26 @@ export function EconomyVerdict() {
 
   return (
     <div className="flex flex-col gap-2.5">
-      <h1 className="font-serif text-3xl tracking-tight text-text">
-        {latest
-          ? `Epoch ${latest.epochNumber} paid ${reward ? `${reward.display} ${reward.symbol}` : '—'}${
-              latest.activeSlotCount != null ? ` to ${latest.activeSlotCount} slots` : ''
-            }`
-          : 'Rewards & supply'}
-      </h1>
-      <p className="max-w-2xl text-[15px] leading-relaxed text-text-secondary">
+      <h1 className="font-serif text-3xl text-text">Economy</h1>
+      <p className="max-w-2xl text-sm text-text-muted">
+        {latest ? (
+          <>
+            Epoch <span className="font-mono text-text-secondary">{latest.epochNumber}</span> paid{' '}
+            <span className="font-mono text-text-secondary">
+              {reward ? `${reward.display} ${reward.symbol}` : '—'}
+            </span>
+            {latest.activeSlotCount != null ? ` to ${latest.activeSlotCount} slots` : ''}
+          </>
+        ) : (
+          'Rewards & supply'
+        )}
         {total ? (
           <>
-            Total supply is <span className="font-mono text-text">{total.display}</span>{' '}
-            {total.symbol}.{' '}
+            {' · '}total supply{' '}
+            <span className="font-mono text-text-secondary">{total.display}</span> {total.symbol}
           </>
         ) : null}
-        Rewards are released through x/mining settlement — there is no claim step, on this
-        explorer or on the chain.
+        .
       </p>
     </div>
   );

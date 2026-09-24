@@ -71,6 +71,17 @@ export function CoreSlotSettlementsSection({ slotId }: { slotId: string }) {
         return `${a.display} ${a.symbol}`;
       },
     },
+    {
+      header: 'Latency',
+      mono: true,
+      // Finalization height minus the epoch's close height — how long the settlement took.
+      cell: (s) =>
+        s.latencyBlocks !== null ? (
+          `+${s.latencyBlocks} blocks`
+        ) : (
+          <span className="text-text-muted">—</span>
+        ),
+    },
     { header: 'Height', mono: true, cell: (s) => formatHeight(s.lastHeight) },
   ];
 

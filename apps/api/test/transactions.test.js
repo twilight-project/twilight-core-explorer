@@ -218,3 +218,24 @@ describe('txs aggregate', () => {
     await app.close();
   });
 });
+
+
+describe('tx list fee (CR-D)', () => {
+  it('surfaces the first fee coin and nulls odd shapes', async () => {
+    const app = await buildServer({ config: testConfig, prisma: new MockPrisma({
+      txs: [
+        tx('FEE1', 10, 0),
+        tx('FEE2', 11, 0, { feeJson: null }),
+        tx('FEE3', 12, 0, { feeJson: { amount: 'not-a-list' } }),
+      ],
+    }) });
+    const res = await app.inject({ url: '/api/v1/txs' });
+    const byHash = Object.fromEntries(res.json().data.map((t) => [t.hash, t]));
+    // The tx() factory carries feeJson {amount:[{denom:'utwlt',amount:'5'}]}.
+    assert.equal(byHash.FEE1.feeAmount, '5');
+    assert.equal(byHash.FEE1.feeDenom, 'utwlt');
+    assert.equal(byHash.FEE2.feeAmount, null);
+    assert.equal(byHash.FEE3.feeAmount, null);
+    await app.close();
+  });
+});

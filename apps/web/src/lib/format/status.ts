@@ -2,7 +2,20 @@
 // status string is always what gets displayed; the tone is purely presentational.
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
-const SUCCESS = ['healthy', 'active', 'ok', 'up', 'synced', 'live', 'available', 'none', 'low'];
+const SUCCESS = [
+  'healthy',
+  'active',
+  'ok',
+  'up',
+  'synced',
+  'live',
+  'available',
+  'none',
+  'low',
+  // tx execution outcome (/txs list + detail): a succeeded tx reads green, like the reference chips
+  'success',
+  'succeeded',
+];
 const WARNING = ['degraded', 'warning', 'lagging', 'stale', 'incomplete', 'partial', 'medium'];
 const DANGER = [
   'down',
@@ -24,4 +37,13 @@ export function statusTone(status: string | null | undefined): BadgeTone {
   if (DANGER.includes(s)) return 'danger';
   if (NEUTRAL.includes(s)) return 'neutral';
   return 'info';
+}
+
+/** Case-blind health-word checks — the API serves lowercase ('healthy'), older fixtures
+ *  uppercase; a casing drift must never flip a verdict. */
+export function isHealthyStatus(status: string | null | undefined): boolean {
+  return (status ?? '').toLowerCase() === 'healthy';
+}
+export function isDownStatus(status: string | null | undefined): boolean {
+  return (status ?? '').toLowerCase() === 'down';
 }

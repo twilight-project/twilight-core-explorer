@@ -17,6 +17,7 @@ import { CopyButton } from './ui/CopyButton';
 import { MonoCopy } from './ui/MonoCopy';
 import { EmptyState, InvalidInput } from './states/States';
 import { Footer } from './Footer';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Header } from './Header';
 import { OperatorLink } from './operator/OperatorLink';
 import { PaginatedTable } from './list/PaginatedTable';
@@ -24,7 +25,9 @@ import { StatusFilter } from './list/StatusFilter';
 import { TX_STATUS_OPTIONS } from '@/lib/status-filters';
 
 async function noViolations(ui: React.ReactElement) {
-  const { container } = render(ui);
+  // Footer (and others) fetch /status via TanStack Query — give every render a client.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } });
+  const { container } = render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
   expect(await axeViolations(container)).toEqual([]);
 }
 

@@ -6,20 +6,21 @@ import { Badge } from '@/components/ui/Badge';
 import { Tabs, activeTab, type TabDef } from '@/components/ui/Tabs';
 import { MonoCopy } from '@/components/ui/MonoCopy';
 import { CopyButton } from '@/components/ui/CopyButton';
-import { JsonView } from '@/components/detail/JsonView';
+import { MetadataFields, PubkeyInline } from '@/components/detail/MetadataFields';
 import { OperatorLink } from '@/components/operator/OperatorLink';
 import { ErrorState, InvalidInput, LoadingState } from '@/components/states/States';
 import { useCoreSlot } from '@/lib/api/queries';
 import { parseOperatorMetadata } from '@/lib/operator-metadata';
 import { formatHeight } from '@/lib/format/height';
-import { statusTone } from '@/lib/format/status';
+import { isHealthyStatus, statusTone } from '@/lib/format/status';
 import { bpsToPercent } from '@/lib/format/bps';
 import { CoreSlotHealthSection } from './sections/CoreSlotHealthSection';
 import { CoreSlotLivenessSection } from './sections/CoreSlotLivenessSection';
 import { CoreSlotProposedBlocksSection } from './sections/CoreSlotProposedBlocksSection';
 import { CoreSlotAuthorityHistorySection } from './sections/CoreSlotAuthorityHistorySection';
 import { CoreSlotSettlementsSection } from './sections/CoreSlotSettlementsSection';
-import { CoreSlotRewardsSection } from './sections/CoreSlotRewardsSection';
+import { CoreSlotParticipantsChart } from './sections/CoreSlotParticipantsChart';
+import { EntitlementsSection } from '@/components/rewards/sections/EntitlementsSection';
 import { CoreSlotRawSection } from './sections/CoreSlotRawSection';
 
 const TABS: TabDef[] = [
@@ -64,10 +65,10 @@ export function CoreSlotDetail({
       <div className="space-y-6">{node}</div>
     ) : (
       <div className="flex flex-col gap-7">
-        <Link href="/validators?tab=registry" className="text-sm text-text-muted hover:text-text">
+        <Link href="/slots?tab=registry" className="text-sm text-text-muted hover:text-text">
           ← CoreSlots
         </Link>
-        {title ? <h1 className="font-serif text-3xl tracking-tight text-text">{title}</h1> : null}
+        {title ? <h1 className="font-serif text-3xl text-text">{title}</h1> : null}
         {node}
       </div>
     );
@@ -116,10 +117,10 @@ export function CoreSlotDetail({
         {c.removedHeight ? <span className="font-mono">{formatHeight(c.removedHeight)}</span> : '—'}
       </FieldRow>
       <FieldRow label="Consensus pubkey">
-        <JsonView value={c.consensusPubkey} />
+        <PubkeyInline value={c.consensusPubkey} />
       </FieldRow>
       <FieldRow label="Metadata">
-        <JsonView value={c.metadata} />
+        <MetadataFields value={c.metadata} />
       </FieldRow>
     </div>
   );
@@ -135,14 +136,14 @@ export function CoreSlotDetail({
         <CoreSlotProposedBlocksSection slotId={c.slotId} />
         <CoreSlotAuthorityHistorySection slotId={c.slotId} />
         <CoreSlotSettlementsSection slotId={slotId} />
-        <CoreSlotRewardsSection slotId={c.slotId} />
+        <EntitlementsSection filter={{ slotId }} />
         <CoreSlotRawSection slotId={c.slotId} />
       </>,
     );
   }
 
   const tab = activeTab(TABS, rawTab);
-  const healthy = c.health?.healthStatus === 'HEALTHY';
+  const healthy = isHealthyStatus(c.health?.healthStatus);
   const verdict = c.health
     ? `CoreSlot ${c.slotId} — ${c.health.healthStatus.toLowerCase()}${
         c.health.isActiveAtLatest ? ', signing' : ', not signing'
@@ -151,7 +152,7 @@ export function CoreSlotDetail({
 
   return (
     <div className="flex flex-col gap-7">
-      <Link href="/validators?tab=registry" className="text-sm text-text-muted hover:text-text">
+      <Link href="/slots?tab=registry" className="text-sm text-text-muted hover:text-text">
         ← CoreSlots
       </Link>
 
@@ -167,12 +168,21 @@ export function CoreSlotDetail({
             <Badge tone={statusTone(c.health.summaryStatus)}>{c.health.summaryStatus}</Badge>
           ) : null}
         </div>
-        <h1 className="font-serif text-3xl tracking-tight text-text">{verdict}</h1>
-        {operatorMeta.moniker ? (
-          <p className="text-[15px] text-text-secondary">
-            Operated by <span className="text-text">{operatorMeta.moniker}</span>
-          </p>
-        ) : null}
+        <h1 className="font-serif text-3xl text-text">{verdict}</h1>
+        <p className="text-[15px] text-text-secondary">
+          {operatorMeta.moniker ? (
+            <>
+              Operated by <span className="text-text">{operatorMeta.moniker}</span>
+              {' · '}
+            </>
+          ) : null}
+          <Link
+            href={`/operators/${encodeURIComponent(slotId)}`}
+            className="text-primary hover:text-primary-light"
+          >
+            Operator profile →
+          </Link>
+        </p>
       </div>
 
       <Tabs
@@ -196,7 +206,8 @@ export function CoreSlotDetail({
       {tab === 'rewards' ? (
         <>
           <CoreSlotSettlementsSection slotId={slotId} />
-          <CoreSlotRewardsSection slotId={c.slotId} />
+          <CoreSlotParticipantsChart slotId={slotId} />
+          <EntitlementsSection filter={{ slotId }} />
         </>
       ) : null}
       {tab === 'history' ? (

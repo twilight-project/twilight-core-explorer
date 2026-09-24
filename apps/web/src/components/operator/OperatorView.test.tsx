@@ -1,13 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { useOperatorResolution, useCoreSlot } = vi.hoisted(() => ({
+const { useOperatorResolution } = vi.hoisted(() => ({
   useOperatorResolution: vi.fn(),
-  useCoreSlot: vi.fn(),
 }));
-vi.mock('@/lib/api/queries', () => ({ useOperatorResolution, useCoreSlot }));
-vi.mock('@/components/coreslots/CoreSlotDetail', () => ({
-  CoreSlotDetail: ({ slotId }: { slotId: string }) => <div data-testid="coreslot-detail">slot:{slotId}</div>,
+vi.mock('@/lib/api/queries', () => ({ useOperatorResolution }));
+// The profile is its own heavily-queried component — stub it; this test owns RESOLUTION only.
+vi.mock('@/components/operators/OperatorProfile', () => ({
+  OperatorProfile: ({ slotId }: { slotId: string }) => (
+    <div data-testid="operator-profile">profile:{slotId}</div>
+  ),
 }));
 
 import { OperatorView } from './OperatorView';
@@ -25,42 +27,45 @@ const slot = (slotId: string) => ({
   removedHeight: null,
 });
 
-function resolution(value: unknown) {
-  useOperatorResolution.mockReturnValue(value);
-  useCoreSlot.mockReturnValue({ data: { data: { metadata: { moniker: 'core5' }, operatorAddress: 'twilight1op' } } });
-}
-
 afterEach(() => vi.clearAllMocks());
 
-describe('OperatorView', () => {
-  it('single match: role badge + display name + reuses CoreSlotDetail', () => {
-    resolution({ isPending: false, isError: false, data: { matchedRole: 'operator', slots: [slot('2')] } });
+describe('OperatorView (phase 15: resolves an address to its operator profile)', () => {
+  it('single match: role badge + renders the profile for the resolved slot', () => {
+    useOperatorResolution.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { matchedRole: 'operator', slots: [slot('2')] },
+    });
     render(<OperatorView address="twilight1op" />);
     expect(screen.getByText('matched by operator address')).toBeInTheDocument();
-    expect(screen.getByTestId('coreslot-detail')).toHaveTextContent('slot:2');
-    // display name from metadata.moniker leads the page:
-    expect(screen.getAllByText('core5').length).toBeGreaterThan(0);
-    // 12c cross-link: operator identity card links to the rewards hub.
-    expect(screen.getByRole('link', { name: /view rewards/i })).toHaveAttribute('href', '/economy');
+    expect(screen.getByTestId('operator-profile')).toHaveTextContent('profile:2');
   });
 
-  it('consensus fallback shows "matched by consensus address"', () => {
-    resolution({ isPending: false, isError: false, data: { matchedRole: 'consensus', slots: [slot('3')] } });
-    render(<OperatorView address="cons" />);
-    expect(screen.getByText('matched by consensus address')).toBeInTheDocument();
+  it('multi-slot anomaly is surfaced and the FIRST slot renders', () => {
+    useOperatorResolution.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { matchedRole: 'payout', slots: [slot('2'), slot('7')] },
+    });
+    render(<OperatorView address="twilight1pay" />);
+    expect(screen.getByText(/Multiple CoreSlots matched/)).toBeInTheDocument();
+    expect(screen.getByTestId('operator-profile')).toHaveTextContent('profile:2');
   });
 
-  it('zero match: non-error empty state', () => {
-    resolution({ isPending: false, isError: false, data: { matchedRole: null, slots: [] } });
-    render(<OperatorView address="nobody" />);
-    expect(screen.getByText(/No CoreSlot found for this address/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('coreslot-detail')).not.toBeInTheDocument();
+  it('no match: honest empty state, no profile', () => {
+    useOperatorResolution.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { matchedRole: null, slots: [] },
+    });
+    render(<OperatorView address="twilight1nobody" />);
+    expect(screen.getByText(/No CoreSlot found/)).toBeInTheDocument();
+    expect(screen.queryByTestId('operator-profile')).not.toBeInTheDocument();
   });
 
-  it('multiple matches: surfaces the anomaly note and renders the first slot', () => {
-    resolution({ isPending: false, isError: false, data: { matchedRole: 'operator', slots: [slot('2'), slot('9')] } });
+  it('pending renders the loading shell', () => {
+    useOperatorResolution.mockReturnValue({ isPending: true, isError: false });
     render(<OperatorView address="twilight1op" />);
-    expect(screen.getByText(/Multiple CoreSlots matched/i)).toBeInTheDocument();
-    expect(screen.getByTestId('coreslot-detail')).toHaveTextContent('slot:2');
+    expect(screen.queryByTestId('operator-profile')).not.toBeInTheDocument();
   });
 });

@@ -68,7 +68,11 @@
     "project:coreslot-structural:dev": "npm run build && node dist/projections/coreslot-structural-cli.js",
     "project:coreslot-structural:reset": "node dist/projections/reset-coreslot-structural-cli.js",
     "project:entitlements": "node dist/projections/rewards-entitlements-cli.js",
-    "project:entitlements:dev": "npm run build && node dist/projections/rewards-entitlements-cli.js"
+    "project:entitlements:dev": "npm run build && node dist/projections/rewards-entitlements-cli.js",
+    "project:operator-status": "node dist/projections/operator-status-snapshot-cli.js",
+    "project:operator-status:dev": "npm run build && node dist/projections/operator-status-snapshot-cli.js",
+    "project:operator-status:reset": "node dist/projections/reset-operator-status-cli.js",
+    "project:slot-registry-refresh": "node dist/projections/slot-registry-refresh-cli.js"
   },
   "dependencies": {
     "@twilight-explorer/chain-client": "0.0.0",

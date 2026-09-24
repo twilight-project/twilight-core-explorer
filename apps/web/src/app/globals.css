@@ -4,8 +4,8 @@
 
 /*
   Theme bridge. Tailwind colors resolve via CSS variables, switched with `data-theme` on <html>.
-  Two themes only — `dark` (the default operator console) and `light` (its paper counterpart).
-  They share one voice and shape language; only the ground and palette depth differ.
+  Two themes only — `dark` (the Twilight auction look: gold on near-black, the default) and `light`
+  (its paper counterpart). They share one voice and shape language; only the ground differs.
 */
 
 :root {
@@ -13,121 +13,121 @@
      unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
      its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
      if a face fails to load. */
-  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter,
+  /* Twilight brand pair (twilight.org auction reference): Instrument Serif for display headings,
+     Inter for UI copy, JetBrains Mono for every number, hash, address, caption and label. */
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, 'Times New Roman', serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
     sans-serif;
-  --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Roboto Mono', monospace;
-  /* Hero-numeral role (KPI/stat values). Mono by default — operator honesty: heights and amounts
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  /* Hero-numeral role (KPI/stat values). Mono — operator honesty: heights and amounts
      stay monospaced so digits align and cannot be misread. */
-  --font-metric: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  --font-metric: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 
-  /* KPI category legend. Every category hue except violet already exists as a per-theme --accent-*
-     (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. Violet has
-     no accent, so it lives here in :root as a global fallback — constant across all themes. */
-  --accent-violet: 167 139 250;
+  /* KPI category legend. Every category hue except "violet" already exists as a per-theme --accent-*
+     (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. The brand
+     palette has no violet: the coreslot category renders in a warm sand instead (constant across
+     themes; the token keeps its historical name so component classes stay stable). */
+  --accent-violet: 201 164 106;
 }
 
-/* Dark — the default operator console: warm gold on a near-black ground. */
+/* Dark — the Twilight auction reference: gold on near-black. Page #050505 · card #0A0A0C ·
+   raised #0E0E10 · hairline #1F1F23 / #2A2A2E · gold #E89E28 (primary, links, active tab, charts) ·
+   copper #D97E48 (secondary series) · green #18C37D (healthy/success) · red #FF4A4A.
+   No yellow: the warning tint IS the gold accent (state reads from its label, never hue alone). */
 [data-theme='dark'] {
-  --page: 10 8 5;
-  --background: 10 8 5;
-  --background-secondary: 15 13 9;
-  --background-tertiary: 28 24 16;
-  --background-primary: 6 5 3;
+  --page: 5 5 5;
+  --background: 5 5 5;
+  --background-secondary: 10 10 12;
+  --background-tertiary: 24 24 27;
+  --background-primary: 0 0 0;
 
-  --card: 22 19 13;
-  --card-hover: 28 24 16;
-  --card-border: 38 34 27;
+  --card: 10 10 12;
+  --card-hover: 14 14 16;
+  --card-border: 31 31 35;
 
-  --primary: 245 197 66;
-  --primary-light: 255 215 102;
-  --primary-dark: 200 158 46;
+  --primary: 232 158 40;
+  --primary-light: 246 180 108;
+  --primary-dark: 198 127 26;
 
-  --accent-blue: 78 163 255;
-  --accent-orange: 255 154 61;
-  --accent-yellow: 255 181 112;
-  --accent-green: 61 220 151;
-  --accent-red: 255 107 107;
+  --accent-blue: 217 126 72;
+  --accent-orange: 198 127 26;
+  --accent-yellow: 232 158 40;
+  --accent-green: 24 195 125;
+  --accent-red: 255 74 74;
 
-  --accent-gold: 245 197 66;
-  --accent-gold-light: 255 215 102;
-  --accent-gold-dark: 200 158 46;
-  --accent-amber: 255 181 112;
-  --accent-burgundy: 40 24 12;
+  --accent-gold: 232 158 40;
+  --accent-gold-light: 246 180 108;
+  --accent-gold-dark: 198 127 26;
+  --accent-amber: 232 158 40;
+  --accent-burgundy: 63 29 29;
 
-  --text: 233 234 242;
-  --text-secondary: 201 202 214;
-  /* WCAG 1.4.3: ~7:1 on the warm-black --background. */
-  --text-muted: 154 157 180;
+  --text: 249 250 251;
+  --text-secondary: 163 163 179;
+  /* WCAG 1.4.3: ≈5.6:1 on the near-black --background (the reference's #6B6B7A was 3.9:1). */
+  --text-muted: 138 138 152;
 
-  --border: 38 34 27;
-  --border-light: 54 48 38;
+  --border: 31 31 35;
+  --border-light: 42 42 46;
 
-  /* expressive — balanced elevation, bordered, sans display, MONO numerals (operator honesty) */
+  /* reference shape language: 16px card corners, hairline border + a soft drop shadow */
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 4px 24px rgba(0, 0, 0, 0.45);
   --display-tracking: -0.01em;
   --card-border-width: 1px;
-  /* display face — Inter (compact technical sans per brief); hierarchy by size/weight, not face */
-  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  /* --font-metric inherits the :root mono default — heights/amounts stay monospaced */
 }
 
-/* Light — the same console on paper. Picked automatically for first-time visitors whose OS prefers
-   light (see the pre-paint script in layout.tsx); always available from the toggle. All text/status
-   pairs are AA-verified against both --background and --card by theme-tokens.test.ts — keep them
-   passing when retuning. */
+/* Light — the same brand on paper. Picked automatically for first-time visitors whose OS prefers
+   light (see the pre-paint script in layout.tsx); always available from the toggle. Gold is carried
+   at text-safe depth (amber-800). All text/status pairs are AA-verified against both --background
+   and --card by theme-tokens.test.ts — keep them passing when retuning. */
 [data-theme='light'] {
-  --page: 250 249 245;
-  --background: 250 249 245;
-  --background-secondary: 243 241 234;
-  --background-tertiary: 232 229 219;
+  --page: 250 249 247;
+  --background: 250 249 247;
+  --background-secondary: 244 242 238;
+  --background-tertiary: 233 230 224;
   --background-primary: 255 255 255;
 
   --card: 255 255 255;
-  --card-hover: 248 246 240;
-  --card-border: 214 209 196;
+  --card-hover: 250 247 242;
+  --card-border: 226 222 214;
 
-  /* Ink-gold: the warm-gold identity carried at text-safe depth. Status/brand text also sits on
-     10%-tint surfaces (badges, the lag banner) over this paper ground, which RAISES the effective
-     background — every pair below clears AA on the tint blend too (guarded by theme-tokens.test.ts;
-     the live-browser axe run caught the first tuning at 4.48:1 on exactly that blend). */
-  --primary: 122 96 20;
-  --primary-light: 102 80 16;
-  --primary-dark: 87 68 14;
+  /* Deep amber: the gold identity at ≈6.4:1 on white. Status/brand text also sits on 10%-tint
+     surfaces (badges, the lag banner) over this ground, which RAISES the effective background —
+     every pair below must clear AA on the tint blend too (guarded by theme-tokens.test.ts). */
+  --primary: 146 64 14;
+  --primary-light: 180 83 9;
+  --primary-dark: 120 53 15;
 
-  --accent-blue: 29 100 189;
+  --accent-blue: 154 82 30;
   --accent-orange: 180 83 9;
-  --accent-yellow: 138 90 5;
+  --accent-yellow: 146 64 14;
   --accent-green: 13 107 76;
   --accent-red: 185 28 28;
 
-  --accent-gold: 122 96 20;
-  --accent-gold-light: 102 80 16;
-  --accent-gold-dark: 87 68 14;
-  --accent-amber: 138 90 5;
-  --accent-burgundy: 240 231 214;
+  --accent-gold: 146 64 14;
+  --accent-gold-light: 180 83 9;
+  --accent-gold-dark: 120 53 15;
+  --accent-amber: 146 64 14;
+  --accent-burgundy: 250 236 220;
 
-  --text: 26 26 31;
-  --text-secondary: 68 70 80;
-  /* WCAG 1.4.3: ≈5.7:1 on the paper --background. */
-  --text-muted: 96 99 112;
+  --text: 24 24 27;
+  --text-secondary: 63 63 70;
+  /* WCAG 1.4.3: ≈5.7:1 on the --background. */
+  --text-muted: 92 92 102;
 
-  --border: 214 209 196;
-  --border-light: 196 190 175;
+  --border: 226 222 214;
+  --border-light: 205 200 190;
 
-  /* expressive — the console shape language on paper: bordered cards, soft warm shadow */
+  /* the same corner language on paper */
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(31, 26, 14, 0.05), 0 4px 18px rgba(31, 26, 14, 0.08);
+  --shadow-card: 0 0 0 1px rgba(30, 24, 12, 0.05), 0 2px 12px rgba(30, 24, 12, 0.05);
   --display-tracking: -0.01em;
   --card-border-width: 1px;
-  /* display face — Inter, the same compact technical voice as the dark theme */
-  --font-serif: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* ---- Spacing/type scale ------------------------------------------------------------------------
@@ -137,9 +137,9 @@
 :root {
   --d-section-gap: 1.25rem; /* 20px — handoff section gap */
   --d-grid-gap: 0.875rem; /* 14px — handoff card-grid gap */
-  --d-card-px: 1rem; /* 16px */
-  --d-card-py: 0.875rem; /* 14px */
-  --d-kpi-size: 1.375rem; /* 22px — handoff stat value */
+  --d-card-px: 1.25rem; /* 20px — reference card inset */
+  --d-card-py: 1.125rem; /* 18px */
+  --d-kpi-size: 1.625rem; /* 26px — reference stat value */
   --d-metric-size: 2rem; /* 32px — handoff big metric */
 }
 
@@ -163,6 +163,17 @@ body {
 h1,
 h2 {
   letter-spacing: var(--display-tracking, -0.01em);
+}
+
+/* Display headings are Instrument Serif (single 400 weight, like the reference hero) — regular,
+   never synthesized bold. Element-level, so any explicit font-weight utility still wins. */
+h1,
+h2 {
+  font-weight: 400;
+}
+.font-serif {
+  font-weight: 400;
+  font-synthesis: none;
 }
 
 /* Keep in-page anchor targets (e.g. the skip link → #main) clear of the sticky header. */
@@ -192,6 +203,33 @@ html {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--border-light));
+}
+
+/* Status-strip cursor: a steady 1.2s step blink (control-room handoff). */
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.animate-cursor-blink {
+  animation: cursor-blink 1.2s steps(1) infinite;
+}
+
+/* New ledger rows fade in from a gold tint (600ms), per the handoff's live-prepend note. */
+@keyframes ledger-flash {
+  0% {
+    background-color: rgb(var(--primary) / 0.12);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.animate-ledger-flash {
+  animation: ledger-flash 600ms ease-out 1;
 }
 
 /* Skeleton shimmer used by loading states */

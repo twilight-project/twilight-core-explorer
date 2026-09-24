@@ -1,15 +1,11 @@
 'use client';
 
-import Link from 'next/link';
-import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { MonoCopy } from '@/components/ui/MonoCopy';
 import { DetailShell } from '@/components/detail/DetailShell';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states/States';
-import { CoreSlotDetail } from '@/components/coreslots/CoreSlotDetail';
-import { OperatorProfile } from './OperatorProfile';
-import { useCoreSlot, useOperatorResolution } from '@/lib/api/queries';
-import { parseOperatorMetadata, displayName } from '@/lib/operator-metadata';
+import { OperatorProfile } from '@/components/operators/OperatorProfile';
+import { useOperatorResolution } from '@/lib/api/queries';
 import type { OperatorRole } from '@/lib/operator-resolver';
 
 const ROLE_LABEL: Record<OperatorRole, string> = {
@@ -18,25 +14,24 @@ const ROLE_LABEL: Record<OperatorRole, string> = {
   payout: 'payout address',
 };
 
-// Operator (validator-equivalent) page. No /operator endpoint: resolve address -> CoreSlot via the
-// /coreslots filters, then reuse CoreSlotDetail for the resolved slot. One operator = one slot (chain
-// rule); >1 is a surfaced anomaly. The slot detail query is shared (deduped) with CoreSlotDetail.
+// The operator page (phase 15): resolve an address -> its CoreSlot (by operator/consensus/
+// payout role — one operator = one slot; >1 is a surfaced anomaly), then render the full
+// Operator Profile for that slot. The profile is also reachable directly at /operators/[slotId].
 export function OperatorView({ address }: { address: string }) {
   const resolution = useOperatorResolution(address);
   const slots = resolution.data?.slots ?? [];
   const primarySlot = slots[0];
-  const slotDetail = useCoreSlot(primarySlot?.slotId ?? '');
 
   if (resolution.isPending) {
     return (
-      <DetailShell title="Operator" backHref="/validators?tab=registry" backLabel="CoreSlots">
+      <DetailShell title="Operator" backHref="/slots?tab=operators" backLabel="Operators">
         <LoadingState rows={4} />
       </DetailShell>
     );
   }
   if (resolution.isError) {
     return (
-      <DetailShell title="Operator" backHref="/validators?tab=registry" backLabel="CoreSlots">
+      <DetailShell title="Operator" backHref="/slots?tab=operators" backLabel="Operators">
         <ErrorState error={resolution.error} context="Operator" />
       </DetailShell>
     );
@@ -45,49 +40,26 @@ export function OperatorView({ address }: { address: string }) {
   const { matchedRole } = resolution.data;
   if (matchedRole === null || primarySlot === undefined) {
     return (
-      <DetailShell title="Operator" backHref="/validators?tab=registry" backLabel="CoreSlots">
+      <DetailShell title="Operator" backHref="/slots?tab=operators" backLabel="Operators">
         <EmptyState message="No CoreSlot found for this address." />
       </DetailShell>
     );
   }
 
-  const operatorAddress = primarySlot.operatorAddress;
-  const meta = slotDetail.data ? parseOperatorMetadata(slotDetail.data.data.metadata) : { extras: {} };
-  const name = displayName({ moniker: meta.moniker, operatorAddress });
-
   return (
-    <DetailShell title={name} backHref="/validators?tab=registry" backLabel="CoreSlots">
-      <Card>
-        <CardBody className="space-y-2">
-          <div className="text-sm text-text-muted">
-            Operator (validator) — runs CoreSlot <span className="font-mono text-text">{primarySlot.slotId}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="info">matched by {ROLE_LABEL[matchedRole]}</Badge>
-            <span className="text-xs text-text-muted">searched:</span>
-            <MonoCopy value={address} head={14} tail={8} label="searched address" />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-text-muted">operator:</span>
-            <MonoCopy value={operatorAddress} head={14} tail={8} label="operator address" />
-          </div>
-          {slots.length > 1 ? (
-            <div className="rounded-xl border border-accent-yellow/30 bg-accent-yellow/10 px-4 py-2 text-xs text-accent-yellow">
-              Multiple CoreSlots matched this address (unexpected — one operator should own one CoreSlot).
-              Showing slot {primarySlot.slotId}.
-            </div>
-          ) : null}
-          <div className="pt-1">
-            <Link href="/economy" className="text-sm text-primary hover:text-primary-light">
-              View rewards →
-            </Link>
-          </div>
-        </CardBody>
-      </Card>
-
-      <OperatorProfile metadata={meta} />
-
-      <CoreSlotDetail slotId={primarySlot.slotId} embedded />
-    </DetailShell>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        <Badge tone="info">matched by {ROLE_LABEL[matchedRole]}</Badge>
+        <span>searched:</span>
+        <MonoCopy value={address} head={14} tail={8} label="searched address" />
+        {slots.length > 1 ? (
+          <span className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-1 text-primary">
+            Multiple CoreSlots matched (unexpected — one operator should own one CoreSlot).
+            Showing slot {primarySlot.slotId}.
+          </span>
+        ) : null}
+      </div>
+      <OperatorProfile slotId={primarySlot.slotId} />
+    </div>
   );
 }

@@ -540,6 +540,29 @@ export function useSlotSettlements(slotId: string) {
   });
 }
 
+export type SettlementStatusResponse = JsonOf<'/api/v1/mining/settlements/status'>;
+
+/**
+ * Expected vs settled: every (slot, epoch) an entitlement exists for, left-joined against the
+ * finalizations that happened, plus each slot's historical latency distribution. "Late" is a
+ * CLIENT judgment: openForBlocks compared against the slot's p90 latency — the server states
+ * only observations.
+ */
+export function useSettlementStatus(filter?: { slotId?: string | undefined }) {
+  const slotId = filter?.slotId;
+  return useInfiniteQuery({
+    queryKey: ['mining', 'settlement-status', slotId ?? 'all'],
+    queryFn: ({ pageParam }) =>
+      apiGet('/api/v1/mining/settlements/status', {
+        limit: LIST_PAGE,
+        cursor: pageParam,
+        ...(slotId !== undefined ? { slotId } : {}),
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextPageParam,
+  });
+}
+
 export function useSettlement(slotId: string, epoch: string) {
   return useQuery({
     queryKey: ['mining', 'settlement', slotId, epoch],
@@ -634,5 +657,72 @@ export function useRewardsTreasury() {
       apiGet('/api/v1/rewards/treasury-payments', { limit: LIST_PAGE, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
+  });
+}
+
+// --- Operator profiles + operator-status feed (phase 15) ---
+// Chain figures come provenance-labelled 'chain'; feed reads are the operator's own words
+// ('attested'), served with their sample age — silence arrives as a no_status STATE.
+export type OperatorsResponse = JsonOf<'/api/v1/operators'>;
+export type OperatorProfileResponse = JsonOf<'/api/v1/operators/{slotId}/profile'>;
+export type OperatorClockResponse = JsonOf<'/api/v1/operators/{slotId}/status/clock'>;
+export type OperatorFeedEpochResponse =
+  JsonOf<'/api/v1/operators/{slotId}/status/epochs/{epoch}'>;
+
+export function useOperators() {
+  return useQuery({
+    queryKey: ['operators'],
+    queryFn: () => apiGet('/api/v1/operators'),
+    refetchInterval: STATUS_REFETCH_MS,
+  });
+}
+
+export function useOperatorProfile(slotId: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'profile'],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/profile', { slotId }),
+    enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorClock(slotId: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'clock'],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/status/clock', { slotId }),
+    refetchInterval: STATUS_REFETCH_MS,
+    enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorFeedEpoch(slotId: string, epoch: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'feed-epoch', epoch],
+    queryFn: () =>
+      apiGetPath('/api/v1/operators/{slotId}/status/epochs/{epoch}', { slotId, epoch }),
+    enabled: enabledSlot(slotId) && epoch.length > 0,
+    // A settled epoch never changes (contract) — cache effectively forever.
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/** Feed-epoch verification fan-out for a track-record page of epochs (capped concurrency). */
+export function useFeedEpochFanout(slotId: string, epochs: string[]) {
+  const capped = epochs.slice(0, 20);
+  return useQuery({
+    queryKey: ['operators', slotId, 'feed-epoch-fanout', capped],
+    queryFn: async () =>
+      mapWithConcurrency(capped, 4, async (epoch) => {
+        try {
+          const r = await apiGetPath('/api/v1/operators/{slotId}/status/epochs/{epoch}', {
+            slotId,
+            epoch,
+          });
+          return { epoch, data: r.data };
+        } catch {
+          return { epoch, data: null };
+        }
+      }),
+    enabled: enabledSlot(slotId) && capped.length > 0,
+    staleTime: 60_000,
   });
 }

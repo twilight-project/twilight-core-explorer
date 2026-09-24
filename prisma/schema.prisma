@@ -759,10 +759,9 @@ model AccountBalanceCurrent {
 // Two categories, kept strictly separate (same discipline as rewards above):
 //   - Rebuildable semantic rows (mining_semantic_v1), derived only from generic
 //     Message/Event/Transaction rows: MiningSettlementChunk, MiningSettlementFinalization.
-//   - Observed-sample rows (mining_settlement_state_v1): MiningSettlementProjection.
-//     Settlement CREATION is silent — x/mining's EndBlocker emits no events at all — so
-//     current settlement state can only be read back from the chain and is honestly tied to
-//     the height/clock it was sampled at.
+//   (A planned observed-sample model, MiningSettlementProjection, was dead schema — defined
+//   but written by no projector — and was deleted in Phase 14a. Settlement state derives from
+//   the rebuildable rows; a future clock/state projector will bring its own model.)
 // ---------------------------------------------------------------------------
 
 // Rebuildable: one row per accepted MsgSubmitSettlementChunk.
@@ -820,43 +819,6 @@ model MiningSettlementFinalization {
   @@index([slotId, epochNumber])
 }
 
-// Observed sample of a settlement's current state, keyed (slotId, epochNumber).
-// Most of these fields are DERIVED by the chain (remainingAmount, ceiling, deadlineClock,
-// permissionlessFinalizationNow) and are not stored on-chain, so they are only ever true as
-// of sampledAtHeight / sampledSettlementClock. Note the settlement clock is NOT a block
-// height: it only ticks while reward release is enabled.
-model MiningSettlementProjection {
-  id                             BigInt   @id @default(autoincrement())
-  slotId                         BigInt
-  epochNumber                    BigInt
-  distributionModeVersion        BigInt?
-  settlementMode                 String?
-  settlementParamsVersion        BigInt?
-  nextChunkIndex                 BigInt?
-  finalized                      Boolean  @default(false)
-  finalizedHeight                BigInt?
-  finalizationReason             String?
-  entitlementAmount              String?
-  releasedAmount                 String?
-  remainingAmount                String?
-  participantDistributionCeiling String?
-  payoutAddress                  String?
-  createdSettlementClock         BigInt?
-  deadlineClock                  BigInt?
-  permissionlessFinalizationNow  Boolean?
-  sampledAtHeight                BigInt
-  sampledSettlementClock         BigInt?
-  rawSnapshotJson                Json?
-  createdAt                      DateTime @default(now())
-  updatedAtDb                    DateTime @updatedAt
-
-  @@unique([slotId, epochNumber])
-  @@index([slotId])
-  @@index([epochNumber])
-  @@index([finalized])
-  @@index([payoutAddress])
-  @@index([sampledAtHeight])
-}
 
 // ---------------------------------------------------------------------------
 // CoreSlot V2 structural state (devnet-2): settlement address + selection policy.
@@ -943,4 +905,36 @@ model MiningSettlementPayout {
   @@index([height])
   @@index([txHash])
   @@index([recipient, height])
+}
+
+// ---------------------------------------------------------------------------
+// Operator-status feed samples (phase 15 / twilight-operator-status-v1).
+// OBSERVED SAMPLES of an OPERATOR's OWN feed — not chain data, not rebuildable, and by
+// contract never authoritative: the chain is the fact, this is the operator's explanation
+// beside it (provenance 'attested'; 'verified' only when a figure matches a chain row).
+// One row per (slot, kind, epoch): the clock row is overwritten each poll, discovery hourly,
+// an epoch row becomes immutable once its state is SETTLEMENT_RECONCILED. A FAILED fetch
+// never clobbers the last good payload — it only updates the lastAttempt* fields, because
+// per the contract 404/429/5xx/unreachable all mean "no status right now, keep the last
+// good sample with its age". ADR-MINIS-0020: rows must never contain per-address data; the
+// projector refuses payloads that do (privacy test enforces).
+model OperatorStatusSample {
+  id             BigInt    @id @default(autoincrement())
+  slotId         BigInt
+  kind           String // discovery | clock | epoch
+  epochNumber    BigInt?
+  // `${slotId}:${kind}:${epochNumber ?? '-'}` — non-null upsert selector (NULLs don't dedupe).
+  sampleKey      String    @unique
+  baseUrl        String // the configured feed base URL the sample came from ('configured' provenance)
+  payloadJson    Json?
+  sampledAt      DateTime? // body sampled_at
+  asHeight       BigInt? // body as_height
+  fetchedAt      DateTime? // last SUCCESSFUL fetch
+  lastAttemptAt  DateTime
+  lastHttpStatus Int?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAtDb    DateTime  @updatedAt
+
+  @@index([slotId, kind])
 }

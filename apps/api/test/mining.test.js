@@ -4,6 +4,9 @@ import { buildServer } from '../dist/server.js';
 import {
   MockPrisma,
   testConfig,
+  block,
+  entitlement,
+  epoch,
   payout,
   settlementChunk,
   settlementFinalization,
@@ -174,6 +177,88 @@ describe('mining settlements', () => {
     const app = await withActivity();
     const res = await app.inject({ url: '/api/v1/mining/settlements/abc/62' });
     assert.equal(res.statusCode, 400);
+    await app.close();
+  });
+});
+
+
+describe('mining settlement status (expected vs settled)', () => {
+  // Epoch 61 closed at height 610 and settled at 623 (latency 13); epoch 62 closed at 620 and
+  // has NO finalization — open, and open for tip(700) - 620 = 80 blocks.
+  const withExpectations = () => build({
+    blocks: [block(700)],
+    epochs: [epoch(61), epoch(62)],
+    entitlements: [entitlement(1, 1, 61), entitlement(2, 1, 62)],
+    finalizations: [settlementFinalization(1, 61, 623)],
+  });
+
+  it('marks entitlements settled/open with latency and open-age', async () => {
+    const app = await withExpectations();
+    const res = await app.inject({ url: '/api/v1/mining/settlements/status' });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    // Newest epoch first.
+    assert.deepEqual(body.data.map((r) => r.epochNumber), ['62', '61']);
+    const open = body.data[0];
+    assert.equal(open.settled, false);
+    assert.equal(open.latencyBlocks, null);
+    assert.equal(open.openForBlocks, '80');
+    const settled = body.data[1];
+    assert.equal(settled.settled, true);
+    assert.equal(settled.latencyBlocks, '13');
+    assert.equal(settled.openForBlocks, null);
+    await app.close();
+  });
+
+  it('returns per-slot latency summaries alongside the page', async () => {
+    const app = await withExpectations();
+    const res = await app.inject({ url: '/api/v1/mining/settlements/status' });
+    const slots = res.json().slots;
+    assert.equal(slots.length, 1);
+    assert.equal(slots[0].slotId, '1');
+    assert.equal(slots[0].settledCount, 1);
+    assert.equal(slots[0].openCount, 1);
+    assert.equal(slots[0].medianLatencyBlocks, '13');
+    await app.close();
+  });
+
+  it('filters by slot', async () => {
+    const app = await build({
+      blocks: [block(700)],
+      epochs: [epoch(61)],
+      entitlements: [entitlement(1, 1, 61), entitlement(2, 2, 61)],
+      finalizations: [],
+    });
+    const res = await app.inject({ url: '/api/v1/mining/settlements/status?slotId=2' });
+    assert.deepEqual(res.json().data.map((r) => r.slotId), ['2']);
+    await app.close();
+  });
+});
+
+describe('payout split context (why this amount)', () => {
+  it('each payout row carries its entitlement pool and recipient count', async () => {
+    const app = await build({
+      entitlements: [entitlement(1, 1, 62, { entitlementAmount: '30000000' })],
+      payouts: [
+        payout(1, ADDR, 100, { slotId: 1n, epochNumber: 62n }),
+        payout(2, OTHER, 101, { slotId: 1n, epochNumber: 62n }),
+      ],
+    });
+    const res = await app.inject({ url: `/api/v1/mining/payouts?recipient=${ADDR}` });
+    assert.equal(res.statusCode, 200);
+    const row = res.json().data[0];
+    assert.equal(row.entitlementAmount, '30000000');
+    assert.equal(row.recipientCount, 2);
+    await app.close();
+  });
+
+  it('an unobserved entitlement is null, never invented', async () => {
+    const app = await build({
+      payouts: [payout(1, ADDR, 100, { slotId: 9n, epochNumber: 9n })],
+    });
+    const res = await app.inject({ url: `/api/v1/mining/payouts?recipient=${ADDR}` });
+    assert.equal(res.json().data[0].entitlementAmount, null);
+    assert.equal(res.json().data[0].recipientCount, 1);
     await app.close();
   });
 });

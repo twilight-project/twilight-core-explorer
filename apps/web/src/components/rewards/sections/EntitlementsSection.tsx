@@ -49,14 +49,37 @@ export function EntitlementsSection({
       ),
     },
     // Epoch ordinals render verbatim (no thousands grouping) — consistent with EpochsSection /
-    // RewardEpochDetail; formatHeight is for block heights, not epoch numbers.
-    { header: 'Epoch', mono: true, cell: (e) => e.epochNumber },
+    // RewardEpochDetail; formatHeight is for block heights, not epoch numbers. The epoch links
+    // to its context line (why the epoch paid what it paid).
+    {
+      header: 'Epoch',
+      mono: true,
+      cell: (e) => (
+        <Link
+          href={`/rewards/epochs/${encodeURIComponent(e.epochNumber)}`}
+          className="text-primary hover:text-primary-light"
+        >
+          {e.epochNumber}
+        </Link>
+      ),
+    },
     {
       header: 'Entitlement',
       cell: (e) => <RewardAmount raw={e.entitlementAmount} denom={e.denom} />,
     },
     { header: 'Released', cell: (e) => <RewardAmount raw={e.releasedAmount} denom={e.denom} /> },
     { header: 'Payout', cell: (e) => <MonoCopy value={e.payoutAddress} label="payout address" /> },
+    {
+      header: 'Settlement',
+      cell: (e) => (
+        <Link
+          href={`/mining/settlements/${encodeURIComponent(e.slotId)}/${encodeURIComponent(e.epochNumber)}`}
+          className="text-sm text-primary hover:text-primary-light"
+        >
+          view →
+        </Link>
+      ),
+    },
     { header: 'Sampled at', mono: true, cell: (e) => formatHeight(e.sampledAtHeight) },
   ];
 

@@ -23,7 +23,7 @@ function Bar({
   const toneClasses =
     tone === 'danger'
       ? 'border-accent-red/30 bg-accent-red/10 text-accent-red'
-      : 'border-accent-yellow/30 bg-accent-yellow/10 text-accent-yellow';
+      : 'border-primary/30 bg-primary/10 text-primary';
   return (
     <div className="w-full lg:w-[1432px] lg:mx-auto px-4 sm:px-6 lg:px-[156px] pt-4">
       <div
@@ -76,7 +76,7 @@ export function GlobalStatusBanner() {
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="shrink-0 rounded-lg border border-accent-yellow/40 px-3 py-1 text-xs hover:bg-accent-yellow/20"
+        className="shrink-0 rounded-lg border border-primary/40 px-3 py-1 text-xs hover:bg-primary/20"
       >
         Hide
       </button>

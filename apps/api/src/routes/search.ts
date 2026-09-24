@@ -13,6 +13,7 @@ import {
   findCoreSlotById,
   findCoreSlotByOperator,
   findCoreSlotByPayout,
+  findRewardEpoch,
   findTxByHash,
 } from '../repositories/search-repository.js';
 
@@ -51,6 +52,15 @@ export async function searchRoutes(fastify: FastifyInstance): Promise<void> {
         if (block) results.push({ type: 'block', height: block.height.toString(), hash: block.hash });
         const slot = await findCoreSlotById(app.prisma, numeric);
         if (slot) results.push({ type: 'coreslot', slotId: slot.slotId.toString() });
+        // 14a: the same integer may be a reward epoch — the picker disambiguates.
+        const epoch = await findRewardEpoch(app.prisma, numeric);
+        if (epoch) {
+          results.push({
+            type: 'epoch',
+            epochNumber: epoch.epochNumber.toString(),
+            height: epoch.height.toString(),
+          });
+        }
       }
 
       // 64-hex is ambiguous: it may be a block hash and/or a tx hash (try the given case + uppercase).

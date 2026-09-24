@@ -32,7 +32,15 @@ const CoreSlotRef = Type.Object({
   ),
 });
 
-export const SearchResult = Type.Union([BlockRef, TransactionRef, AccountRef, CoreSlotRef], {
+// 14a: reward epoch reference — a bare integer can be a height AND an epoch; the client's
+// multiple-matches picker resolves the ambiguity.
+const EpochRef = Type.Object({
+  type: Type.Literal('epoch'),
+  epochNumber: HeightString,
+  height: HeightString,
+});
+
+export const SearchResult = Type.Union([BlockRef, TransactionRef, AccountRef, CoreSlotRef, EpochRef], {
   $id: 'SearchResult',
 });
 

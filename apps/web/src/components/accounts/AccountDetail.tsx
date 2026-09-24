@@ -38,8 +38,17 @@ export function AccountDetail({ address }: { address: string }) {
   }
 
   const a = query.data.data;
+  // Rewards first (Phase 14a): the participant's question — "was I paid" — is answered before
+  // identity plumbing. Identity, balances, and raw follow.
   return (
-    <DetailShell title="Account" backHref="/accounts" backLabel="Accounts">
+    <DetailShell
+      title="Account"
+      description="Rewards received by this address, then its identity and sampled balances."
+      backHref="/accounts"
+      backLabel="Accounts"
+    >
+      <RewardsReceivedSection address={a.address} />
+
       <Card>
         <CardBody>
           <DataList
@@ -85,8 +94,6 @@ export function AccountDetail({ address }: { address: string }) {
           <BalancesSection address={a.address} />
         </CardBody>
       </Card>
-
-      <RewardsReceivedSection address={a.address} />
 
       <RawSection expanded={rawOpen} onToggle={() => setRawOpen((o) => !o)} query={raw} />
     </DetailShell>

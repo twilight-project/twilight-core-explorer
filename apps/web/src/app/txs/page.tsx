@@ -1,4 +1,3 @@
-import { ExplorerTabs } from '@/components/explorer/ExplorerTabs';
 import { TxsAggregateStrip } from '@/components/txs/TxsAggregateStrip';
 import { TxsList } from '@/components/txs/TxsList';
 import { LiveLabel } from '@/components/freshness/LiveLabel';
@@ -20,14 +19,7 @@ export default function TxsPage({
   const typeGroup = coerceStatus(oneParam(searchParams.type), TX_TYPE_GROUP_OPTIONS);
   return (
     <div className="flex flex-col gap-7">
-      <div className="flex flex-col gap-2.5">
-        <h1 className="font-serif text-3xl tracking-tight text-text">Transactions</h1>
-        <p className="max-w-2xl text-[15px] text-text-secondary">
-          Every indexed transaction, newest first. Filter by success/failure and by message-type
-          group (CoreSlot / Mining / Rewards / Bank).
-        </p>
-      </div>
-      <ExplorerTabs />
+      <h1 className="font-serif text-3xl text-text">Transactions</h1>
       <TxsAggregateStrip />
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

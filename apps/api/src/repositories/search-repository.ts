@@ -39,3 +39,13 @@ export async function findCoreSlotByOperator(prisma: PrismaClient, operatorAddre
 export async function findCoreSlotByPayout(prisma: PrismaClient, payoutAddress: string) {
   return prisma.coreSlotProjection.findFirst({ where: { payoutAddress }, select: { slotId: true } });
 }
+
+
+// ---- 14a reward-epoch reference lookup ----
+
+export async function findRewardEpoch(prisma: PrismaClient, epochNumber: bigint) {
+  return prisma.rewardEpochProjection.findUnique({
+    where: { epochNumber },
+    select: { epochNumber: true, height: true },
+  });
+}

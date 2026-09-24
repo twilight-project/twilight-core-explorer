@@ -24,6 +24,10 @@ RUN npm ci
 COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+# ⚠ Rewrites are ALSO baked at build time (`next start` serves the build's routes-manifest), so
+#   the same-origin API proxy target must be present HERE, not just at runtime. Empty = no proxy.
+ARG API_PROXY_TARGET=
+ENV API_PROXY_TARGET=$API_PROXY_TARGET
 RUN npm --prefix apps/web run build
 
 ENV NODE_ENV=production

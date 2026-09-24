@@ -79,7 +79,8 @@ function isErrorBody(x: unknown): x is ApiErrorBody {
 }
 
 function buildUrl(path: string, query?: Record<string, string | number | boolean | undefined>): string {
-  const url = new URL(API_BASE_URL + path);
+  // API_BASE_URL may be '' (same-origin proxy posture) — resolve against the page origin then.
+  const url = new URL(API_BASE_URL + path, API_BASE_URL === '' ? window.location.origin : undefined);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined) continue;

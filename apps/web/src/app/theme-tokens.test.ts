@@ -50,9 +50,8 @@ function tokenRgb(css: string, theme: string, name: string): number[] {
 // against BOTH, so a retune cannot quietly break one ground while the other still passes.
 const THEMES = ['dark', 'light'];
 
-// Themes that repoint the display face (--font-serif) — both, since
-// and both variants each pick a display sans. `legacy` inherits the Instrument Serif default, so it
-// is excluded.
+// 14a: NEITHER theme repoints the display face any more — the :root Instrument serif is the
+// product's identity in both modes, so the toggle changes ground, never voice.
 const BRAND_THEMES = ['dark', 'light'];
 
 describe('theme token contrast (WCAG 1.4.3)', () => {
@@ -114,29 +113,30 @@ describe('every theme defines the expressive shape tokens (no silent fallback)',
   }
 });
 
-// Semantic-color guard (Copilot PR #68): --accent-yellow is the WARNING color — it backs the Badge/
-// delta warning tone, the `warn` icon tint, and the Degraded liveness tile. A theme must not desaturate
-// it to gray, or every "watch" signal vanishes in that
-// theme. Assert it stays a warm amber (red channel clearly above blue) everywhere.
-describe('warning color stays a real amber (not gray) in every theme', () => {
+// Control-room decision (2026-09-10, user): NO yellow anywhere in the product — warning-tinted
+// UI renders in the theme accent, and the STATE reads from its label (open/settled, degraded),
+// never from hue alone. Guard the new invariant: --accent-yellow/-amber EQUAL the theme accent,
+// so a stray amber can't creep back in through the warning tone.
+describe('warning tint equals the theme accent (no yellow) in every theme', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
   for (const theme of THEMES) {
-    it(`${theme}: --accent-yellow is warm (R - B >= 60), not a neutral gray`, () => {
-      const [r = 0, , b = 0] = tokenRgb(css, theme, 'accent-yellow');
-      expect(r - b).toBeGreaterThanOrEqual(60);
+    it(`${theme}: --accent-yellow and --accent-amber match --primary`, () => {
+      expect(tokenRgb(css, theme, 'accent-yellow')).toEqual(tokenRgb(css, theme, 'primary'));
+      expect(tokenRgb(css, theme, 'accent-amber')).toEqual(tokenRgb(css, theme, 'primary'));
     });
   }
 });
 
-// Typography: every non-default brand theme repoints the display face (--font-serif) so headings
-// carry a distinct voice, not just color/shape.
-describe('brand themes repoint the display face', () => {
+// Typography (14a): the display face is theme-INVARIANT. Both themes inherit the :root
+// Instrument serif — a theme block that repoints --font-serif would change the product's
+// identity with the toggle, which the participant-surface handoff forbids.
+describe('themes share the :root display face', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');
   for (const theme of BRAND_THEMES) {
-    it(`${theme}: overrides --font-serif (display face)`, () => {
+    it(`${theme}: does NOT override --font-serif`, () => {
       const block = css.match(new RegExp(`\\[data-theme='${theme}'\\]\\s*\\{([\\s\\S]*?)\\}`));
       expect(block, `theme block not found: ${theme}`).not.toBeNull();
-      expect(block?.[1] ?? '').toContain('--font-serif');
+      expect(block?.[1] ?? '').not.toContain('--font-serif');
     });
   }
 });

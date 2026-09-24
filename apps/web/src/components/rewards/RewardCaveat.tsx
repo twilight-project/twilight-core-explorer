@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
  */
 export function RewardCaveat({ children }: { children: ReactNode }) {
   return (
-    <div className="mb-3 rounded-xl border border-accent-yellow/30 bg-accent-yellow/10 px-4 py-2 text-xs text-accent-yellow">
+    <div className="mb-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-xs text-primary">
       {children}
     </div>
   );

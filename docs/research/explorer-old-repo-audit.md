@@ -71,7 +71,7 @@ Read-only live devnet probes on 2026-06-23 initially showed the following. API-0
 
 | Endpoint | Result | Notes |
 |---|---|---|
-| `http://16.192.99.123:26657/status` | `200 OK` | Chain id `twilight-devnet-1`, CometBFT `0.38.19`, tx index on. |
+| `http://<devnet-1-node>:26657/status` | `200 OK` | Chain id `twilight-devnet-1`, CometBFT `0.38.19`, tx index on. |
 | `/cosmos/base/tendermint/v1beta1/blocks/latest` | `200 OK` | Latest block and SDK block response available. |
 | `/cosmos/base/tendermint/v1beta1/node_info` | `200 OK` | Cosmos SDK version reported as `v0.53.7`; app metadata mostly unset. |
 | `/cosmos/base/node/v1beta1/config` | `200 OK` | Generic node config works. |

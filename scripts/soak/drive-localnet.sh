@@ -28,7 +28,8 @@
 set -uo pipefail
 
 # ---- knobs -----------------------------------------------------------------------------------
-CHAIN_REPO="${CHAIN_REPO:-/Users/quasar/Github/twilight-core}"
+# Default: the chain repo checked out as a sibling of this explorer repo.
+CHAIN_REPO="${CHAIN_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/twilight-core}"
 BIN="${BIN:-$CHAIN_REPO/build/twilightd}"
 NET="${TWILIGHT_LOCALNET_HOME:-/tmp/twilight-soak}"
 CHAIN_ID="${CHAIN_ID:-twilight-soak-1}"

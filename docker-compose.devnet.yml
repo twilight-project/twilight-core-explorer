@@ -30,8 +30,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-twilight}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-twilight}
       POSTGRES_DB: ${POSTGRES_DB:-twilight_explorer}
+    # Host loopback only: services reach it as postgres:5432 on the compose network, host
+    # tools as localhost:5432. Never publish the database on a public interface.
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - devnet_pgdata:/var/lib/postgresql/data
     healthcheck:

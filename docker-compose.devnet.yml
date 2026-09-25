@@ -105,8 +105,8 @@ services:
     command: ["bash", "scripts/devnet/run-indexer-tick.sh"]
     restart: unless-stopped
 
-  # DB-only public API (read-only DB role + production posture). Published on the host so the browser
-  # (and the web container's inlined NEXT_PUBLIC_API_BASE_URL) can reach it at http://localhost:8080.
+  # DB-only public API (read-only DB role + production posture). Published on host LOOPBACK so a local
+  # browser can reach it at http://localhost:8080; public traffic only ever arrives via caddy.
   api:
     build: *backend-build
     image: twilight-explorer-backend:devnet
@@ -121,10 +121,14 @@ services:
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       PORT: "8080"
       HOST: "0.0.0.0"
+      # Build stamp, surfaced at /api/v1/status data.build. A release deploy exports all three from the
+      # checked-out tag (runbook §13); empty GIT_SHA/BUILT_AT report null.
       APP_VERSION: ${APP_VERSION:-devnet}
+      GIT_SHA: ${GIT_SHA:-}
+      BUILT_AT: ${BUILT_AT:-}
     command: ["node", "apps/api/dist/index.js"]
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
     restart: unless-stopped
 
   # Next.js UI. NEXT_PUBLIC_API_BASE_URL is a BUILD ARG (inlined into the browser bundle) — see
@@ -149,24 +153,31 @@ services:
       # the browser calls relative /api/v1/* and the web server forwards to the api container.
       API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:8080}
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
     restart: unless-stopped
 
   # Reverse proxy + origin TLS in front of web + api. Cloudflare (orange cloud) terminates the public edge
   # cert; Caddy terminates the CF→origin hop with a self-signed cert (`tls internal` in caddy/Caddyfile),
   # accepted by Cloudflare SSL mode "Full". Path-routes ONE hostname: /api/* → api, everything else → web.
-  # Only 443 is published (the SG allows it from Cloudflare IP ranges only); 3000/8080 stay host-internal.
+  # Only 443 is published publicly (the SG allows it from Cloudflare IP ranges only); 3000/8080/5432 are
+  # bound to host loopback, so they stay private even if the SG is ever loosened.
   caddy:
     image: caddy:2
     container_name: twilight-explorer-devnet-caddy
     depends_on:
       - web
       - api
+    environment:
+      # The public hostname (runbook §12), e.g. explorer.nyks.dev; `localhost` for a local run.
+      EXPLORER_DOMAIN: ${EXPLORER_DOMAIN:-localhost}
+      # `internal` (self-signed, CF "Full") or "/certs/origin.pem /certs/origin.key" (CF "Full (strict)").
+      ORIGIN_TLS: ${ORIGIN_TLS:-internal}
     ports:
       - "443:443"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/docs:/srv/docs:ro
+      - ./caddy/certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped

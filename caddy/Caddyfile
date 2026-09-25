@@ -1,8 +1,14 @@
-# Explorer box reverse proxy. Cloudflare (orange cloud) fronts this; Caddy serves origin TLS with a
-# self-signed cert (`tls internal`), accepted by Cloudflare SSL mode "Full". All one origin, path-routed.
-explorer.twilightprotocol.xyz {
+# Explorer origin reverse proxy — runbook docs/operations/devnet-deploy-runbook.md §12.
+# Topology: browser → Cloudflare (proxied DNS record: edge TLS, cache, DDoS) → this Caddy on :443 →
+# the web / api containers, path-routed on ONE hostname.
+#
+# Nothing deployment-specific is hard-coded: the site address is EXPLORER_DOMAIN (e.g. explorer.nyks.dev)
+# and the origin cert is ORIGIN_TLS. ORIGIN_TLS defaults to `internal` (Caddy's self-signed cert, accepted
+# by Cloudflare SSL mode "Full"). For "Full (strict)", put a Cloudflare Origin CA cert + key in
+# caddy/certs/ (gitignored) and set ORIGIN_TLS="/certs/origin.pem /certs/origin.key".
+{$EXPLORER_DOMAIN} {
     encode gzip
-    tls internal
+    tls {$ORIGIN_TLS:internal}
 
     # API docs: static Scalar UI + the committed OpenAPI spec, both served by Caddy (so they bypass the
     # API's strict CSP; same-origin means Scalar "try it out" reaches /api/v1/* without CORS).
@@ -13,21 +19,15 @@ explorer.twilightprotocol.xyz {
     }
 
     # Machine API + OpenAPI spec (/openapi.json) + health probes -> backend. NOTE: only these real backend
-    # prefixes; the web app has its OWN /api diagnostics PAGE, and all its data routes live under /api/v1/,
+    # prefixes; the web app has its OWN /diagnostics page, and all its data routes live under /api/v1/,
     # so nothing else is captured.
     @api path /api/v1/* /openapi.json /health/*
     handle @api {
         reverse_proxy api:8080
     }
 
-    # Everything else -> the Next.js web app (incl. its /api page and all other routes).
+    # Everything else -> the Next.js web app.
     handle {
         reverse_proxy web:3000
     }
-}
-
-# Root: reserved for a future landing page — redirect to the explorer for now.
-twilightprotocol.xyz {
-    tls internal
-    redir https://explorer.twilightprotocol.xyz{uri}
 }

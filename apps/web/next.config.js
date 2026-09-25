@@ -9,6 +9,10 @@ const apiProxyTarget = (process.env.API_PROXY_TARGET ?? '').replace(/\/+$/, '');
 
 const nextConfig = {
   reactStrictMode: true,
+  // The app never uses next/image, so turn the /_next/image optimizer off entirely (it 404s).
+  // That endpoint carries unpatched-on-14.x advisories (AVIF RCE, optimizer DoS, disk-cache
+  // growth); this removes the attack surface until the Next 15 upgrade lands.
+  images: { unoptimized: true },
   async rewrites() {
     if (apiProxyTarget === '') return [];
     return [

@@ -48,7 +48,8 @@ CORS_ORIGINS=https://<your-web-origin>        # the web origin(s); never leave u
 RATE_LIMIT_ENABLED=true                        # in-process per-IP (the Redis/proxy-keying upgrade is §5/Ph14)
 PORT=8080
 HOST=0.0.0.0
-APP_VERSION=<git-sha or tag>                   # optional; surfaces at /api/v1/status data.build
+APP_VERSION=<tag>                              # build stamp, with GIT_SHA + BUILT_AT; surfaces at
+                                               # /api/v1/status data.build — see §13 (set per deploy)
 ```
 **Web**:
 ```
@@ -186,3 +187,84 @@ When you later put the API behind a CDN/proxy, that's the trigger for the §5 it
 - **A projection bugfix** → `RESET_PROJECTION=true npm --prefix apps/indexer run project:<name>` re-derives
   from local rows (minutes). The chain is untouched; no re-backfill.
 - **Restart safety** — every step is cursor-resume + advisory-locked, so a crashed tick resumes cleanly.
+
+## 12. Production topology — Cloudflare → Caddy origin (the current deployment)
+
+The live explorer is **`https://explorer.nyks.dev`**, served from ONE box running `docker-compose.devnet.yml`
+(the §10 AWS split is the later shape, not the current one):
+
+```
+browser ──TLS──▶ Cloudflare  (proxied DNS record: edge TLS, cache, DDoS)
+                     │ TLS (origin cert: ORIGIN_TLS)
+                     ▼
+   origin :443  caddy ─┬─ /api/v1/*  /openapi.json  /health/*  ──▶ api:8080
+                       ├─ /docs  ──▶ static Scalar page (caddy/docs)
+                       └─ everything else  ──▶ web:3000 (Next.js)
+   postgres / indexer / api / web: compose network + host loopback only — never public
+```
+
+Deployment-specific values live in the box's `.env.devnet` (never committed):
+```
+EXPLORER_DOMAIN=explorer.nyks.dev        # Caddy site address (caddy/Caddyfile has no hard-coded host)
+ORIGIN_TLS=internal                      # or "/certs/origin.pem /certs/origin.key" — see below
+NEXT_PUBLIC_API_BASE_URL=                # EMPTY = same-origin: the browser calls relative /api/v1/*
+CORS_ORIGINS=https://explorer.nyks.dev
+```
+Moving to another hostname is a DNS record + these two values; nothing in the repo changes.
+
+**Cloudflare settings (dashboard → the zone):**
+
+| Setting | Value | Why |
+|---|---|---|
+| DNS record for the host | A/AAAA → origin, **Proxied** (orange cloud) | edge TLS + cache + DDoS, and the origin IP stays unpublished |
+| SSL/TLS mode | **Full (strict)** with a Cloudflare **Origin CA** cert (`ORIGIN_TLS`); **Full** with `tls internal` is the baseline | strict makes Cloudflare authenticate the origin, not just encrypt to it |
+| Always Use HTTPS · HSTS · min TLS 1.2 | on | |
+| Cache rule | **Bypass cache for HTML** (cache only `/_next/static/*`) — or purge on every deploy (§13) | Next marks prerendered pages `s-maxage=31536000`; after a deploy, stale edge HTML points at JS chunks the new build no longer has |
+
+For Full (strict): create an Origin CA certificate for the host in Cloudflare, save it on the box as
+`caddy/certs/origin.pem` + `caddy/certs/origin.key` (gitignored), set
+`ORIGIN_TLS="/certs/origin.pem /certs/origin.key"`, recreate caddy, then switch the SSL mode.
+
+**Origin lock-down — this is what makes Cloudflare protective:**
+- Firewall / security group: inbound **443 only from [Cloudflare's IP ranges](https://www.cloudflare.com/ips/)**,
+  SSH only from admin IPs, nothing else. Compose binds 3000 / 8080 / 5432 to host loopback, so they stay
+  private even if the security group is ever loosened.
+- **Never publish the origin IP** — not in docs, issues, env examples, or an unproxied (grey-cloud) DNS
+  record. With it, anyone can bypass Cloudflare and hit the origin directly; if it leaks, rotate it.
+- Keep these in a private ops store, **not in this public repo**: origin IP/host, SSH access, Cloudflare
+  account/zone IDs and API tokens, the Origin CA private key, `.env.devnet`.
+
+> **Known gap (readiness §5 "proxy keying"):** the API rate-limits on `request.ip`, which behind
+> Cloudflare → Caddy is Caddy's container address — so all clients share one bucket. Fix tracked
+> separately (trust the proxy hop and key on the real client IP).
+
+## 13. Releases and deploys (tag-based)
+
+Production only ever runs a **tagged commit from `main`**. `v*` release tags are immutable (repo tag
+ruleset); `explorer-phase-*` stay as phase-milestone markers.
+
+1. **Cut the release** — on an up-to-date `main` with CI green:
+   ```sh
+   git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0
+   gh release create v0.1.0 --generate-notes     # or notes from CHANGELOG.md
+   ```
+2. **Deploy it on the box** (shell env overrides `--env-file`, so the stamp always matches the checkout):
+   ```sh
+   git fetch --tags origin && git checkout v0.1.0
+   export APP_VERSION=$(git describe --tags --exact-match) GIT_SHA=$(git rev-parse HEAD) \
+          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+   docker compose -f docker-compose.devnet.yml --env-file .env.devnet up -d --build
+   ```
+3. **Purge the Cloudflare cache** (Caching → Configuration → Purge Everything) — skip only if the
+   HTML-bypass cache rule from §12 is in place.
+4. **Verify from outside:**
+   ```sh
+   curl -s https://explorer.nyks.dev/api/v1/status | jq .data.build          # version = the tag, gitSha = the commit
+   curl -s -o /dev/null -w '%{http_code}\n' https://explorer.nyks.dev/_next/image   # 404 — optimizer disabled
+   curl -s -o /dev/null -w '%{http_code}\n' https://explorer.nyks.dev/docs          # 200 — Scalar reference
+   ```
+   plus the §8 health checks.
+
+**Rollback:** check out the previous tag and repeat step 2. Code rolls back; the database does not — the
+`migrate` service only moves forward. Additive migrations are safe under older code; read the release notes
+before rolling back across a migration that drops or renames anything.

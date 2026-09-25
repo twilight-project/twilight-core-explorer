@@ -117,6 +117,8 @@ a later tightening pass.**
   security posture can't be silently disabled by a typo (today: warned at boot, not enforced).
 - **Production CORS allow-list** — set `CORS_ORIGINS` to the real web origin(s).
 - **Build metadata injection** — wire real `APP_VERSION`/`GIT_SHA`/`BUILT_AT` at build/deploy.
+  *(Correction note, 2026-09-25: DONE — compose passes all three to the API; the tag-based deploy in
+  `devnet-deploy-runbook.md` §13 exports them from the checked-out release tag.)*
 - **Indexer lag monitoring + gap detection / missing-height repair** — plan §8 flags these as arguably
   pre-deploy.
 

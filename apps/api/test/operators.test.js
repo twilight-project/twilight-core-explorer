@@ -198,3 +198,70 @@ describe('§6.5 checks each break independently (chain wins)', () => {
     assert.equal(v.result, 'unverifiable');
   });
 });
+
+describe('operator auth server', () => {
+  const asSample = (slotId, kind, payload, over = {}) => ({
+    sampleKey: `${slotId}:${kind}:-`,
+    slotId: BigInt(slotId),
+    kind,
+    epochNumber: null,
+    baseUrl: 'https://as.example',
+    payloadJson: payload,
+    sampledAt: null,
+    asHeight: null,
+    fetchedAt: new Date(),
+    lastAttemptAt: new Date(),
+    lastHttpStatus: 200,
+    lastError: null,
+    ...over,
+  });
+  const METADATA = {
+    issuer: 'https://as.example',
+    token_endpoint: 'https://as.example/oauth/token',
+    dpop_signing_alg_values_supported: ['ES256'],
+    grant_types_supported: ['urn:ietf:params:oauth:grant-type:device_code'],
+  };
+  const JWKS = { keys: [{ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: 'receipt-1' }] };
+
+  it('serves metadata + jwks attested, reachable, fresh', async () => {
+    const app = await build({
+      operatorStatusSamples: [asSample(3, 'as_metadata', METADATA), asSample(3, 'as_jwks', JWKS)],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/auth' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.provenance, 'attested');
+    assert.equal(d.reachable, true);
+    assert.equal(d.stale, false);
+    assert.equal(d.metadata.payload.issuer, 'https://as.example');
+    assert.equal(d.jwks.payload.keys[0].kid, 'receipt-1');
+    await app.close();
+  });
+
+  it('silence is a state — no_status with 200 for a slot with no AS samples', async () => {
+    const app = await build({});
+    const res = await app.inject({ url: '/api/v1/operators/1/auth' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.json().data.status, 'no_status');
+    await app.close();
+  });
+
+  it('an outage reads unreachable + stale but still serves the last good metadata', async () => {
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const app = await build({
+      operatorStatusSamples: [
+        asSample(3, 'as_metadata', METADATA, { fetchedAt: old, lastError: 'http 503' }),
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/auth' });
+    const d = res.json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.reachable, false);
+    assert.equal(d.stale, true);
+    assert.equal(d.metadata.payload.issuer, 'https://as.example'); // last good survives
+    assert.equal(d.metadata.lastError, 'http 503');
+    assert.equal(d.jwks, null);
+    await app.close();
+  });
+});

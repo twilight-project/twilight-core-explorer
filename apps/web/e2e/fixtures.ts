@@ -108,6 +108,34 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
     },
   },
   '/operators/1/status/clock': { data: { status: 'no_status', reason: 'this operator publishes no status' } },
+  '/operators/3/auth': {
+    data: {
+      status: 'ok', source: 'operator', provenance: 'attested',
+      baseUrl: 'https://as.example', baseUrlProvenance: 'configured',
+      reachable: true, stale: false,
+      metadata: {
+        payload: {
+          issuer: 'https://as.example',
+          authorization_endpoint: 'https://as.example/oauth/authorize',
+          device_authorization_endpoint: 'https://as.example/oauth/device_authorization',
+          token_endpoint: 'https://as.example/oauth/token',
+          revocation_endpoint: 'https://as.example/oauth/revoke',
+          jwks_uri: 'https://as.example/oauth/jwks.json',
+          grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
+          dpop_signing_alg_values_supported: ['ES256'],
+          code_challenge_methods_supported: ['S256'],
+        },
+        fetchedAt: new Date().toISOString(), ageSeconds: 60, lastError: null,
+      },
+      jwks: {
+        payload: { keys: [{ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: 'receipt-b13c5258e190' }] },
+        fetchedAt: new Date().toISOString(), ageSeconds: 60, lastError: null,
+      },
+    },
+  },
+  '/operators/1/auth': {
+    data: { status: 'no_status', reason: 'this operator publishes no authentication service' },
+  },
   // Status view: shape includes the per-slot latency summaries alongside the page.
   '/mining/settlements/status': { data: [], slots: [], page: { limit: 25, nextCursor: null } },
   // Settlement detail is object-shaped; the smoke tier only needs it to render, so give it a

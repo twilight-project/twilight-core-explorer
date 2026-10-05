@@ -169,6 +169,39 @@ export const OperatorFeedEpochResponse = Type.Object(
   { $id: 'OperatorFeedEpochResponse' },
 );
 
+// ---- authentication server (the operator's OAuth AS beside the status feed) ---------------
+// RFC 8414 metadata + JWKS, served verbatim from hourly samples. Attested: the operator's own
+// publication about its own service — the chain knows nothing about it.
+
+const AuthSample = Type.Object({
+  payload: Type.Any(),
+  fetchedAt: Nullable(Type.String()),
+  ageSeconds: Nullable(Type.Integer()),
+  lastError: Nullable(Type.String()),
+});
+
+export const OperatorAuthResponse = Type.Object(
+  {
+    data: Type.Union([
+      Type.Object({ status: Type.Literal('no_status'), reason: Type.String() }),
+      Type.Object({
+        status: Type.Literal('ok'),
+        source: Type.Literal('operator'),
+        provenance: Type.Literal('attested'),
+        baseUrl: Type.String(),
+        baseUrlProvenance: Type.Literal('configured'),
+        /** True when the last metadata fetch attempt succeeded. */
+        reachable: Type.Boolean(),
+        /** True when the newest good sample is older than two sampling intervals. */
+        stale: Type.Boolean(),
+        metadata: AuthSample,
+        jwks: Nullable(AuthSample),
+      }),
+    ]),
+  },
+  { $id: 'OperatorAuthResponse' },
+);
+
 export const OperatorSlotParams = Type.Object({ slotId: Type.String() });
 export const OperatorEpochParams = Type.Object({ slotId: Type.String(), epoch: Type.String() });
 

@@ -133,3 +133,77 @@ describe('parseOperatorStatusUrls', () => {
     assert.equal(m.size, 2);
   });
 });
+
+describe('auth-server sampling', () => {
+  const AS_METADATA = {
+    issuer: 'https://as',
+    jwks_uri: 'https://as/oauth/jwks.json',
+    token_endpoint: 'https://as/oauth/token',
+    dpop_signing_alg_values_supported: ['ES256'],
+  };
+  const JWKS = { keys: [{ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: 'receipt-1', x: 'abc' }] };
+
+  it('samples AS metadata + JWKS on first run, then holds for an hour', async () => {
+    const prisma = mockPrisma();
+    const calls = [];
+    const fetchJson = async (url) => {
+      calls.push(url);
+      if (url.endsWith('/.well-known/oauth-authorization-server'))
+        return { ok: true, status: 200, body: AS_METADATA };
+      if (url.endsWith('/oauth/jwks.json')) return { ok: true, status: 200, body: JWKS };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const t0 = new Date('2026-10-06T10:00:00Z');
+    const r = await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    assert.equal(r.authServer, 'stored');
+    const meta = prisma._samples.get(sampleKey(3n, 'as_metadata', null));
+    const jwks = prisma._samples.get(sampleKey(3n, 'as_jwks', null));
+    assert.equal(meta.payloadJson.issuer, 'https://as');
+    assert.equal(jwks.payloadJson.keys[0].kid, 'receipt-1');
+
+    // 10 minutes later: fresh — neither AS endpoint is hit again.
+    calls.length = 0;
+    const r2 = await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as',
+      now: new Date(t0.getTime() + 10 * 60 * 1000),
+    });
+    assert.equal(r2.authServer, 'fresh');
+    assert.equal(calls.filter((u) => u.includes('oauth')).length, 0);
+
+    // 61 minutes later: sampled again.
+    const r3 = await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as',
+      now: new Date(t0.getTime() + 61 * 60 * 1000),
+    });
+    assert.equal(r3.authServer, 'stored');
+  });
+
+  it('a failed AS fetch keeps the last good metadata (same taxonomy as the feed)', async () => {
+    const prisma = mockPrisma();
+    const t0 = new Date('2026-10-06T10:00:00Z');
+    const good = async (url) =>
+      url.includes('oauth')
+        ? { ok: true, status: 200, body: url.includes('jwks') ? JWKS : AS_METADATA }
+        : { ok: true, status: 200, body: CLOCK };
+    await projectOperatorStatus({ prisma, fetchJson: good, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    const down = async (url) =>
+      url.includes('oauth')
+        ? { ok: false, status: 503, error: 'http 503' }
+        : { ok: true, status: 200, body: CLOCK };
+    const r = await projectOperatorStatus({
+      prisma, fetchJson: down, slotId: 3n, baseUrl: 'https://as',
+      now: new Date(t0.getTime() + 2 * 60 * 60 * 1000),
+    });
+    assert.equal(r.authServer, 'failed');
+    const meta = prisma._samples.get(sampleKey(3n, 'as_metadata', null));
+    assert.equal(meta.lastError, 'http 503');
+    assert.equal(meta.payloadJson.issuer, 'https://as'); // last good survives
+  });
+
+  it('jwksUrlFrom never follows a jwks_uri off the operator origin', async () => {
+    const { jwksUrlFrom } = await import('../../dist/projections/operator-status-snapshot.js');
+    assert.equal(jwksUrlFrom({ jwks_uri: 'https://as/custom/jwks' }, 'https://as'), 'https://as/custom/jwks');
+    assert.equal(jwksUrlFrom({ jwks_uri: 'https://evil.example/jwks' }, 'https://as'), 'https://as/oauth/jwks.json');
+    assert.equal(jwksUrlFrom(null, 'https://as'), 'https://as/oauth/jwks.json');
+  });
+});

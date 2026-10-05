@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import {
+  OperatorAuthResponse,
   OperatorClockResponse,
   OperatorEpochParams,
   OperatorFeedEpochResponse,
@@ -31,6 +32,8 @@ import {
 // configured feed answers `{status:'no_status'}` with 200 — silence is a state, not an error.
 
 const CLOCK_STALE_SECONDS = 180;
+// AS metadata/JWKS are sampled hourly; two missed rounds = stale.
+const AUTH_STALE_SECONDS = 2 * 60 * 60;
 
 function toVerdict(row: OperatorVerdictRow | undefined): OperatorVerdictT | null {
   if (!row) return null;
@@ -288,6 +291,57 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
       const tip = await app.prisma.block.aggregate({ _max: { height: true } });
       return {
         data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date()) },
+      };
+    },
+  );
+
+  app.get(
+    '/operators/:slotId/auth',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: "The operator's authentication server: RFC 8414 metadata + JWKS (attested)",
+        params: OperatorSlotParams,
+        response: { 200: OperatorAuthResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const [metadata, jwks] = await Promise.all([
+        getFeedSample(app.prisma, slotId, 'as_metadata'),
+        getFeedSample(app.prisma, slotId, 'as_jwks'),
+      ]);
+      if (!metadata || (metadata.payloadJson == null && metadata.fetchedAt == null)) {
+        return {
+          data: {
+            status: 'no_status' as const,
+            reason: 'this operator publishes no authentication service',
+          },
+        };
+      }
+      const now = new Date();
+      const authSample = (s: FeedSample) => ({
+        payload: s.payloadJson ?? null,
+        fetchedAt: s.fetchedAt?.toISOString() ?? null,
+        ageSeconds: s.fetchedAt
+          ? Math.floor((now.getTime() - s.fetchedAt.getTime()) / 1000)
+          : null,
+        lastError: s.lastError,
+      });
+      const meta = authSample(metadata);
+      return {
+        data: {
+          status: 'ok' as const,
+          source: 'operator' as const,
+          provenance: 'attested' as const,
+          baseUrl: metadata.baseUrl,
+          baseUrlProvenance: 'configured' as const,
+          reachable: metadata.lastError === null,
+          stale: meta.ageSeconds === null || meta.ageSeconds > AUTH_STALE_SECONDS,
+          metadata: meta,
+          jwks: jwks ? authSample(jwks) : null,
+        },
       };
     },
   );

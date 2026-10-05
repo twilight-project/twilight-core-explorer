@@ -9084,6 +9084,211 @@
         }
       }
     },
+    "/api/v1/operators/{slotId}/draw/{epoch}": {
+      "get": {
+        "summary": "The operator's published selection-draw record for an epoch (attested)",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "epoch",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "no_status"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "source",
+                            "provenance",
+                            "baseUrl",
+                            "baseUrlProvenance",
+                            "sampledAt",
+                            "asHeight",
+                            "fetchedAt",
+                            "ageSeconds",
+                            "stale",
+                            "staleForward",
+                            "lastError",
+                            "payload"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ok"
+                              ]
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "operator"
+                              ]
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "attested"
+                              ]
+                            },
+                            "baseUrl": {
+                              "type": "string"
+                            },
+                            "baseUrlProvenance": {
+                              "type": "string",
+                              "enum": [
+                                "configured"
+                              ]
+                            },
+                            "sampledAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "asHeight": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d+$",
+                                  "description": "Decimal height/id as string",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "fetchedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ageSeconds": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            },
+                            "staleForward": {
+                              "type": "boolean"
+                            },
+                            "lastError": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payload": {}
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/operators/{slotId}/status/epochs/{epoch}": {
       "get": {
         "summary": "The operator's per-epoch aggregates (attested) + §6.5 verification vs the chain",

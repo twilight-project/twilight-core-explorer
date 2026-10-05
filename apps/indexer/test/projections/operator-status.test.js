@@ -72,7 +72,8 @@ describe('operator-status sampler', () => {
     const prisma = mockPrisma({ entitled: [50], finalized: [50] });
     let epochCalls = 0;
     const fetchJson = async (url) => {
-      if (url.includes('/epochs/')) {
+      if (url.includes('/candidates')) return { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      if (url.includes('/operator-status/epochs/')) {
         epochCalls++;
         return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 50, sampled_at: '2026-09-11T00:00:00Z', as_height: 1 } };
       }
@@ -90,7 +91,8 @@ describe('operator-status sampler', () => {
       finalized.map((e) => ({ epochNumber: BigInt(e) }));
     let epochCalls = 0;
     const fetchJson = async (url) => {
-      if (url.includes('/epochs/')) {
+      if (url.includes('/candidates')) return { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      if (url.includes('/operator-status/epochs/')) {
         epochCalls++;
         return { ok: true, status: 200, body: { state: 'OPEN', epoch: 60 } };
       }
@@ -205,5 +207,47 @@ describe('auth-server sampling', () => {
     assert.equal(jwksUrlFrom({ jwks_uri: 'https://as/custom/jwks' }, 'https://as'), 'https://as/custom/jwks');
     assert.equal(jwksUrlFrom({ jwks_uri: 'https://evil.example/jwks' }, 'https://as'), 'https://as/oauth/jwks.json');
     assert.equal(jwksUrlFrom(null, 'https://as'), 'https://as/oauth/jwks.json');
+  });
+});
+
+describe('draw-record sampling', () => {
+  const DISCOVERY = {
+    version: 'twilight-operator-status-v1',
+    draw_record: 'https://as/v1/selection/slots/3/epochs/{epoch}/candidates',
+  };
+  const DRAW = { version: 1, target_epoch: 61, outcome: 'NO_CANDIDATES', candidates: [], anchor: { tx_hash: 'AB' } };
+
+  it('fetches the draw record beside each epoch fetch, via the discovery template', async () => {
+    const prisma = mockPrisma({ entitled: [61], finalized: [61] });
+    const urls = [];
+    const fetchJson = async (url) => {
+      urls.push(url);
+      if (url.includes('/candidates')) return { ok: true, status: 200, body: DRAW };
+      if (url.includes('/epochs/'))
+        return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 61 } };
+      if (url.includes('well-known/twilight'))
+        return { ok: true, status: 200, body: DISCOVERY };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.ok(urls.includes('https://as/v1/selection/slots/3/epochs/61/candidates'));
+    const row = prisma._samples.get(sampleKey(3n, 'draw', 61n));
+    assert.equal(row.payloadJson.outcome, 'NO_CANDIDATES');
+    // Settled epoch: next run skips BOTH the epoch and its draw.
+    urls.length = 0;
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(urls.filter((u) => u.includes('/candidates') || u.includes('/epochs/')).length, 0);
+  });
+
+  it('drawUrlFrom ignores an off-origin template', async () => {
+    const { drawUrlFrom } = await import('../../dist/projections/operator-status-snapshot.js');
+    assert.equal(
+      drawUrlFrom({ draw_record: 'https://evil/e/{epoch}' }, 'https://as', 3n, 61n),
+      'https://as/v1/selection/slots/3/epochs/61/candidates',
+    );
+    assert.equal(
+      drawUrlFrom(DISCOVERY, 'https://as', 3n, 7n),
+      'https://as/v1/selection/slots/3/epochs/7/candidates',
+    );
   });
 });

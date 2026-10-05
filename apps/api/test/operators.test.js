@@ -265,3 +265,34 @@ describe('operator auth server', () => {
     await app.close();
   });
 });
+
+describe('operator draw record', () => {
+  const drawSample = (slotId, epochNumber, payload) => ({
+    sampleKey: `${slotId}:draw:${epochNumber}`,
+    slotId: BigInt(slotId), kind: 'draw', epochNumber: BigInt(epochNumber),
+    baseUrl: 'https://as.example', payloadJson: payload,
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null,
+  });
+
+  it('serves the stored draw record attested', async () => {
+    const app = await build({
+      blocks: [block(200)],
+      operatorStatusSamples: [drawSample(3, 61, { outcome: 'NO_CANDIDATES', k: 0, anchor: { tx_hash: 'AB' } })],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/draw/61' });
+    const d = res.json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.provenance, 'attested');
+    assert.equal(d.payload.outcome, 'NO_CANDIDATES');
+    await app.close();
+  });
+
+  it('no record = no_status with 200', async () => {
+    const app = await build({});
+    const res = await app.inject({ url: '/api/v1/operators/3/draw/61' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.json().data.status, 'no_status');
+    await app.close();
+  });
+});

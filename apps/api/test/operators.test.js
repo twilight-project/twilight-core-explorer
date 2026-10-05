@@ -296,3 +296,38 @@ describe('operator draw record', () => {
     await app.close();
   });
 });
+
+describe('operator auth health', () => {
+  const healthSample = (over = {}) => ({
+    sampleKey: '3:as_health:-', slotId: 3n, kind: 'as_health', epochNumber: null,
+    baseUrl: 'https://as.example', payloadJson: { up: true, httpStatus: 200 },
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null, ...over,
+  });
+  const meta = {
+    sampleKey: '3:as_metadata:-', slotId: 3n, kind: 'as_metadata', epochNumber: null,
+    baseUrl: 'https://as.example', payloadJson: { issuer: 'https://as.example' },
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null,
+  };
+
+  it('reports up with check age', async () => {
+    const app = await build({ operatorStatusSamples: [meta, healthSample()] });
+    const d = (await app.inject({ url: '/api/v1/operators/3/auth' })).json().data;
+    assert.equal(d.health.up, true);
+    assert.ok(d.health.ageSeconds >= 0);
+    await app.close();
+  });
+
+  it('reports down with how-long-since-last-ok during an outage', async () => {
+    const lastOk = new Date(Date.now() - 10 * 60 * 1000);
+    const app = await build({
+      operatorStatusSamples: [meta, healthSample({ lastError: 'http 503', fetchedAt: lastOk })],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/auth' })).json().data;
+    assert.equal(d.health.up, false);
+    assert.ok(d.health.lastUpAgeSeconds >= 599);
+    assert.equal(d.health.lastError, 'http 503');
+    await app.close();
+  });
+});

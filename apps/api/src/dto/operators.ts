@@ -196,6 +196,17 @@ export const OperatorAuthResponse = Type.Object(
         stale: Type.Boolean(),
         metadata: AuthSample,
         jwks: Nullable(AuthSample),
+        /** Live /healthz probe, sampled every tick (~60s). Null until first probed. */
+        health: Nullable(
+          Type.Object({
+            up: Type.Boolean(),
+            checkedAt: Nullable(Type.String()),
+            ageSeconds: Nullable(Type.Integer()),
+            /** Age of the last SUCCESSFUL probe — how long the server has been unreachable. */
+            lastUpAgeSeconds: Nullable(Type.Integer()),
+            lastError: Nullable(Type.String()),
+          }),
+        ),
       }),
     ]),
   },

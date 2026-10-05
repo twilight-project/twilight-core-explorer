@@ -97,6 +97,26 @@ export function makeFetchJson(timeoutMs: number): FetchJson {
   };
 }
 
+/**
+ * Health probe: /healthz answers plain text ("ok"), not JSON, so a 2xx is the whole signal.
+ * The stored payload is the explorer's own summary of the probe, not the server's body.
+ */
+export function makeFetchHealth(timeoutMs: number): FetchJson {
+  return async (url: string): Promise<FetchOutcome> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) return { ok: false, status: res.status, error: `http ${res.status}` };
+      return { ok: true, status: res.status, body: { up: true, httpStatus: res.status } };
+    } catch (err) {
+      return { ok: false, status: null, error: err instanceof Error ? err.message : String(err) };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 // ---- ADR-MINIS-0020 privacy guard -------------------------------------------------------
 // The feed is built not to carry per-address or per-user data; our side refuses it too.
 // Returns a violation description, or null when the payload is clean.
@@ -272,12 +292,15 @@ export function drawUrlFrom(
 export async function projectOperatorStatus(args: {
   prisma: OperatorStatusPrisma;
   fetchJson: FetchJson;
+  /** Health probe (2xx = up, body ignored); defaults to fetchJson for tests that stub both. */
+  fetchHealth?: FetchJson;
   slotId: bigint;
   baseUrl: string;
   now?: Date;
   epochBudget?: number;
 }): Promise<OperatorStatusRunResult> {
   const { prisma, fetchJson, slotId } = args;
+  const fetchHealth = args.fetchHealth ?? fetchJson;
   const baseUrl = args.baseUrl.replace(/\/+$/, '');
   const now = args.now ?? new Date();
   const budget = args.epochBudget ?? EPOCH_FETCH_BUDGET;
@@ -342,6 +365,17 @@ export async function projectOperatorStatus(args: {
     baseUrl,
     now,
     outcome: await fetchJson(`${baseUrl}/v1/operator-status/clock`),
+  });
+
+  // Service health: every run, like the clock. A cheap 2xx probe of /healthz; the stored
+  // payload is our own summary ({up: true}), since the endpoint answers plain text.
+  await recordFetch(prisma, {
+    slotId,
+    kind: 'as_health',
+    epochNumber: null,
+    baseUrl,
+    now,
+    outcome: await fetchHealth(`${baseUrl}/healthz`),
   });
 
   // Epochs: chain-known entitlements for this slot, newest first. Fetch when there is no

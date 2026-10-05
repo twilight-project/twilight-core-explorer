@@ -310,9 +310,10 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const slotId = parseSlotId(request.params.slotId);
-      const [metadata, jwks] = await Promise.all([
+      const [metadata, jwks, health] = await Promise.all([
         getFeedSample(app.prisma, slotId, 'as_metadata'),
         getFeedSample(app.prisma, slotId, 'as_jwks'),
+        getFeedSample(app.prisma, slotId, 'as_health'),
       ]);
       if (!metadata || (metadata.payloadJson == null && metadata.fetchedAt == null)) {
         return {
@@ -343,6 +344,18 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
           stale: meta.ageSeconds === null || meta.ageSeconds > AUTH_STALE_SECONDS,
           metadata: meta,
           jwks: jwks ? authSample(jwks) : null,
+          health: health
+            ? {
+                // up = the newest probe attempt succeeded (lastError cleared on success).
+                up: health.lastError === null,
+                checkedAt: health.lastAttemptAt.toISOString(),
+                ageSeconds: Math.floor((now.getTime() - health.lastAttemptAt.getTime()) / 1000),
+                lastUpAgeSeconds: health.fetchedAt
+                  ? Math.floor((now.getTime() - health.fetchedAt.getTime()) / 1000)
+                  : null,
+                lastError: health.lastError,
+              }
+            : null,
         },
       };
     },

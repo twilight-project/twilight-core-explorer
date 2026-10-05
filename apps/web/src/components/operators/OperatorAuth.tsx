@@ -15,16 +15,45 @@ import { curatedOperator } from '@/lib/operator-directory';
 // nothing about this service, and the page says so. A slot with no service renders truthful
 // silence, exactly like the status feed.
 
-// Fixed plain-language captions for the grant types a miner will actually meet. Unknown
-// identifiers render as themselves (same rule as the feed vocabulary).
-const GRANT_CAPTIONS: Record<string, string> = {
-  'urn:ietf:params:oauth:grant-type:device_code':
-    'device sign-in — the miner CLI shows a short code you confirm in a browser',
-  authorization_code: 'browser sign-in with PKCE — no client secret involved',
-  refresh_token: 'silent renewal — the miner keeps its session without re-prompting you',
-  'urn:ietf:params:oauth:grant-type:token-exchange': 'token exchange between operator services',
-  'urn:ietf:params:oauth:grant-type:jwt-bearer': 'signed-assertion sign-in for automated clients',
+// Fixed plain-language names + captions for the grant types a miner will actually meet.
+// The human name is the heading; the raw identifier drops to small print. An unknown
+// identifier gets a name derived from its last segment, never silently re-captioned
+// (same rule as the feed vocabulary: unknown ids stay visible as themselves).
+const GRANT_INFO: Record<string, { name: string; caption: string }> = {
+  'urn:ietf:params:oauth:grant-type:device_code': {
+    name: 'Device sign-in',
+    caption: 'the miner CLI shows a short code you confirm once in a browser',
+  },
+  authorization_code: {
+    name: 'Browser sign-in',
+    caption: 'standard sign-in with PKCE — no client secret involved',
+  },
+  refresh_token: {
+    name: 'Session renewal',
+    caption: 'the miner keeps its session alive without re-prompting you',
+  },
+  'urn:ietf:params:oauth:grant-type:token-exchange': {
+    name: 'Service-to-service exchange',
+    caption: 'the operator’s own services swap tokens between each other',
+  },
+  'urn:ietf:params:oauth:grant-type:jwt-bearer': {
+    name: 'Signed-assertion sign-in',
+    caption: 'automated clients sign in with a signed assertion instead of a password',
+  },
+  'urn:twilight:params:oauth:grant-type:provider-authorization': {
+    name: 'Provider authorization',
+    caption: 'Twilight-specific grant for authorizing an upstream provider integration',
+  },
 };
+
+/** Fallback name for a grant URN we have no fixed entry for: its last segment, humanized. */
+function grantInfo(id: string): { name: string; caption: string } {
+  const known = GRANT_INFO[id];
+  if (known) return known;
+  const tail = id.split(':').pop() ?? id;
+  const name = tail.replace(/[_-]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  return { name, caption: 'grant type published by the operator' };
+}
 
 function EndpointRow({ label, url }: { label: string; url: string | null }) {
   if (url === null) return null;
@@ -136,10 +165,21 @@ export function OperatorAuth({ slotId }: { slotId: string }) {
       <div className="flex flex-col gap-3">
         <div className="font-mono text-xs uppercase tracking-[.1em] text-text-muted">
           coreslot {slotId} · authentication ·{' '}
-          <span className={d.reachable ? 'text-primary' : 'text-accent-red'}>
-            {d.reachable ? 'reachable' : 'unreachable'}
-          </span>{' '}
-          · {ageCaption(d.metadata.ageSeconds)}
+          {d.health ? (
+            <>
+              <span className={d.health.up ? 'text-primary' : 'text-accent-red'}>
+                {d.health.up ? '● server up' : '● server down'}
+              </span>{' '}
+              · {d.health.up ? ageCaption(d.health.ageSeconds).replace('sampled', 'checked') : `last ok ${ageCaption(d.health.lastUpAgeSeconds).replace('sampled ', '')}`}
+            </>
+          ) : (
+            <>
+              <span className={d.reachable ? 'text-primary' : 'text-accent-red'}>
+                {d.reachable ? 'reachable' : 'unreachable'}
+              </span>{' '}
+              · {ageCaption(d.metadata.ageSeconds)}
+            </>
+          )}
           {d.stale ? ' · stale' : ''}
         </div>
         <h1 className="font-serif text-5xl leading-[1.05] tracking-[-0.01em]">
@@ -156,28 +196,36 @@ export function OperatorAuth({ slotId }: { slotId: string }) {
       <div className="grid max-w-[920px] grid-cols-1 gap-5 lg:grid-cols-2">
         <Panel title="How sign-in works" meta="from the server's RFC 8414 metadata">
           <ul className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-text-secondary">
-            {grantList.map((g) => (
-              <li key={g} className="flex flex-col gap-0.5">
-                <span className="font-mono text-xs text-text">{g}</span>
-                <span className="text-text-muted">{GRANT_CAPTIONS[g] ?? 'supported grant'}</span>
-              </li>
-            ))}
+            {grantList.map((g) => {
+              const info = grantInfo(g);
+              return (
+                <li key={g} className="flex flex-col gap-0.5">
+                  <span className="font-medium text-text">{info.name}</span>
+                  <span className="text-text-muted">{info.caption}</span>
+                  <span className="break-all font-mono text-[10.5px] text-text-muted">{g}</span>
+                </li>
+              );
+            })}
             {dpopAlgs.length > 0 ? (
               <li className="flex flex-col gap-0.5 border-t border-card-hover pt-3">
-                <span className="font-mono text-xs text-text">
-                  DPoP · {dpopAlgs.join(', ')}
-                </span>
+                <span className="font-medium text-text">Key-bound tokens</span>
                 <span className="text-text-muted">
-                  tokens are bound to a key on your machine — a stolen token is useless
+                  every token is tied to a key on your machine — a stolen token is useless
                   elsewhere
+                </span>
+                <span className="font-mono text-[10.5px] text-text-muted">
+                  DPoP · {dpopAlgs.join(', ')}
                 </span>
               </li>
             ) : null}
             {pkce.length > 0 ? (
               <li className="flex flex-col gap-0.5">
-                <span className="font-mono text-xs text-text">PKCE · {pkce.join(', ')}</span>
+                <span className="font-medium text-text">Protected browser sign-in</span>
                 <span className="text-text-muted">
-                  browser sign-ins are code-challenge protected; there are no client secrets
+                  sign-ins are code-challenge protected; there are no client secrets to leak
+                </span>
+                <span className="font-mono text-[10.5px] text-text-muted">
+                  PKCE · {pkce.join(', ')}
                 </span>
               </li>
             ) : null}

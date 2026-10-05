@@ -8911,7 +8911,8 @@
                             "reachable",
                             "stale",
                             "metadata",
-                            "jwks"
+                            "jwks",
+                            "health"
                           ],
                           "properties": {
                             "status": {
@@ -9012,6 +9013,68 @@
                                       ]
                                     },
                                     "ageSeconds": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastError": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "health": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "up",
+                                    "checkedAt",
+                                    "ageSeconds",
+                                    "lastUpAgeSeconds",
+                                    "lastError"
+                                  ],
+                                  "properties": {
+                                    "up": {
+                                      "type": "boolean"
+                                    },
+                                    "checkedAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "ageSeconds": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastUpAgeSeconds": {
                                       "anyOf": [
                                         {
                                           "type": "integer"

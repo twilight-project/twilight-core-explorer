@@ -1,6 +1,7 @@
 import { createPrismaClient } from '@twilight-explorer/db';
 import { withProjectionAdvisoryLock } from './advisory-lock.js';
 import {
+  makeFetchHealth,
   makeFetchJson,
   parseOperatorStatusUrls,
   projectOperatorStatus,
@@ -27,21 +28,22 @@ async function main(): Promise<void> {
   }
 
   const prisma = createPrismaClient();
-  const fetchJson = makeFetchJson(
-    Number.parseInt(process.env.OPERATOR_STATUS_TIMEOUT_MS ?? '10000', 10),
-  );
+  const timeoutMs = Number.parseInt(process.env.OPERATOR_STATUS_TIMEOUT_MS ?? '10000', 10);
+  const fetchJson = makeFetchJson(timeoutMs);
+  const fetchHealth = makeFetchHealth(timeoutMs);
   try {
     await withProjectionAdvisoryLock(prisma, async () => {
       for (const [slotId, baseUrl] of urls) {
         const r = await projectOperatorStatus({
           prisma: prisma as unknown as OperatorStatusPrisma,
           fetchJson,
+          fetchHealth,
           slotId,
           baseUrl,
         });
         console.log(
           `[operator-status] slot ${r.slotId}: clock=${r.clock} discovery=${r.discovery} ` +
-            `epochs fetched=${r.epochsFetched} failed=${r.epochsFailed}`,
+            `auth=${r.authServer} epochs fetched=${r.epochsFetched} failed=${r.epochsFailed}`,
         );
       }
     });

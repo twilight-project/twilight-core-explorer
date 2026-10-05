@@ -3,6 +3,7 @@ import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import {
   OperatorAuthResponse,
   OperatorClockResponse,
+  OperatorDrawResponse,
   OperatorEpochParams,
   OperatorFeedEpochResponse,
   OperatorProfileResponse,
@@ -15,6 +16,7 @@ import { notFound } from '../lib/errors.js';
 import { parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
 import {
+  getDrawSample,
   getEpochPayoutFacts,
   getFeedEpochSample,
   getFeedHealth,
@@ -342,6 +344,33 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
           metadata: meta,
           jwks: jwks ? authSample(jwks) : null,
         },
+      };
+    },
+  );
+
+  app.get(
+    '/operators/:slotId/draw/:epoch',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: "The operator's published selection-draw record for an epoch (attested)",
+        params: OperatorEpochParams,
+        response: { 200: OperatorDrawResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const epoch = parseSlotId(request.params.epoch);
+      const sample = await getDrawSample(app.prisma, slotId, epoch);
+      if (!sample || sample.payloadJson == null) {
+        return {
+          data: { status: 'no_status' as const, reason: 'no draw record for this epoch' },
+        };
+      }
+      const tip = await app.prisma.block.aggregate({ _max: { height: true } });
+      return {
+        data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date()) },
       };
     },
   );

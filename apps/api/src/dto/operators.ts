@@ -202,6 +202,18 @@ export const OperatorAuthResponse = Type.Object(
   { $id: 'OperatorAuthResponse' },
 );
 
+// The operator's published selection-draw record for one epoch (attested, verbatim).
+// Its `anchor.tx_hash` is a chain fact a reader can follow to the explorer's own tx page.
+export const OperatorDrawResponse = Type.Object(
+  {
+    data: Type.Union([
+      Type.Object({ status: Type.Literal('no_status'), reason: Type.String() }),
+      Type.Object({ status: Type.Literal('ok'), ...SampleEnvelope }),
+    ]),
+  },
+  { $id: 'OperatorDrawResponse' },
+);
+
 export const OperatorSlotParams = Type.Object({ slotId: Type.String() });
 export const OperatorEpochParams = Type.Object({ slotId: Type.String(), epoch: Type.String() });
 

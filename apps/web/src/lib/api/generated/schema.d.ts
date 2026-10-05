@@ -3436,6 +3436,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operators/{slotId}/draw/{epoch}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The operator's published selection-draw record for an epoch (attested) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                    epoch: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "no_status";
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "ok";
+                                /** @enum {string} */
+                                source: "operator";
+                                /** @enum {string} */
+                                provenance: "attested";
+                                baseUrl: string;
+                                /** @enum {string} */
+                                baseUrlProvenance: "configured";
+                                sampledAt: string | null;
+                                asHeight: string | null;
+                                fetchedAt: string | null;
+                                ageSeconds: number | null;
+                                stale: boolean;
+                                staleForward: boolean;
+                                lastError: string | null;
+                                payload: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/operators/{slotId}/status/epochs/{epoch}": {
         parameters: {
             query?: never;

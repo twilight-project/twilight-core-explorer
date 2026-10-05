@@ -10,6 +10,7 @@ import { ErrorState, LoadingState } from '@/components/states/States';
 import { CoreSlotDetail } from '@/components/coreslots/CoreSlotDetail';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
 import { OperatorClockPanel } from './OperatorClockPanel';
+import { OperatorDrawPanel } from './OperatorDrawPanel';
 import { Panel, MetricTriple } from './Panel';
 import {
   useFeedEpochFanout,
@@ -383,6 +384,9 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
         <div className="flex min-w-0 flex-[1000_1_460px] flex-col gap-6">
           <OperatorTrackRecord slotId={slotId} />
           <OperatorClockPanel slotId={slotId} />
+          {settledEpochs[0] !== undefined ? (
+            <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
+          ) : null}
 
           {/* Rules + Transparency */}
           <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">

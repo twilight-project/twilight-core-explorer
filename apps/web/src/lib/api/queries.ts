@@ -669,6 +669,7 @@ export type OperatorClockResponse = JsonOf<'/api/v1/operators/{slotId}/status/cl
 export type OperatorFeedEpochResponse =
   JsonOf<'/api/v1/operators/{slotId}/status/epochs/{epoch}'>;
 export type OperatorAuthResponse = JsonOf<'/api/v1/operators/{slotId}/auth'>;
+export type OperatorDrawResponse = JsonOf<'/api/v1/operators/{slotId}/draw/{epoch}'>;
 
 export function useOperators() {
   return useQuery({
@@ -691,6 +692,16 @@ export function useOperatorAuth(slotId: string) {
     queryKey: ['operators', slotId, 'auth'],
     queryFn: () => apiGetPath('/api/v1/operators/{slotId}/auth', { slotId }),
     enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorDraw(slotId: string, epoch: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'draw', epoch],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/draw/{epoch}', { slotId, epoch }),
+    enabled: enabledSlot(slotId) && epoch.length > 0,
+    // A settled epoch's draw record is final — cache effectively forever.
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 

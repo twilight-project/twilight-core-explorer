@@ -179,6 +179,16 @@ export async function getFeedEpochSample(
   });
 }
 
+export async function getDrawSample(
+  prisma: PrismaClient,
+  slotId: bigint,
+  epochNumber: bigint,
+): Promise<FeedSample | null> {
+  return prisma.operatorStatusSample.findUnique({
+    where: { sampleKey: `${slotId}:draw:${epochNumber}` },
+  });
+}
+
 /** Per-slot feed health: does it publish at all, and how fresh is the last good clock. */
 export async function getFeedHealth(prisma: PrismaClient) {
   return prisma.operatorStatusSample.findMany({

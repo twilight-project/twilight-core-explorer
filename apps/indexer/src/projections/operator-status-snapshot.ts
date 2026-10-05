@@ -251,6 +251,24 @@ export function jwksUrlFrom(metadataBody: unknown, baseUrl: string): string {
   return typeof uri === 'string' && uri.startsWith(`${baseUrl}/`) ? uri : fallback;
 }
 
+/**
+ * The per-epoch draw-record URL. The discovery document advertises a template with an
+ * `{epoch}` placeholder; it is honored only on the operator's own origin (same rule as
+ * jwks_uri), otherwise the conventional path is used.
+ */
+export function drawUrlFrom(
+  discoveryBody: unknown,
+  baseUrl: string,
+  slotId: bigint,
+  epoch: bigint,
+): string {
+  const fallback = `${baseUrl}/v1/selection/slots/${slotId}/epochs/${epoch}/candidates`;
+  if (typeof discoveryBody !== 'object' || discoveryBody === null) return fallback;
+  const template = (discoveryBody as Record<string, unknown>)['draw_record'];
+  if (typeof template !== 'string' || !template.startsWith(`${baseUrl}/`)) return fallback;
+  return template.replace('{epoch}', epoch.toString());
+}
+
 export async function projectOperatorStatus(args: {
   prisma: OperatorStatusPrisma;
   fetchJson: FetchJson;
@@ -346,6 +364,14 @@ export async function projectOperatorStatus(args: {
   });
   const byEpoch = new Map(existing.map((s) => [s.epochNumber?.toString() ?? '-', s]));
 
+  // The draw record rides along with each epoch fetch (same first-sight / refresh-after-
+  // settle / immutable-after-settle cadence), using the discovery document's template.
+  const discoveryBody = (
+    await prisma.operatorStatusSample.findUnique({
+      where: { sampleKey: sampleKey(slotId, 'discovery', null) },
+    })
+  )?.payloadJson;
+
   let epochsFetched = 0;
   let epochsFailed = 0;
   for (const { epochNumber } of entitled) {
@@ -363,6 +389,14 @@ export async function projectOperatorStatus(args: {
       baseUrl,
       now,
       outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${epochNumber}`),
+    });
+    await recordFetch(prisma, {
+      slotId,
+      kind: 'draw',
+      epochNumber,
+      baseUrl,
+      now,
+      outcome: await fetchJson(drawUrlFrom(discoveryBody, baseUrl, slotId, epochNumber)),
     });
     if (result === 'stored') epochsFetched++;
     else epochsFailed++;

@@ -162,7 +162,7 @@ export interface FeedSample {
 export async function getFeedSample(
   prisma: PrismaClient,
   slotId: bigint,
-  kind: 'discovery' | 'clock' | 'as_metadata' | 'as_jwks',
+  kind: 'discovery' | 'clock' | 'as_metadata' | 'as_jwks' | 'as_health',
 ): Promise<FeedSample | null> {
   return prisma.operatorStatusSample.findUnique({
     where: { sampleKey: `${slotId}:${kind}:-` },

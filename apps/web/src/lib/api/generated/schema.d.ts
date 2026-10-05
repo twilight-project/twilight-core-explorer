@@ -3405,6 +3405,13 @@ export interface paths {
                                     ageSeconds: number | null;
                                     lastError: string | null;
                                 } | null;
+                                health: {
+                                    up: boolean;
+                                    checkedAt: string | null;
+                                    ageSeconds: number | null;
+                                    lastUpAgeSeconds: number | null;
+                                    lastError: string | null;
+                                } | null;
                             };
                         };
                     };

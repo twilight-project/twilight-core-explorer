@@ -251,3 +251,25 @@ describe('draw-record sampling', () => {
     );
   });
 });
+
+describe('auth-server health probe', () => {
+  it('probes /healthz every run via the health fetcher; outage keeps last good', async () => {
+    const prisma = mockPrisma();
+    const healthUrls = [];
+    const fetchHealth = async (url) => {
+      healthUrls.push(url);
+      return { ok: true, status: 200, body: { up: true, httpStatus: 200 } };
+    };
+    await projectOperatorStatus({ prisma, fetchJson: okJson(CLOCK), fetchHealth, slotId: 3n, baseUrl: 'https://as' });
+    await projectOperatorStatus({ prisma, fetchJson: okJson(CLOCK), fetchHealth, slotId: 3n, baseUrl: 'https://as' });
+    assert.deepEqual(healthUrls, ['https://as/healthz', 'https://as/healthz']); // every run
+    const row = prisma._samples.get(sampleKey(3n, 'as_health', null));
+    assert.equal(row.payloadJson.up, true);
+
+    const down = async () => ({ ok: false, status: null, error: 'fetch failed' });
+    await projectOperatorStatus({ prisma, fetchJson: okJson(CLOCK), fetchHealth: down, slotId: 3n, baseUrl: 'https://as' });
+    const after = prisma._samples.get(sampleKey(3n, 'as_health', null));
+    assert.equal(after.lastError, 'fetch failed');
+    assert.equal(after.payloadJson.up, true); // last good survives
+  });
+});

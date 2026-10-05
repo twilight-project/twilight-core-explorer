@@ -131,6 +131,10 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
         payload: { keys: [{ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: 'receipt-b13c5258e190' }] },
         fetchedAt: new Date().toISOString(), ageSeconds: 60, lastError: null,
       },
+      health: {
+        up: true, checkedAt: new Date().toISOString(), ageSeconds: 30,
+        lastUpAgeSeconds: 30, lastError: null,
+      },
     },
   },
   '/operators/1/auth': {

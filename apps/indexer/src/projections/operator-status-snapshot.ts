@@ -17,6 +17,7 @@
 export const OPERATOR_STATUS_PROJECTION = 'operator_status_snapshot_v1';
 
 const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
+const AUTH_SERVER_MAX_AGE_MS = 60 * 60 * 1000;
 const EPOCH_FETCH_BUDGET = 8;
 const SETTLED_STATE = 'SETTLEMENT_RECONCILED';
 
@@ -233,8 +234,21 @@ export interface OperatorStatusRunResult {
   slotId: string;
   clock: 'stored' | 'refused' | 'failed';
   discovery: 'stored' | 'refused' | 'failed' | 'fresh';
+  authServer: 'stored' | 'refused' | 'failed' | 'fresh';
   epochsFetched: number;
   epochsFailed: number;
+}
+
+/**
+ * The AS jwks_uri is fetched only when it stays on the operator's own origin — the sampler
+ * never follows a metadata document to a third-party host. Anything else falls back to the
+ * conventional path on the configured base URL.
+ */
+export function jwksUrlFrom(metadataBody: unknown, baseUrl: string): string {
+  const fallback = `${baseUrl}/oauth/jwks.json`;
+  if (typeof metadataBody !== 'object' || metadataBody === null) return fallback;
+  const uri = (metadataBody as Record<string, unknown>)['jwks_uri'];
+  return typeof uri === 'string' && uri.startsWith(`${baseUrl}/`) ? uri : fallback;
 }
 
 export async function projectOperatorStatus(args: {
@@ -266,6 +280,39 @@ export async function projectOperatorStatus(args: {
       baseUrl,
       now,
       outcome: await fetchJson(`${baseUrl}/.well-known/twilight-operator-status`),
+    });
+  }
+
+  // Authentication server (phase 15 §auth page): the operator's OAuth AS metadata (RFC 8414)
+  // and its JWKS, hourly like discovery. Both live on the same rewards host as the status
+  // feed. The JWKS is what participants verify signed receipts against, so the explorer
+  // records exactly what the operator served and when.
+  const asKeyed = await prisma.operatorStatusSample.findUnique({
+    where: { sampleKey: sampleKey(slotId, 'as_metadata', null) },
+  });
+  let authServer: OperatorStatusRunResult['authServer'] = 'fresh';
+  const asAge = asKeyed?.fetchedAt
+    ? now.getTime() - asKeyed.fetchedAt.getTime()
+    : Number.POSITIVE_INFINITY;
+  if (asAge >= AUTH_SERVER_MAX_AGE_MS) {
+    const metadataOutcome = await fetchJson(`${baseUrl}/.well-known/oauth-authorization-server`);
+    authServer = await recordFetch(prisma, {
+      slotId,
+      kind: 'as_metadata',
+      epochNumber: null,
+      baseUrl,
+      now,
+      outcome: metadataOutcome,
+    });
+    await recordFetch(prisma, {
+      slotId,
+      kind: 'as_jwks',
+      epochNumber: null,
+      baseUrl,
+      now,
+      outcome: await fetchJson(
+        jwksUrlFrom(metadataOutcome.ok ? metadataOutcome.body : null, baseUrl),
+      ),
     });
   }
 
@@ -321,7 +368,7 @@ export async function projectOperatorStatus(args: {
     else epochsFailed++;
   }
 
-  return { slotId: slotId.toString(), clock, discovery, epochsFetched, epochsFailed };
+  return { slotId: slotId.toString(), clock, discovery, authServer, epochsFetched, epochsFailed };
 }
 
 /** Parse OPERATOR_STATUS_URLS: `3=https://rewards.nyks.dev,5=https://…`. */

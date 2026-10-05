@@ -370,6 +370,12 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
               Your own per-epoch status is served only to you via{' '}
               <span className="text-text-secondary">dropin-miner status</span>.
             </span>
+            <Link
+              href={`/operators/${encodeURIComponent(slotId)}/auth`}
+              className="font-mono text-[12px] text-text-muted hover:text-text"
+            >
+              How sign-in works (device flow, DPoP, signing keys) →
+            </Link>
           </Panel>
           <MarksLegend />
         </div>

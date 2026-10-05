@@ -21,6 +21,8 @@ const ROUTES: { path: string; h1: RegExp }[] = [
   { path: '/slots?tab=operators', h1: /slots/i },
   // The operator profile ("mine with us" deep link) + the /operators index redirect.
   { path: '/operators/3', h1: /twilight search mining|slot-3|coreslot 3 operator/i },
+  { path: '/operators/3/auth', h1: /how you sign in/i },
+  { path: '/operators/1/auth', h1: /publishes no authentication service/i },
   { path: '/operators', h1: /slots/i },
   { path: '/slots?tab=history', h1: /slots/i },
   { path: '/economy', h1: /economy/i },

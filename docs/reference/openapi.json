@@ -8853,6 +8853,237 @@
         }
       }
     },
+    "/api/v1/operators/{slotId}/auth": {
+      "get": {
+        "summary": "The operator's authentication server: RFC 8414 metadata + JWKS (attested)",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "reason"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "no_status"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "status",
+                            "source",
+                            "provenance",
+                            "baseUrl",
+                            "baseUrlProvenance",
+                            "reachable",
+                            "stale",
+                            "metadata",
+                            "jwks"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "ok"
+                              ]
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "operator"
+                              ]
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "attested"
+                              ]
+                            },
+                            "baseUrl": {
+                              "type": "string"
+                            },
+                            "baseUrlProvenance": {
+                              "type": "string",
+                              "enum": [
+                                "configured"
+                              ]
+                            },
+                            "reachable": {
+                              "type": "boolean"
+                            },
+                            "stale": {
+                              "type": "boolean"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "required": [
+                                "payload",
+                                "fetchedAt",
+                                "ageSeconds",
+                                "lastError"
+                              ],
+                              "properties": {
+                                "payload": {},
+                                "fetchedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "ageSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "lastError": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "jwks": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "payload",
+                                    "fetchedAt",
+                                    "ageSeconds",
+                                    "lastError"
+                                  ],
+                                  "properties": {
+                                    "payload": {},
+                                    "fetchedAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "ageSeconds": {
+                                      "anyOf": [
+                                        {
+                                          "type": "integer"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastError": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/operators/{slotId}/status/epochs/{epoch}": {
       "get": {
         "summary": "The operator's per-epoch aggregates (attested) + §6.5 verification vs the chain",

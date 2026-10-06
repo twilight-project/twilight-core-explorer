@@ -131,7 +131,8 @@ export function CoreSlotDetail({
       '',
       <>
         {identity}
-        <CoreSlotHealthSection slotId={c.slotId} />
+        {/* No CoreSlotHealthSection here: the operator page (the only embedder) mounts it
+            at the top of its data column, so the embed would duplicate it. */}
         <CoreSlotLivenessSection slotId={c.slotId} />
         <CoreSlotProposedBlocksSection slotId={c.slotId} />
         <CoreSlotAuthorityHistorySection slotId={c.slotId} />

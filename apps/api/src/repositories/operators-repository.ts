@@ -46,7 +46,9 @@ export async function getOperatorVerdicts(
     ),
     joined AS (
       SELECT ent."slotId", ent."epochNumber", ent."entitlementAmount"::numeric AS entitlement,
-             re."blockTime" AS close_time,
+             -- RewardEpochProjection."blockTime" is NULL for every row the projector has
+             -- written to date, so epoch close time comes from the Block at the close height.
+             coalesce(re."blockTime", b."time") AS close_time,
              (f."slotId" IS NOT NULL) AS settled,
              (CASE WHEN f."slotId" IS NOT NULL AND re."height" IS NOT NULL
                    THEN f.fin_height - re."height" END) AS lat,
@@ -56,6 +58,7 @@ export async function getOperatorVerdicts(
       FROM "SlotEntitlementProjection" ent
       LEFT JOIN fin f ON f."slotId" = ent."slotId" AND f."epochNumber" = ent."epochNumber"
       LEFT JOIN "RewardEpochProjection" re ON re."epochNumber" = ent."epochNumber"
+      LEFT JOIN "Block" b ON b."height" = re."height"
       LEFT JOIN pay p ON p."slotId" = ent."slotId" AND p."epochNumber" = ent."epochNumber"
       WHERE ent."entitlementAmount"::numeric > 0
     )

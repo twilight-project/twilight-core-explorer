@@ -8,6 +8,7 @@ import { MetadataFields, hasMetadataFields } from '@/components/detail/MetadataF
 import { CopyButton } from '@/components/ui/CopyButton';
 import { ErrorState, LoadingState } from '@/components/states/States';
 import { CoreSlotDetail } from '@/components/coreslots/CoreSlotDetail';
+import { CoreSlotHealthSection } from '@/components/coreslots/sections/CoreSlotHealthSection';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
 import { OperatorClockPanel } from './OperatorClockPanel';
 import { OperatorDrawPanel } from './OperatorDrawPanel';
@@ -316,6 +317,7 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
         </div>
 
         <div className="flex min-w-0 flex-[1000_1_460px] flex-col gap-6">
+          <CoreSlotHealthSection slotId={slotId} />
           <OperatorTrackRecord slotId={slotId} />
           <OperatorClockPanel slotId={slotId} />
           {settledEpochs[0] !== undefined ? (

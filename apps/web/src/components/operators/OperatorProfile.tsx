@@ -219,72 +219,6 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
           are marked <SourceChip kind="attested" /> and checked against the chain.
         </p>
       </div>
-
-      {/* About this operator — the public-facing, plain-language layer. Curated by the
-          explorer until operators publish it on chain, and labelled so (configured). */}
-      {curated ? (
-        <Panel
-          title="About this operator"
-          meta={
-            <>
-              curated by the explorer · <SourceChip kind="configured" />
-            </>
-          }
-        >
-          <div className="flex flex-col gap-4">
-            {curated.disclaimer ? (
-              <p className="rounded-lg border border-accent-orange/40 bg-accent-orange/10 px-4 py-2.5 text-[13px] leading-relaxed text-accent-orange">
-                {curated.disclaimer}
-              </p>
-            ) : null}
-            <div className="grid grid-cols-1 gap-x-10 gap-y-2.5 text-sm md:grid-cols-2">
-              <AboutRow label="Who runs it">{curated.ownedBy}</AboutRow>
-              <AboutRow label="Website">
-                {curated.website ? (
-                  <a
-                    href={curated.website}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-primary hover:text-primary-light"
-                  >
-                    {curated.website.replace(/^https?:\/\//, '')} ↗
-                  </a>
-                ) : (
-                  '—'
-                )}
-              </AboutRow>
-              <AboutRow label="What it does">{curated.service}</AboutRow>
-              <AboutRow label="Rewards given till now">
-                {v ? (
-                  <span>
-                    <span className="font-mono text-text">
-                      {formatAmount(v.paidAll, v.denom).display}
-                    </span>{' '}
-                    {formatAmount(v.paidAll, v.denom).symbol} paid out to participants{' '}
-                    <SourceChip kind="chain" title="Sum of every settlement payout, from indexed events" />
-                  </span>
-                ) : (
-                  'none yet'
-                )}
-              </AboutRow>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="font-mono text-[11px] uppercase tracking-[.08em] text-text-muted">
-                How rewards are shared
-              </span>
-              <p className="max-w-3xl text-sm leading-relaxed text-text-secondary">
-                {curated.distributionPolicy}
-              </p>
-            </div>
-            {curated.about.map((para, i) => (
-              <p key={i} className="max-w-3xl text-sm leading-relaxed text-text-secondary">
-                {para}
-              </p>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
-
       {/* Do they pay? */}
       <Panel
         title="Do they pay?"
@@ -443,6 +377,72 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
               ))}
             </Panel>
           </div>
+
+
+          {/* About this operator — the public-facing, plain-language layer. Curated by the
+              explorer until operators publish it on chain, and labelled so (configured). */}
+          {curated ? (
+            <Panel
+              title="About this operator"
+              meta={
+                <>
+                  curated by the explorer · <SourceChip kind="configured" />
+                </>
+              }
+            >
+              <div className="flex flex-col gap-4">
+                {curated.disclaimer ? (
+                  <p className="rounded-lg border border-accent-orange/40 bg-accent-orange/10 px-4 py-2.5 text-[13px] leading-relaxed text-accent-orange">
+                    {curated.disclaimer}
+                  </p>
+                ) : null}
+                <div className="grid grid-cols-1 gap-x-10 gap-y-2.5 text-sm md:grid-cols-2">
+                  <AboutRow label="Who runs it">{curated.ownedBy}</AboutRow>
+                  <AboutRow label="Website">
+                    {curated.website ? (
+                      <a
+                        href={curated.website}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="text-primary hover:text-primary-light"
+                      >
+                        {curated.website.replace(/^https?:\/\//, '')} ↗
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </AboutRow>
+                  <AboutRow label="What it does">{curated.service}</AboutRow>
+                  <AboutRow label="Rewards given till now">
+                    {v ? (
+                      <span>
+                        <span className="font-mono text-text">
+                          {formatAmount(v.paidAll, v.denom).display}
+                        </span>{' '}
+                        {formatAmount(v.paidAll, v.denom).symbol} paid out to participants{' '}
+                        <SourceChip kind="chain" title="Sum of every settlement payout, from indexed events" />
+                      </span>
+                    ) : (
+                      'none yet'
+                    )}
+                  </AboutRow>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="font-mono text-[11px] uppercase tracking-[.08em] text-text-muted">
+                    How rewards are shared
+                  </span>
+                  <p className="max-w-3xl text-sm leading-relaxed text-text-secondary">
+                    {curated.distributionPolicy}
+                  </p>
+                </div>
+                {curated.about.map((para, i) => (
+                  <p key={i} className="max-w-3xl text-sm leading-relaxed text-text-secondary">
+                    {para}
+                  </p>
+                ))}
+              </div>
+            </Panel>
+          ) : null}
 
           {/* Identity */}
           <Panel

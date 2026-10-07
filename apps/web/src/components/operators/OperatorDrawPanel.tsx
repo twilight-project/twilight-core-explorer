@@ -56,6 +56,14 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
   const anchor = asRecord(p['anchor']);
   const params = asRecord(p['parameters']);
   const outcome = feedString(p['outcome']);
+  const candidateIds = Array.isArray(p['candidates'])
+    ? (p['candidates'] as unknown[]).filter((c): c is string => typeof c === 'string')
+    : [];
+  const winnerIds = new Set(
+    Array.isArray(p['winners'])
+      ? (p['winners'] as unknown[]).filter((w): w is string => typeof w === 'string')
+      : [],
+  );
   const candidates = Array.isArray(p['candidates']) ? (p['candidates'] as unknown[]).length : null;
   const k = feedNumber(p['k']);
   const winners = Array.isArray(p['winners']) ? (p['winners'] as unknown[]).length : null;
@@ -106,6 +114,42 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
         <Row label="candidate-set hash">
           <HashValue value={setHash} />
         </Row>
+      ) : null}
+      {candidateIds.length > 0 ? (
+        <div className="flex flex-col gap-1.5 border-b border-card-hover py-2.5">
+          <span className="text-[13px] text-text-muted">who entered (draw ids)</span>
+          {candidateIds.slice(0, 10).map((id) => (
+            <span key={id} className="flex items-center justify-between gap-2 font-mono text-xs">
+              <span className={winnerIds.has(id) ? 'text-primary' : 'text-text-secondary'} title={id}>
+                {shortenMiddle(id)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                {winnerIds.has(id) ? (
+                  <span className="rounded-full border border-primary/50 px-1.5 py-px font-mono text-[10.5px] text-primary">
+                    winner
+                  </span>
+                ) : null}
+                <CopyButton value={id} label="draw id" />
+              </span>
+            </span>
+          ))}
+          {candidateIds.length > 10 ? (
+            <span className="font-mono text-[11px] text-text-muted">
+              +{candidateIds.length - 10} more in the published record
+            </span>
+          ) : null}
+          <span className="pt-1 font-mono text-[11px] leading-relaxed text-text-muted">
+            Draw ids are pseudonymous hashes, never addresses — the feed carries no per-address
+            data by design. The winners&apos; payout addresses are chain facts, on{' '}
+            <Link
+              href={`/mining/settlements/${encodeURIComponent(slotId)}/${encodeURIComponent(epoch)}`}
+              className="text-text-secondary underline hover:text-text"
+            >
+              the epoch&apos;s settlement page
+            </Link>
+            .
+          </span>
+        </div>
       ) : null}
       <p className="pt-3 text-[12.5px] leading-relaxed text-text-muted">
         The operator commits the candidate set and parameters on chain before the beacon

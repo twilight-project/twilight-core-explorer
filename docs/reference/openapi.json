@@ -9147,6 +9147,190 @@
         }
       }
     },
+    "/api/v1/operators/{slotId}/participants": {
+      "get": {
+        "summary": "Paid participants by address (chain) + the live enrolled count (attested)",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "paidAll",
+                        "paid30",
+                        "denom",
+                        "provenance",
+                        "enrolled",
+                        "participants"
+                      ],
+                      "properties": {
+                        "paidAll": {
+                          "type": "integer"
+                        },
+                        "paid30": {
+                          "type": "integer"
+                        },
+                        "denom": {
+                          "type": "string"
+                        },
+                        "provenance": {
+                          "type": "string",
+                          "enum": [
+                            "chain"
+                          ]
+                        },
+                        "enrolled": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "epochNumber",
+                                "enrolled",
+                                "fetchedAt",
+                                "ageSeconds",
+                                "provenance"
+                              ],
+                              "properties": {
+                                "epochNumber": {
+                                  "pattern": "^\\d+$",
+                                  "description": "Decimal height/id as string",
+                                  "type": "string"
+                                },
+                                "enrolled": {
+                                  "type": "integer"
+                                },
+                                "fetchedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "ageSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "provenance": {
+                                  "type": "string",
+                                  "enum": [
+                                    "attested"
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "participants": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "recipient",
+                              "epochsPaid",
+                              "totalReceived",
+                              "firstEpoch",
+                              "lastEpoch"
+                            ],
+                            "properties": {
+                              "recipient": {
+                                "type": "string"
+                              },
+                              "epochsPaid": {
+                                "type": "integer"
+                              },
+                              "totalReceived": {
+                                "type": "string"
+                              },
+                              "firstEpoch": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "lastEpoch": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/operators/{slotId}/draw/{epoch}": {
       "get": {
         "summary": "The operator's published selection-draw record for an epoch (attested)",

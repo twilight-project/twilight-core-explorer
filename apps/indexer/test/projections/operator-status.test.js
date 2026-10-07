@@ -73,6 +73,9 @@ describe('operator-status sampler', () => {
     let epochCalls = 0;
     const fetchJson = async (url) => {
       if (url.includes('/candidates')) return { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      if (url.includes('/operator-status/epochs/497')) {
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      }
       if (url.includes('/operator-status/epochs/')) {
         epochCalls++;
         return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 50, sampled_at: '2026-09-11T00:00:00Z', as_height: 1 } };
@@ -92,6 +95,9 @@ describe('operator-status sampler', () => {
     let epochCalls = 0;
     const fetchJson = async (url) => {
       if (url.includes('/candidates')) return { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      if (url.includes('/operator-status/epochs/497')) {
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      }
       if (url.includes('/operator-status/epochs/')) {
         epochCalls++;
         return { ok: true, status: 200, body: { state: 'OPEN', epoch: 60 } };

@@ -220,3 +220,63 @@ export async function getEpochPayoutFacts(
   `;
   return { amounts: row?.amounts ?? [], recipients: row?.recipients ?? 0n };
 }
+
+// Paid participants for one slot: one row per DISTINCT recipient address, from settlement
+// payouts — chain facts (the feed's enrolled participants stay pseudonymous per
+// ADR-MINIS-0020; only addresses the chain actually paid appear here).
+export interface PaidParticipantRow {
+  recipient: string;
+  epochsPaid: bigint;
+  totalReceived: string;
+  firstEpoch: bigint;
+  lastEpoch: bigint;
+  lastHeight: bigint;
+}
+
+export async function getPaidParticipants(
+  prisma: PrismaClient,
+  slotId: bigint,
+  limit = 100,
+): Promise<PaidParticipantRow[]> {
+  return prisma.$queryRaw<PaidParticipantRow[]>`
+    SELECT "recipient",
+           count(DISTINCT "epochNumber")::bigint AS "epochsPaid",
+           sum("amount"::numeric)::text AS "totalReceived",
+           min("epochNumber")::bigint AS "firstEpoch",
+           max("epochNumber")::bigint AS "lastEpoch",
+           max("height")::bigint AS "lastHeight"
+    FROM "MiningSettlementPayout"
+    WHERE "slotId" = ${slotId}
+    GROUP BY "recipient"
+    ORDER BY sum("amount"::numeric) DESC
+    LIMIT ${limit}
+  `;
+}
+
+export async function countPaidParticipants(
+  prisma: PrismaClient,
+  slotId: bigint,
+): Promise<{ all: bigint; recent: bigint }> {
+  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
+  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint }[]>`
+    SELECT count(DISTINCT p."recipient")::bigint AS "all",
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent"
+    FROM "MiningSettlementPayout" p
+    LEFT JOIN "Block" b ON b."height" = p."height"
+    WHERE p."slotId" = ${slotId}
+  `;
+  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n };
+}
+
+/** Newest feed epoch sample for a slot (any state) — carries the live enrolled count. */
+export async function getNewestEpochSample(
+  prisma: PrismaClient,
+  slotId: bigint,
+): Promise<FeedSample | null> {
+  const rows = await prisma.operatorStatusSample.findMany({
+    where: { slotId, kind: 'epoch' },
+    orderBy: { epochNumber: 'desc' },
+    take: 1,
+  });
+  return rows[0] ?? null;
+}

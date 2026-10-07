@@ -331,3 +331,45 @@ describe('operator auth health', () => {
     await app.close();
   });
 });
+
+describe('operator participants', () => {
+  it('lists distinct paid addresses with totals + the attested enrolled count', async () => {
+    const epochSampleOpen = {
+      sampleKey: '3:epoch:70', slotId: 3n, kind: 'epoch', epochNumber: 70n,
+      baseUrl: 'https://as.example',
+      payloadJson: { state: 'OPEN', epoch: 70, counts: { enrolled: 3 } },
+      sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+      lastHttpStatus: 200, lastError: null,
+    };
+    const app = await build({
+      blocks: [block(200)],
+      payouts: [
+        payout(1, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1aaa', 150, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+        payout(3, 'twilight1bbb', 150, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+      ],
+      operatorStatusSamples: [epochSampleOpen],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/participants' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.paidAll, 2);
+    assert.equal(d.provenance, 'chain');
+    assert.equal(d.enrolled.enrolled, 3);
+    assert.equal(d.enrolled.epochNumber, '70');
+    assert.equal(d.enrolled.provenance, 'attested');
+    const a = d.participants.find((x) => x.recipient === 'twilight1aaa');
+    assert.equal(a.epochsPaid, 2);
+    assert.equal(a.totalReceived, '200');
+    await app.close();
+  });
+
+  it('empty slot: zero counts, empty list, null enrolled', async () => {
+    const app = await build({});
+    const d = (await app.inject({ url: '/api/v1/operators/9/participants' })).json().data;
+    assert.equal(d.paidAll, 0);
+    assert.deepEqual(d.participants, []);
+    assert.equal(d.enrolled, null);
+    await app.close();
+  });
+});

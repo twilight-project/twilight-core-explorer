@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from '@/components/states/States';
 import { CoreSlotHealthSection } from '@/components/coreslots/sections/CoreSlotHealthSection';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
 import { OperatorDrawPanel } from './OperatorDrawPanel';
+import { OperatorParticipantsPanel } from './OperatorParticipantsPanel';
 import { OperatorNav, operatorDisplayName } from './OperatorShell';
 import { Panel, MetricTriple } from './Panel';
 import {
@@ -150,6 +151,7 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
       </Panel>
 
       <CoreSlotHealthSection slotId={slotId} />
+      <OperatorParticipantsPanel slotId={slotId} />
       {settledEpochs[0] !== undefined ? (
         <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
       ) : null}

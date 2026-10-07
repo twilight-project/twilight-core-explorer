@@ -2,6 +2,7 @@
 
 import { OperatorSubpageHeader } from './OperatorShell';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
+import { OperatorParticipantsPanel } from './OperatorParticipantsPanel';
 import { OperatorClockPanel } from './OperatorClockPanel';
 import { OperatorDrawPanel } from './OperatorDrawPanel';
 import { CoreSlotDetail } from '@/components/coreslots/CoreSlotDetail';
@@ -26,6 +27,8 @@ export function OperatorData({ slotId }: { slotId: string }) {
         active="data"
         caption="Every epoch this slot owed and how it settled, checked against the operator's own published figures — plus the live clock, the selection draw and the full slot detail."
       />
+
+      <OperatorParticipantsPanel slotId={slotId} showAddresses />
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <OperatorTrackRecord

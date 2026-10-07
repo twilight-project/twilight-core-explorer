@@ -225,6 +225,41 @@ export const OperatorDrawResponse = Type.Object(
   { $id: 'OperatorDrawResponse' },
 );
 
+// Participants for one slot. Addresses come ONLY from chain payouts (everyone the slot has
+// actually paid); enrolled participants stay pseudonymous counts per ADR-MINIS-0020.
+export const OperatorParticipantsResponse = Type.Object(
+  {
+    data: Type.Object({
+      /** Distinct addresses ever paid by this slot (chain). */
+      paidAll: Type.Integer(),
+      /** Distinct addresses paid in the last 30 days (chain). */
+      paid30: Type.Integer(),
+      denom: Type.String(),
+      provenance: Type.Literal('chain'),
+      /** The operator's live enrolled count for its newest reported epoch (attested). */
+      enrolled: Nullable(
+        Type.Object({
+          epochNumber: HeightString,
+          enrolled: Type.Integer(),
+          fetchedAt: Nullable(Type.String()),
+          ageSeconds: Nullable(Type.Integer()),
+          provenance: Type.Literal('attested'),
+        }),
+      ),
+      participants: Type.Array(
+        Type.Object({
+          recipient: Type.String(),
+          epochsPaid: Type.Integer(),
+          totalReceived: Type.String(),
+          firstEpoch: HeightString,
+          lastEpoch: HeightString,
+        }),
+      ),
+    }),
+  },
+  { $id: 'OperatorParticipantsResponse' },
+);
+
 export const OperatorSlotParams = Type.Object({ slotId: Type.String() });
 export const OperatorEpochParams = Type.Object({ slotId: Type.String(), epoch: Type.String() });
 

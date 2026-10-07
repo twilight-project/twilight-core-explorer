@@ -563,6 +563,24 @@ export function useSettlementStatus(filter?: { slotId?: string | undefined }) {
   });
 }
 
+// Single-shot series variants for charts: ONE page at the API's max limit (the infinite
+// hooks above only ever hold 25 rows unless someone clicks "load more").
+export function useSettlementStatusSeries(slotId: string) {
+  return useQuery({
+    queryKey: ['mining', 'settlement-status-series', slotId],
+    queryFn: () => apiGet('/api/v1/mining/settlements/status', { limit: 100, slotId }),
+    enabled: slotId.length > 0,
+  });
+}
+
+export function useSlotSettlementsSeries(slotId: string) {
+  return useQuery({
+    queryKey: ['mining', 'settlements-series', slotId],
+    queryFn: () => apiGet('/api/v1/mining/settlements', { limit: 100, slotId }),
+    enabled: slotId.length > 0,
+  });
+}
+
 export function useSettlement(slotId: string, epoch: string) {
   return useQuery({
     queryKey: ['mining', 'settlement', slotId, epoch],

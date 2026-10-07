@@ -5,6 +5,7 @@ import { SourceChip } from '@/components/provenance/SourceChip';
 import { ErrorState, LoadingState } from '@/components/states/States';
 import { CoreSlotHealthSection } from '@/components/coreslots/sections/CoreSlotHealthSection';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
+import { OperatorDrawPanel } from './OperatorDrawPanel';
 import { OperatorNav, operatorDisplayName } from './OperatorShell';
 import { Panel, MetricTriple } from './Panel';
 import {
@@ -149,26 +150,10 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
       </Panel>
 
       <div className="flex flex-row-reverse flex-wrap items-start gap-6">
-        {/* Compact pointers into the two subpages. */}
-        <div className="flex max-w-full flex-[1_1_280px] flex-col gap-4 min-[1100px]:sticky min-[1100px]:top-6">
-          <Panel title="Mine with this operator" tinted bodyClassName="flex flex-col gap-3 px-5 py-[18px]">
-            <p className="text-[13px] leading-relaxed text-text-secondary">
-              Three steps: install the client, claim it once in a browser, point it at slot{' '}
-              {p.identity.slotId}. Searches earn an equal share of each epoch&apos;s reward.
-            </p>
-            <Link
-              href={`/operators/${encodeURIComponent(slotId)}/details`}
-              className="font-mono text-[12.5px] text-primary hover:text-primary-light"
-            >
-              How to connect, rules and identity →
-            </Link>
-            <Link
-              href={`/operators/${encodeURIComponent(slotId)}/auth`}
-              className="font-mono text-[12px] text-text-muted hover:text-text"
-            >
-              How sign-in works →
-            </Link>
-          </Panel>
+        <div className="flex max-w-full flex-[1_1_300px] flex-col gap-4 min-[1100px]:sticky min-[1100px]:top-6">
+          {settledEpochs[0] !== undefined ? (
+            <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
+          ) : null}
           <Panel title="All the numbers" bodyClassName="flex flex-col gap-3 px-5 py-[18px]">
             <p className="text-[13px] leading-relaxed text-text-secondary">
               The full per-epoch ledger: every settlement with its verification mark, the live

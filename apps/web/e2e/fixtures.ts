@@ -140,6 +140,19 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
   '/operators/1/auth': {
     data: { status: 'no_status', reason: 'this operator publishes no authentication service' },
   },
+  '/operators/3/participants': {
+    data: {
+      paidAll: 2, paid30: 1, denom: 'utwlt', provenance: 'chain',
+      enrolled: {
+        epochNumber: '70', enrolled: 3, fetchedAt: new Date().toISOString(),
+        ageSeconds: 30, provenance: 'attested',
+      },
+      participants: [
+        { recipient: 'twilight1aaa', epochsPaid: 2, totalReceived: '200', firstEpoch: '61', lastEpoch: '62' },
+        { recipient: 'twilight1bbb', epochsPaid: 1, totalReceived: '100', firstEpoch: '62', lastEpoch: '62' },
+      ],
+    },
+  },
   // Status view: shape includes the per-slot latency summaries alongside the page.
   '/mining/settlements/status': { data: [], slots: [], page: { limit: 25, nextCursor: null } },
   // Settlement detail is object-shaped; the smoke tier only needs it to render, so give it a

@@ -3443,6 +3443,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operators/{slotId}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paid participants by address (chain) + the live enrolled count (attested) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                paidAll: number;
+                                paid30: number;
+                                denom: string;
+                                /** @enum {string} */
+                                provenance: "chain";
+                                enrolled: {
+                                    /** @description Decimal height/id as string */
+                                    epochNumber: string;
+                                    enrolled: number;
+                                    fetchedAt: string | null;
+                                    ageSeconds: number | null;
+                                    /** @enum {string} */
+                                    provenance: "attested";
+                                } | null;
+                                participants: {
+                                    recipient: string;
+                                    epochsPaid: number;
+                                    totalReceived: string;
+                                    /** @description Decimal height/id as string */
+                                    firstEpoch: string;
+                                    /** @description Decimal height/id as string */
+                                    lastEpoch: string;
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/operators/{slotId}/draw/{epoch}": {
         parameters: {
             query?: never;

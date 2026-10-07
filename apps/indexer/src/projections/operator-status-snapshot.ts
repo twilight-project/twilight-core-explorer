@@ -367,6 +367,44 @@ export async function projectOperatorStatus(args: {
     outcome: await fetchJson(`${baseUrl}/v1/operator-status/clock`),
   });
 
+  // The clock's CURRENT target epoch: fetched every run while it is open, so the live
+  // enrolled count stays fresh. Once the epoch settles, the ordinary epoch loop's
+  // immutability rule takes over (a SETTLEMENT_RECONCILED sample is never refetched, and
+  // this re-fetch simply stops happening because the clock moves on).
+  const clockSample = await prisma.operatorStatusSample.findUnique({
+    where: { sampleKey: sampleKey(slotId, 'clock', null) },
+  });
+  const clockBody =
+    typeof clockSample?.payloadJson === 'object' && clockSample?.payloadJson !== null
+      ? (clockSample.payloadJson as Record<string, unknown>)
+      : {};
+  const currentTarget =
+    typeof clockBody['current_target'] === 'object' && clockBody['current_target'] !== null
+      ? (clockBody['current_target'] as Record<string, unknown>)
+      : {};
+  const currentEpochRaw = currentTarget['epoch'];
+  const currentEpoch =
+    typeof currentEpochRaw === 'number' && Number.isInteger(currentEpochRaw) && currentEpochRaw >= 0
+      ? BigInt(currentEpochRaw)
+      : typeof currentEpochRaw === 'string' && /^\d+$/.test(currentEpochRaw)
+        ? BigInt(currentEpochRaw)
+        : null;
+  if (currentEpoch !== null) {
+    const stored = await prisma.operatorStatusSample.findUnique({
+      where: { sampleKey: sampleKey(slotId, 'epoch', currentEpoch) },
+    });
+    if (epochStateOf(stored ?? null) !== SETTLED_STATE) {
+      await recordFetch(prisma, {
+        slotId,
+        kind: 'epoch',
+        epochNumber: currentEpoch,
+        baseUrl,
+        now,
+        outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${currentEpoch}`),
+      });
+    }
+  }
+
   // Service health: every run, like the clock. A cheap 2xx probe of /healthz; the stored
   // payload is our own summary ({up: true}), since the endpoint answers plain text.
   await recordFetch(prisma, {

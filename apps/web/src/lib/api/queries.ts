@@ -670,6 +670,7 @@ export type OperatorFeedEpochResponse =
   JsonOf<'/api/v1/operators/{slotId}/status/epochs/{epoch}'>;
 export type OperatorAuthResponse = JsonOf<'/api/v1/operators/{slotId}/auth'>;
 export type OperatorDrawResponse = JsonOf<'/api/v1/operators/{slotId}/draw/{epoch}'>;
+export type OperatorParticipantsResponse = JsonOf<'/api/v1/operators/{slotId}/participants'>;
 
 export function useOperators() {
   return useQuery({
@@ -691,6 +692,15 @@ export function useOperatorAuth(slotId: string) {
   return useQuery({
     queryKey: ['operators', slotId, 'auth'],
     queryFn: () => apiGetPath('/api/v1/operators/{slotId}/auth', { slotId }),
+    enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorParticipants(slotId: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'participants'],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/participants', { slotId }),
+    refetchInterval: STATUS_REFETCH_MS,
     enabled: enabledSlot(slotId),
   });
 }

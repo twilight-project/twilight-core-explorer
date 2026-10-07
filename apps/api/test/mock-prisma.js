@@ -720,6 +720,40 @@ export class MockPrisma {
       return rows.map((t) => ({ hash: t.hash, height: t.height, typeUrls: t.messageTypesJson }));
     }
 
+    // Paid participants per slot (operators/participants): discriminated by epochsPaid alias.
+    if (sqlText.includes('"epochsPaid"')) {
+      const slotId = values.find((v) => typeof v === 'bigint');
+      const byAddr = new Map();
+      for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
+        const e = byAddr.get(x.recipient) ?? { epochs: new Set(), total: 0n, heights: [] };
+        e.epochs.add(x.epochNumber); e.total += BigInt(x.amount); e.heights.push(x.height);
+        byAddr.set(x.recipient, e);
+      }
+      return [...byAddr.entries()]
+        .sort((a, b) => (a[1].total > b[1].total ? -1 : 1))
+        .map(([recipient, e]) => ({
+          recipient,
+          epochsPaid: BigInt(e.epochs.size),
+          totalReceived: e.total.toString(),
+          firstEpoch: [...e.epochs].sort((x, y) => (x < y ? -1 : 1))[0],
+          lastEpoch: [...e.epochs].sort((x, y) => (x > y ? -1 : 1))[0],
+          lastHeight: e.heights.sort((x, y) => (x > y ? -1 : 1))[0],
+        }));
+    }
+
+    // Distinct paid participants (all + 30d window): discriminated by the "recent" alias.
+    if (sqlText.includes('AS "recent"')) {
+      const slotId = values.find((v) => typeof v === 'bigint');
+      const cutoff = values.find((v) => v instanceof Date);
+      const all = new Set(); const recent = new Set();
+      for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
+        all.add(x.recipient);
+        const blk = this._blocks.find((b) => b.height === x.height);
+        if (blk?.time && cutoff && blk.time >= cutoff) recent.add(x.recipient);
+      }
+      return [{ all: BigInt(all.size), recent: BigInt(recent.size) }];
+    }
+
     // Feed-epoch chain facts (phase 15 §6.5).
     if (sqlText.includes('array_agg(DISTINCT "amount")')) {
       const slotId = values[0]; const epoch = values[1];

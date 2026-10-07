@@ -6,6 +6,7 @@ import {
   OperatorDrawResponse,
   OperatorEpochParams,
   OperatorFeedEpochResponse,
+  OperatorParticipantsResponse,
   OperatorProfileResponse,
   OperatorSlotParams,
   OperatorsListResponse,
@@ -16,11 +17,14 @@ import { notFound } from '../lib/errors.js';
 import { parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
 import {
+  countPaidParticipants,
   getDrawSample,
   getEpochPayoutFacts,
   getFeedEpochSample,
   getFeedHealth,
   getFeedSample,
+  getNewestEpochSample,
+  getPaidParticipants,
   getOperatorVerdicts,
   getRecipientsTrend,
   getSettlementAccountViolations,
@@ -356,6 +360,64 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
                 lastError: health.lastError,
               }
             : null,
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/operators/:slotId/participants',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: 'Paid participants by address (chain) + the live enrolled count (attested)',
+        params: OperatorSlotParams,
+        response: { 200: OperatorParticipantsResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const now = new Date();
+      const [counts, rows, newest] = await Promise.all([
+        countPaidParticipants(app.prisma, slotId),
+        getPaidParticipants(app.prisma, slotId),
+        getNewestEpochSample(app.prisma, slotId),
+      ]);
+      const newestBody =
+        newest && typeof newest.payloadJson === 'object' && newest.payloadJson !== null
+          ? (newest.payloadJson as Record<string, unknown>)
+          : null;
+      const newestCounts =
+        newestBody && typeof newestBody['counts'] === 'object' && newestBody['counts'] !== null
+          ? (newestBody['counts'] as Record<string, unknown>)
+          : null;
+      const enrolledRaw = newestCounts?.['enrolled'];
+      return {
+        data: {
+          paidAll: Number(counts.all),
+          paid30: Number(counts.recent),
+          denom: 'utwlt',
+          provenance: 'chain' as const,
+          enrolled:
+            newest && newest.epochNumber !== null && typeof enrolledRaw === 'number'
+              ? {
+                  epochNumber: newest.epochNumber.toString(),
+                  enrolled: enrolledRaw,
+                  fetchedAt: newest.fetchedAt?.toISOString() ?? null,
+                  ageSeconds: newest.fetchedAt
+                    ? Math.floor((now.getTime() - newest.fetchedAt.getTime()) / 1000)
+                    : null,
+                  provenance: 'attested' as const,
+                }
+              : null,
+          participants: rows.map((r) => ({
+            recipient: r.recipient,
+            epochsPaid: Number(r.epochsPaid),
+            totalReceived: r.totalReceived,
+            firstEpoch: r.firstEpoch.toString(),
+            lastEpoch: r.lastEpoch.toString(),
+          })),
         },
       };
     },

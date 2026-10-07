@@ -117,8 +117,14 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
       ) : null}
       {candidateIds.length > 0 ? (
         <div className="flex flex-col gap-1.5 border-b border-card-hover py-2.5">
-          <span className="text-[13px] text-text-muted">who entered (draw ids)</span>
-          {candidateIds.slice(0, 10).map((id) => (
+          <span className="text-[13px] text-text-muted">
+            who entered — {candidateIds.length} candidate{candidateIds.length === 1 ? '' : 's'},{' '}
+            {winnerIds.size} winner{winnerIds.size === 1 ? '' : 's'} (draw ids)
+          </span>
+          {[...candidateIds]
+            .sort((a, b) => Number(winnerIds.has(b)) - Number(winnerIds.has(a)))
+            .slice(0, 10)
+            .map((id) => (
             <span key={id} className="flex items-center justify-between gap-2 font-mono text-xs">
               <span className={winnerIds.has(id) ? 'text-primary' : 'text-text-secondary'} title={id}>
                 {shortenMiddle(id)}

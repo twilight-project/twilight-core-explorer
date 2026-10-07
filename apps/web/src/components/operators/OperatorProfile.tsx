@@ -150,10 +150,10 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
       </Panel>
 
       <CoreSlotHealthSection slotId={slotId} />
-      <OperatorTrackRecord slotId={slotId} />
       {settledEpochs[0] !== undefined ? (
         <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
       ) : null}
+      <OperatorTrackRecord slotId={slotId} />
     </div>
   );
 }

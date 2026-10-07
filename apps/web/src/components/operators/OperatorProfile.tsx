@@ -149,30 +149,11 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
         )}
       </Panel>
 
-      <div className="flex flex-row-reverse flex-wrap items-start gap-6">
-        <div className="flex max-w-full flex-[1_1_300px] flex-col gap-4 min-[1100px]:sticky min-[1100px]:top-6">
-          {settledEpochs[0] !== undefined ? (
-            <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
-          ) : null}
-          <Panel title="All the numbers" bodyClassName="flex flex-col gap-3 px-5 py-[18px]">
-            <p className="text-[13px] leading-relaxed text-text-secondary">
-              The full per-epoch ledger: every settlement with its verification mark, the live
-              epoch clock, draw records and the complete slot detail.
-            </p>
-            <Link
-              href={`/operators/${encodeURIComponent(slotId)}/data`}
-              className="font-mono text-[12.5px] text-primary hover:text-primary-light"
-            >
-              Open the Data tab →
-            </Link>
-          </Panel>
-        </div>
-
-        <div className="flex min-w-0 flex-[1000_1_460px] flex-col gap-6">
-          <CoreSlotHealthSection slotId={slotId} />
-          <OperatorTrackRecord slotId={slotId} />
-        </div>
-      </div>
+      <CoreSlotHealthSection slotId={slotId} />
+      <OperatorTrackRecord slotId={slotId} />
+      {settledEpochs[0] !== undefined ? (
+        <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
+      ) : null}
     </div>
   );
 }

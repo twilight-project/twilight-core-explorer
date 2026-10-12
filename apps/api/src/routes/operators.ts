@@ -16,6 +16,7 @@ import { ErrorResponse } from '../dto/common.js';
 import { notFound } from '../lib/errors.js';
 import { parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
+import { verifyDraw, type WindowBlock } from '../lib/draw-verify.js';
 import {
   countPaidParticipants,
   getDrawSample,
@@ -444,8 +445,72 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
         };
       }
       const tip = await app.prisma.block.aggregate({ _max: { height: true } });
+
+      // Independent re-derivation (selectionv1): anchor memo + window blocks come from OUR
+      // index, so a green result is the chain's confirmation, not the operator's word.
+      const record =
+        typeof sample.payloadJson === 'object' && sample.payloadJson !== null
+          ? (sample.payloadJson as Record<string, unknown>)
+          : {};
+      const anchorRec =
+        typeof record['anchor'] === 'object' && record['anchor'] !== null
+          ? (record['anchor'] as Record<string, unknown>)
+          : {};
+      const beaconRec =
+        typeof record['beacon'] === 'object' && record['beacon'] !== null
+          ? (record['beacon'] as Record<string, unknown>)
+          : null;
+      const anchorHash =
+        typeof anchorRec['tx_hash'] === 'string' ? anchorRec['tx_hash'].toUpperCase() : null;
+      const cursor = await app.prisma.indexerCursor.findFirst();
+      const anchorTx = anchorHash
+        ? await app.prisma.explorerTransaction.findUnique({
+            where: { hash: anchorHash },
+            select: { memo: true, height: true },
+          })
+        : null;
+      const start =
+        beaconRec && typeof beaconRec['start_height'] === 'number'
+          ? BigInt(beaconRec['start_height'])
+          : null;
+      const end =
+        beaconRec && typeof beaconRec['end_height'] === 'number'
+          ? BigInt(beaconRec['end_height'])
+          : null;
+      let windowBlocks: WindowBlock[] = [];
+      if (start !== null && end !== null && end >= start && end - start < 1000n) {
+        const [blocks, attributions] = await Promise.all([
+          app.prisma.block.findMany({
+            where: { height: { gte: start, lte: end } },
+            select: { height: true, hash: true },
+          }),
+          app.prisma.blockProposerAttribution.findMany({
+            where: { height: { gte: start, lte: end } },
+            select: { height: true, slotId: true },
+          }),
+        ]);
+        const slotByHeight = new Map(attributions.map((a) => [a.height, a.slotId]));
+        windowBlocks = blocks.map((b) => ({
+          height: b.height,
+          hash: b.hash,
+          proposerSlotId: slotByHeight.get(b.height) ?? null,
+        }));
+      }
+      const verification = verifyDraw({
+        chainId: cursor?.chainId ?? '',
+        slotId,
+        epoch,
+        record,
+        anchor: anchorTx ? { memo: anchorTx.memo, height: anchorTx.height } : null,
+        blocks: windowBlocks,
+      });
+
       return {
-        data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date()) },
+        data: {
+          status: 'ok' as const,
+          ...sampleEnvelope(sample, tip._max.height ?? null, new Date()),
+          verification,
+        },
       };
     },
   );

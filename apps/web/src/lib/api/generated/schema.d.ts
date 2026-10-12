@@ -3573,6 +3573,15 @@ export interface paths {
                                 staleForward: boolean;
                                 lastError: string | null;
                                 payload: unknown;
+                                /** DrawVerification */
+                                verification: {
+                                    result: "verified" | "mismatch" | "unverifiable";
+                                    checks: {
+                                        name: string;
+                                        ok: boolean | null;
+                                        detail: string;
+                                    }[];
+                                };
                             };
                         };
                     };

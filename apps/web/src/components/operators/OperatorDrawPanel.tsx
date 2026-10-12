@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { SourceChip } from '@/components/provenance/SourceChip';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { Panel } from './Panel';
-import { useOperatorDraw } from '@/lib/api/queries';
+import { useState } from 'react';
+import { useOperatorDraw, useSettlement } from '@/lib/api/queries';
 import { asRecord, feedNumber, feedString } from '@/lib/operator-feed';
 import { shortenMiddle } from '@/lib/format/address';
+import { formatAmount } from '@/lib/format/amount';
 
 // Selection draw (phase 15 §8 — attested only, no re-derivation): the operator's published
 // draw record for the newest settled epoch. The one chain-checkable element is the anchor —
@@ -39,6 +41,8 @@ function HashValue({ value }: { value: string }) {
 
 export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: string }) {
   const draw = useOperatorDraw(slotId, epoch);
+  const settlement = useSettlement(slotId, epoch);
+  const [showProof, setShowProof] = useState(false);
 
   if (draw.isPending || draw.isError) return null;
   const d = draw.data.data;
@@ -76,7 +80,23 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
       title="Selection draw"
       meta={
         <>
-          epoch {epoch} · operator-published <SourceChip kind="attested" />
+          epoch {epoch} ·{' '}
+          <SourceChip
+            kind={
+              d.verification.result === 'verified'
+                ? 'verified'
+                : d.verification.result === 'mismatch'
+                  ? 'mismatch'
+                  : 'attested'
+            }
+            title={
+              d.verification.result === 'verified'
+                ? 'The explorer re-ran the whole draw from chain data and every digest matches'
+                : d.verification.result === 'mismatch'
+                  ? 'A published figure contradicts the chain'
+                  : "Published by the operator; some inputs weren't available to re-derive"
+            }
+          />
         </>
       }
     >
@@ -157,11 +177,69 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
           </span>
         </div>
       ) : null}
-      <p className="pt-3 text-[12.5px] leading-relaxed text-text-muted">
-        The operator commits the candidate set and parameters on chain before the beacon
-        exists, so the draw cannot be steered afterwards. The explorer shows the record as
-        published and links the commitment; it does not re-run the draw.
-      </p>
+      {winnerIds.size > 0 && settlement.data ? (
+        <div className="flex flex-col gap-1.5 border-b border-card-hover py-2.5">
+          <span className="text-[13px] text-text-muted">
+            winners&apos; payout addresses (chain — the epoch&apos;s settlement recipients)
+          </span>
+          {settlement.data.data.payouts.map((pay) => (
+            <span key={pay.recipient} className="flex items-center justify-between gap-2 font-mono text-xs">
+              <Link
+                href={`/accounts/${encodeURIComponent(pay.recipient)}`}
+                className="truncate text-text hover:text-primary"
+                title={pay.recipient}
+              >
+                {shortenMiddle(pay.recipient)}
+              </Link>
+              <span className="flex items-center gap-1.5 text-text-secondary">
+                {formatAmount(pay.amount, pay.denom).display} {formatAmount(pay.amount, pay.denom).symbol}
+                <SourceChip kind="chain" />
+              </span>
+            </span>
+          ))}
+          <span className="font-mono text-[11px] leading-relaxed text-text-muted">
+            Which draw id belongs to which address stays private by design; the SET of winners
+            and the SET of paid addresses must and do correspond (k winners, equal shares).
+          </span>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => setShowProof((x) => !x)}
+        className="self-start pt-2.5 font-mono text-[12.5px] text-text-muted hover:text-text"
+      >
+        {showProof ? '− hide the proof' : '+ the proof — how this draw is verified'}
+      </button>
+      {showProof ? (
+        <div className="flex flex-col gap-1.5 pt-1">
+          {d.verification.checks.map((c) => (
+            <div key={c.name} className="grid grid-cols-[18px_150px_1fr] items-baseline gap-2 text-[12px]">
+              <span
+                className={
+                  c.ok === true
+                    ? 'text-primary'
+                    : c.ok === false
+                      ? 'text-accent-red'
+                      : 'text-text-muted'
+                }
+              >
+                {c.ok === true ? '✓' : c.ok === false ? '✕' : '—'}
+              </span>
+              <span className="font-mono text-text-secondary">{c.name}</span>
+              <span className="break-words font-mono text-text-muted">{c.detail}</span>
+            </div>
+          ))}
+          <p className="pt-2 text-[12px] leading-relaxed text-text-muted">
+            The explorer re-runs the draw from its own indexed chain rows: the anchor
+            transaction&apos;s memo (the pre-beacon commitment), the block-id hashes of the
+            beacon window, and each block&apos;s attributed proposer. Anyone can do the same
+            with the published record, a trusted node and the operator&apos;s{' '}
+            <span className="text-text-secondary">drawverify</span> tool — nothing here
+            requires trusting this explorer either.
+          </p>
+        </div>
+      ) : null}
     </Panel>
   );
 }

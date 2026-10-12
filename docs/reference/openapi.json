@@ -9401,7 +9401,8 @@
                             "stale",
                             "staleForward",
                             "lastError",
-                            "payload"
+                            "payload",
+                            "verification"
                           ],
                           "properties": {
                             "status": {
@@ -9489,7 +9490,68 @@
                                 }
                               ]
                             },
-                            "payload": {}
+                            "payload": {},
+                            "verification": {
+                              "type": "object",
+                              "required": [
+                                "result",
+                                "checks"
+                              ],
+                              "properties": {
+                                "result": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "verified"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "mismatch"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "unverifiable"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "checks": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "name",
+                                      "ok",
+                                      "detail"
+                                    ],
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "ok": {
+                                        "anyOf": [
+                                          {
+                                            "type": "boolean"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "detail": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "title": "DrawVerification"
+                            }
                           }
                         }
                       ]

@@ -214,20 +214,24 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
       {showProof ? (
         <div className="flex flex-col gap-1.5 pt-1">
           {d.verification.checks.map((c) => (
-            <div key={c.name} className="grid grid-cols-[18px_150px_1fr] items-baseline gap-2 text-[12px]">
-              <span
-                className={
-                  c.ok === true
-                    ? 'text-primary'
-                    : c.ok === false
-                      ? 'text-accent-red'
-                      : 'text-text-muted'
-                }
-              >
-                {c.ok === true ? '✓' : c.ok === false ? '✕' : '—'}
+            <div key={c.name} className="flex flex-col gap-0.5 border-b border-card-hover py-1.5 text-[12px] last:border-b-0">
+              <span className="flex items-baseline gap-2">
+                <span
+                  className={
+                    c.ok === true
+                      ? 'text-primary'
+                      : c.ok === false
+                        ? 'text-accent-red'
+                        : 'text-text-muted'
+                  }
+                >
+                  {c.ok === true ? '✓' : c.ok === false ? '✕' : '—'}
+                </span>
+                <span className="min-w-0 break-all font-mono text-text-secondary">{c.name}</span>
               </span>
-              <span className="font-mono text-text-secondary">{c.name}</span>
-              <span className="break-words font-mono text-text-muted">{c.detail}</span>
+              <span className="min-w-0 break-words pl-[22px] font-mono text-text-muted">
+                {c.detail}
+              </span>
             </div>
           ))}
           <p className="pt-2 text-[12px] leading-relaxed text-text-muted">

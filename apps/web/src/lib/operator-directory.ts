@@ -50,12 +50,12 @@ export const CURATED_OPERATORS: Record<string, CuratedOperator> = {
   '3': {
     name: 'Twilight Search Mining',
     ownedBy: 'Twilight team',
-    website: 'https://rewards.nyks.dev',
-    service: 'Search mining (dropin-miner)',
+    website: 'https://jevlin.ai',
+    service: 'Search mining via Jevlin (dropin-miner)',
     distributionPolicy:
       'Every epoch, this slot’s reward is split equally among all admitted participants. Admission needs an enrollment in time, verified search activity, and a valid payout address. Anything undistributed returns to the operator.',
     about: [
-      'The flagship participation slot: run search queries through the dropin-miner client and earn a share of this slot’s reward every epoch.',
+      'The flagship participation slot: run search queries through the dropin-miner client — powered by the Jevlin search platform (agents claim and manage their registration at platform.jevlin.ai) — and earn a share of this slot’s reward every epoch.',
       'The operator publishes a live status feed (clock, per-epoch counts and reasons), a draw record, and per-epoch allocation hashes — the explorer checks its published figures against the chain on every settled epoch.',
     ],
   },

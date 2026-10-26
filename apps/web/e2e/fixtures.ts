@@ -140,6 +140,10 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
   '/operators/1/auth': {
     data: { status: 'no_status', reason: 'this operator publishes no authentication service' },
   },
+  // The settlement detail page mounts the draw panel for its epoch.
+  '/operators/1/draw/62': {
+    data: { status: 'no_status', reason: 'no draw record for this epoch' },
+  },
   '/operators/3/participants': {
     data: {
       paidAll: 2, paid30: 1, denom: 'utwlt', provenance: 'chain',

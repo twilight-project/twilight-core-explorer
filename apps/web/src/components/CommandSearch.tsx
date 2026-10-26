@@ -7,7 +7,15 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 // height, a tx/block hash, an address, or `slot N` (parsed here → the slot page; everything
 // else goes to /search, which resolves via /api/v1/search — the bar itself invents no
 // search semantics beyond the one `slot N` convenience).
-export function CommandSearch({ autoFocus = false }: { autoFocus?: boolean }) {
+export function CommandSearch({
+  autoFocus = false,
+  // Distinct landmark names: the header mounts this twice (desktop + compact row), and
+  // axe's landmark-unique requires same-role landmarks to differ by accessible name.
+  label = 'Search',
+}: {
+  autoFocus?: boolean;
+  label?: string;
+}) {
   const router = useRouter();
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +49,7 @@ export function CommandSearch({ autoFocus = false }: { autoFocus?: boolean }) {
     <form
       onSubmit={onSubmit}
       role="search"
+      aria-label={label}
       className="flex min-w-0 flex-[1_1_200px] items-center gap-2.5 rounded-xl border border-card-border bg-background-secondary px-3 py-[7px] font-mono text-[12.5px] text-text-muted sm:max-w-[340px]"
     >
       <span aria-hidden="true" className="text-primary">

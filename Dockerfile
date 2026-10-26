@@ -4,7 +4,7 @@
 #
 # Build context is the repo root (npm workspaces). Phase-14 can slim this with a multi-stage prune;
 # for the validation deploy we deliberately favor one reliable image over a lean-but-fiddly one.
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 # Tools the runtime needs: curl + jq for the tick script's RPC polling; openssl for the Prisma query
 # engine. bash is already in the Debian base. ca-certificates for HTTPS to a future TLS devnet.

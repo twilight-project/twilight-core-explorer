@@ -185,7 +185,7 @@ function HeaderInner() {
       </div>
       {/* Compact search: its own row below the header on small screens. */}
       <div className="px-5 pb-3 sm:hidden">
-        <CommandSearch />
+        <CommandSearch label="Search (compact)" />
       </div>
     </header>
   );

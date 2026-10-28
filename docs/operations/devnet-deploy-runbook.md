@@ -25,7 +25,7 @@ A practical runbook to bring the explorer up against **devnet** for long-term va
 - A reachable **devnet** node: CometBFT RPC (**`http(s)://`** — *not* `tcp://`) + Cosmos/Twilight REST
   (REST is needed for the rewards/balance observed-sample snapshots).
 - **Postgres 16** (RDS or a container).
-- **Node ≥ 18** + this repo built (`npm install && npm run build`).
+- **Node ≥ 22.12** (Node 24 recommended, as in CI and the Docker images) + this repo built (`npm install && npm run build`).
 - `protoc` is **not** needed at deploy time (the descriptor artifact is committed).
 
 ## 2. Configuration (env) — incl. the basic-safety posture

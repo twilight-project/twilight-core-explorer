@@ -22,16 +22,15 @@ const TABS = [
 // /economy — the merged destination for the old /rewards, /rewards/entitlements and /supply
 // pages (those routes now redirect here; the epoch + settlement detail routes are unchanged).
 // Treasury and module balances fold into the Supply tab.
-export default function EconomyPage({
-  searchParams,
-}: {
-  searchParams: {
+export default async function EconomyPage(props: {
+  searchParams: Promise<{
     tab?: string | string[];
     epoch?: string | string[];
     slotId?: string | string[];
     payoutAddress?: string | string[];
-  };
+  }>;
 }) {
+  const searchParams = await props.searchParams;
   const tab = activeTab(TABS, searchParams.tab);
   const entitlementsFilter = {
     epoch: oneParam(searchParams.epoch),

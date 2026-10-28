@@ -17,11 +17,10 @@ const TABS = [
 // /validators — the merged destination for the old /network, /liveness and /coreslots list
 // pages (those routes now redirect here). Verdict first, then tabs; only the active tab's
 // panel mounts, so inactive tabs' queries never fire.
-export default function ValidatorsPage({
-  searchParams,
-}: {
-  searchParams: { tab?: string | string[] };
+export default async function ValidatorsPage(props: {
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
+  const searchParams = await props.searchParams;
   const tab = activeTab(TABS, searchParams.tab);
 
   return (

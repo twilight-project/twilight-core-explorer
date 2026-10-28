@@ -7,7 +7,7 @@
 #
 # Phase-14: switch next.config to `output: 'standalone'` for a slim runtime image. This validation
 # image keeps it simple and runs `next start` with the full dependency tree.
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 WORKDIR /app
 
 COPY package.json package-lock.json ./

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '@/test/axe';
 
@@ -26,6 +26,9 @@ import { TX_STATUS_OPTIONS } from '@/lib/status-filters';
 
 async function noViolations(ui: React.ReactElement) {
   // Footer (and others) fetch /status via TanStack Query — give every render a client.
+  // cleanup() first: several noViolations calls share one test, and axe-core judges
+  // landmark uniqueness against the whole document, so stale renders must not accumulate.
+  cleanup();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } });
   const { container } = render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
   expect(await axeViolations(container)).toEqual([]);

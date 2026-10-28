@@ -9,11 +9,10 @@ export const metadata = { title: 'Transactions' };
 // Explorer stream: shared tab row, then the real transaction list with its API-backed
 // success/failed status filter AND the message-type group filter (?type= → the /txs typeGroup
 // enum, matched server-side against Message.typeUrl).
-export default function TxsPage({
-  searchParams,
-}: {
-  searchParams: { status?: string | string[]; type?: string | string[] };
+export default async function TxsPage(props: {
+  searchParams: Promise<{ status?: string | string[]; type?: string | string[] }>;
 }) {
+  const searchParams = await props.searchParams;
   // Validate the raw URL params at the trust boundary — only canonical values reach the API.
   const status = coerceStatus(oneParam(searchParams.status), TX_STATUS_OPTIONS);
   const typeGroup = coerceStatus(oneParam(searchParams.type), TX_TYPE_GROUP_OPTIONS);

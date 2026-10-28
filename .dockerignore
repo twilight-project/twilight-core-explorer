@@ -11,11 +11,17 @@ dist
 .git
 .gitignore
 
-# never bake local env / secrets into an image
+# never bake local env / secrets into an image. Patterns here are root-anchored (unlike .gitignore),
+# so nested env files (e.g. apps/web/.env.local) need the **/ forms.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 !.env.devnet.example
+!**/.env.example
+# Origin TLS material (Cloudflare Origin CA cert/key, §12 of the runbook) — `COPY . .` would bake it in
+caddy/certs
 
 # local-only / heavy / irrelevant to the build
 reference

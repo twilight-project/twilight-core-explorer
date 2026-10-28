@@ -222,8 +222,10 @@ Moving to another hostname is a DNS record + these two values; nothing in the re
 | Cache rule | **Bypass cache for HTML** (cache only `/_next/static/*`) — or purge on every deploy (§13) | Next marks prerendered pages `s-maxage=31536000`; after a deploy, stale edge HTML points at JS chunks the new build no longer has |
 
 For Full (strict): create an Origin CA certificate for the host in Cloudflare, save it on the box as
-`caddy/certs/origin.pem` + `caddy/certs/origin.key` (gitignored), set
-`ORIGIN_TLS="/certs/origin.pem /certs/origin.key"`, recreate caddy, then switch the SSL mode.
+`caddy/certs/origin.pem` + `caddy/certs/origin.key` (gitignored, and excluded from image builds by
+`.dockerignore`), set `ORIGIN_TLS="/certs/origin.pem /certs/origin.key"`, recreate caddy
+(`docker compose -f docker-compose.devnet.yml --env-file .env.devnet up -d --force-recreate --no-deps caddy`),
+then switch the SSL mode.
 
 **Origin lock-down — this is what makes Cloudflare protective:**
 - Firewall / security group: inbound **443 only from [Cloudflare's IP ranges](https://www.cloudflare.com/ips/)**,
@@ -248,13 +250,34 @@ ruleset); `explorer-phase-*` stay as phase-milestone markers.
    git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0
    gh release create v0.1.0 --generate-notes     # or notes from CHANGELOG.md
    ```
-2. **Deploy it on the box** (shell env overrides `--env-file`, so the stamp always matches the checkout):
+2. **Deploy it on the box** (shell env overrides `--env-file`, so the stamp always matches the checkout).
+   Run it as one block: the subshell stops at the first failing step without closing your SSH session.
    ```sh
-   git fetch --tags origin && git checkout v0.1.0
-   export APP_VERSION=$(git describe --tags --exact-match) GIT_SHA=$(git rev-parse HEAD) \
-          BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-   docker compose -f docker-compose.devnet.yml --env-file .env.devnet up -d --build
+   (
+     set -eu
+     TAG=v0.1.0
+     git fetch --tags origin
+     # Only release tags deploy (a branch name or typo stops here, not mid-build).
+     git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null || { echo "no such tag: $TAG" >&2; exit 1; }
+     git checkout --detach "$TAG"
+     # The images COPY the working tree, so a local edit or stray file would ship under this tag's stamp.
+     if [ -n "$(git status --porcelain)" ]; then
+       echo "working tree not clean; refusing to deploy $TAG" >&2; git status --short >&2; exit 1
+     fi
+     # Assign separately: `export X=$(cmd)` hides a failing cmd from set -e.
+     APP_VERSION=$(git describe --tags --exact-match)
+     GIT_SHA=$(git rev-parse HEAD)
+     BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+     export APP_VERSION GIT_SHA BUILT_AT
+     docker compose -f docker-compose.devnet.yml --env-file .env.devnet up -d --build
+     # The Caddyfile is a single-file bind mount, which keeps pointing at the pre-checkout file;
+     # recreate caddy so it mounts and loads this tag's Caddyfile.
+     docker compose -f docker-compose.devnet.yml --env-file .env.devnet up -d --force-recreate --no-deps caddy
+   )
    ```
+   Local changes on the box (e.g. a hand-edited Caddyfile) stop the deploy by design: move them into
+   `.env.devnet` (`EXPLORER_DOMAIN`, `ORIGIN_TLS`) or into a commit on `main` first. Ignored files
+   (`.env.devnet`, `caddy/certs/`) don't count and stay out of the images via `.dockerignore`.
 3. **Purge the Cloudflare cache** (Caching → Configuration → Purge Everything) — skip only if the
    HTML-bypass cache rule from §12 is in place.
 4. **Verify from outside:**

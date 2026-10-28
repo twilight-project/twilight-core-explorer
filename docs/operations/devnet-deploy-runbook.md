@@ -256,16 +256,20 @@ ruleset); `explorer-phase-*` stay as phase-milestone markers.
    (
      set -eu
      TAG=v0.1.0
-     git fetch --tags origin
-     # Only release tags deploy (a branch name or typo stops here, not mid-build).
+     git fetch --tags origin          # also refreshes origin/main for the ancestry check below
+     # Only v* release tags on main deploy (a branch name, phase marker or typo stops here, not mid-build).
+     case "$TAG" in v*) ;; *) echo "not a release tag: $TAG" >&2; exit 1 ;; esac
      git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null || { echo "no such tag: $TAG" >&2; exit 1; }
+     git merge-base --is-ancestor "refs/tags/$TAG^{commit}" origin/main \
+       || { echo "tag is not on origin/main: $TAG" >&2; exit 1; }
      git checkout --detach "$TAG"
      # The images COPY the working tree, so a local edit or stray file would ship under this tag's stamp.
      if [ -n "$(git status --porcelain)" ]; then
        echo "working tree not clean; refusing to deploy $TAG" >&2; git status --short >&2; exit 1
      fi
-     # Assign separately: `export X=$(cmd)` hides a failing cmd from set -e.
-     APP_VERSION=$(git describe --tags --exact-match)
+     # Stamp the validated tag itself (`git describe` could pick a phase marker on the same commit).
+     # Assign before exporting: `export X=$(cmd)` hides a failing cmd from set -e.
+     APP_VERSION=$TAG
      GIT_SHA=$(git rev-parse HEAD)
      BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
      export APP_VERSION GIT_SHA BUILT_AT

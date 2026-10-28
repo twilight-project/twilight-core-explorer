@@ -54,6 +54,9 @@ junit.xml
 *.iml
 *.iws
 
+# Origin TLS material (Cloudflare Origin CA cert/key) — lives only on the deploy box
+caddy/certs/
+
 # Local reference repos and generated research artifacts
 reference/
 docs/research/artifacts/

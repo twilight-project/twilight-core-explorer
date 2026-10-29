@@ -7,7 +7,7 @@ import { StatusStrip } from '@/components/StatusStrip';
 import { GlobalStatusBanner } from '@/components/freshness/GlobalStatusBanner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
-import { SITE_DESCRIPTION, SITE_NAME } from './brand-image';
+import { SITE_DESCRIPTION, SITE_NAME } from './site-meta';
 import { SITE_URL } from './site-url';
 import './globals.css';
 
@@ -28,8 +28,9 @@ const instrumentSerif = Instrument_Serif({
 });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
 
-// Icons and share images come from the file conventions next to this layout (icon.svg,
-// apple-icon.tsx, opengraph-image.tsx, twitter-image.tsx, manifest.ts); metadataBase makes their
+// Icons and share images come from the file conventions next to this layout (favicon.ico,
+// icon.svg, apple-icon.png, opengraph-image.png, twitter-image.png, manifest.ts) — twilight.org's
+// own mark and the card rendered from its hero art; metadataBase makes their
 // URLs absolute so crawlers and link unfurlers can fetch them.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -69,10 +70,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  // Browser chrome tint: the page ground of each theme (--background in globals.css).
+  // Browser chrome tint: twilight.org's ground (#E7EAF3), and its midnight in dark mode.
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#050505' },
-    { media: '(prefers-color-scheme: light)', color: '#FAF9F7' },
+    { media: '(prefers-color-scheme: light)', color: '#E7EAF3' },
+    { media: '(prefers-color-scheme: dark)', color: '#08081C' },
   ],
   colorScheme: 'dark light',
 };

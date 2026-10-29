@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { BRAND, SITE_DESCRIPTION, SITE_NAME } from './brand-image';
+import { SITE_DESCRIPTION, SITE_NAME } from './site-meta';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -8,11 +8,11 @@ export default function manifest(): MetadataRoute.Manifest {
     description: SITE_DESCRIPTION,
     start_url: '/',
     display: 'standalone',
-    background_color: BRAND.background,
-    theme_color: BRAND.background,
+    background_color: '#E7EAF3',
+    theme_color: '#E7EAF3',
     icons: [
       { src: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
-      { src: '/apple-icon', type: 'image/png', sizes: '180x180' },
+      { src: '/apple-icon.png', type: 'image/png', sizes: '180x180' },
     ],
   };
 }

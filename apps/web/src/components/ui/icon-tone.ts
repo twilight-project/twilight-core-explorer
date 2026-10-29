@@ -9,8 +9,8 @@
 // keeps them in the build; omitting a tone falls back to the card's neutral white-alpha/muted chrome.
 export type IconTone = 'infra' | 'coreslot' | 'liveness' | 'risk' | 'rewards' | 'warn';
 
-// The glyph is a BandGlyph (twilight.org band art): no chip surface, the text class sets
-// currentColor, which is the top colour of every band — so the tone IS the legend.
+// The chip is a `.tw-icon-tile` (globals.css): a square of twilight.org's band gradient whose top
+// colour is currentColor — so the tone class IS the legend — with the glyph drawn in ink on it.
 export const ICON_TONE: Record<IconTone, string> = {
   infra: 'text-accent-blue',
   coreslot: 'text-accent-violet',

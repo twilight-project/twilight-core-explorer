@@ -53,6 +53,9 @@ async function main(): Promise<void> {
           console.error(
             `[operator-status] slot ${slotId}: FAILED (${err instanceof Error ? err.message : String(err)}) — continuing with the next slot`,
           );
+          // Keep sampling the other slots, but don't let a failure look like success to
+          // whatever runs this on a schedule (the exit code is what alerting sees).
+          process.exitCode = 1;
         }
       }
     });

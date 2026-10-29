@@ -171,24 +171,29 @@ const ALLOWED_KEYS = new Set([
 ]);
 const BECH32_RE = /twilight1[0-9a-z]{20,}/;
 
-export function findPrivacyViolation(value: unknown, path = '$'): string | null {
+export function findPrivacyViolation(
+  value: unknown,
+  path = '$',
+  opts: { keyRule?: boolean } = {},
+): string | null {
+  const keyRule = opts.keyRule !== false;
   if (typeof value === 'string') {
     if (BECH32_RE.test(value)) return `${path}: bech32 address in value`;
     return null;
   }
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i++) {
-      const v = findPrivacyViolation(value[i], `${path}[${i}]`);
+      const v = findPrivacyViolation(value[i], `${path}[${i}]`, opts);
       if (v) return v;
     }
     return null;
   }
   if (typeof value === 'object' && value !== null) {
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      if (!ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
+      if (keyRule && !ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
         return `${path}.${key}: forbidden key`;
       }
-      const v = findPrivacyViolation(child, `${path}.${key}`);
+      const v = findPrivacyViolation(child, `${path}.${key}`, opts);
       if (v) return v;
     }
   }
@@ -252,7 +257,12 @@ async function recordFetch(
     return 'failed';
   }
 
-  const violation = findPrivacyViolation(args.outcome.body);
+  // AS metadata/JWKS are standard OAuth/OIDC documents whose key NAMES legitimately match
+  // the participant-data patterns (userinfo_endpoint, …): the key rule is skipped for the
+  // as_* kinds, while the bech32 VALUE scan still applies to everything.
+  const violation = findPrivacyViolation(args.outcome.body, '$', {
+    keyRule: !args.kind.startsWith('as_'),
+  });
   if (violation !== null) {
     await prisma.operatorStatusSample.upsert({
       where: { sampleKey: key },

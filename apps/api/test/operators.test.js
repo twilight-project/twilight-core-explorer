@@ -419,3 +419,22 @@ describe('30-day window close time (n1 regression)', () => {
     await app.close();
   });
 });
+
+describe('draw staleness is final, not clock-based (CR finding 2)', () => {
+  it('an hours-old stored draw record is NOT stale (stale-forward still applies)', async () => {
+    const old = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const app = await build({
+      blocks: [block(200)],
+      operatorStatusSamples: [{
+        sampleKey: '3:draw:61', slotId: 3n, kind: 'draw', epochNumber: 61n,
+        baseUrl: 'https://as.example', payloadJson: { outcome: 'NO_CANDIDATES', candidates: [] },
+        sampledAt: null, asHeight: null, fetchedAt: old, lastAttemptAt: old,
+        lastHttpStatus: 200, lastError: null,
+      }],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/draw/61' })).json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.stale, false);
+    await app.close();
+  });
+});

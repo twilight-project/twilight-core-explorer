@@ -348,3 +348,39 @@ describe('fetcher hardening (M5/M6)', () => {
     assert.equal(drawCalls, 2);
   });
 });
+
+describe('privacy guard vs OAuth metadata (CR finding 4)', () => {
+  it('as_metadata with OIDC userinfo keys is STORED; a bech32 value still refuses', async () => {
+    const { findPrivacyViolation } = await import('../../dist/projections/operator-status-snapshot.js');
+    const oidc = {
+      issuer: 'https://as',
+      userinfo_endpoint: 'https://as/oauth/userinfo',
+      userinfo_signing_alg_values_supported: ['ES256'],
+    };
+    // key rule off (as_* kinds): names pass, values still scanned
+    assert.equal(findPrivacyViolation(oidc, '$', { keyRule: false }), null);
+    assert.match(
+      findPrivacyViolation({ ...oidc, note: 'twilight1mw4n9ksh7ank3ewqu4vpg7f82ccp83xw03xmgl' }, '$', { keyRule: false }) ?? '',
+      /bech32/,
+    );
+    // the feed kinds keep the key rule
+    assert.match(findPrivacyViolation({ userinfo_endpoint: 'x' }) ?? '', /forbidden key/);
+
+    // end to end: the sampler stores an OIDC metadata document
+    const prisma = mockPrisma();
+    const fetchJson = async (url) => {
+      if (url.endsWith('/.well-known/oauth-authorization-server'))
+        return { ok: true, status: 200, body: oidc };
+      if (url.endsWith('/oauth/jwks.json')) return { ok: true, status: 200, body: { keys: [] } };
+      if (url.includes('/candidates')) return { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      if (url.includes('/operator-status/epochs/')) return { ok: true, status: 200, body: { state: 'OPEN' } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const r = await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(r.authServer, 'stored');
+    assert.equal(
+      prisma._samples.get(sampleKey(3n, 'as_metadata', null)).payloadJson.userinfo_endpoint,
+      'https://as/oauth/userinfo',
+    );
+  });
+});

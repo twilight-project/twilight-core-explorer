@@ -71,11 +71,11 @@
 
   /* AA on --background, --card and their 10% tints (theme-tokens.test.ts). */
   --primary: 67 61 176;
-  --primary-light: 123 120 214;
+  --primary-light: 84 79 187; /* hover link text: AA (>= 4.5:1) on ground, card and own tint */
   --primary-dark: 46 41 140;
 
   --accent-blue: 182 76 138;
-  --accent-orange: 168 68 26;
+  --accent-orange: 161 64 24; /* attested chip text: AA incl. on its 10% tint */
   --accent-yellow: 67 61 176;
   --accent-green: 54 106 0;
   --accent-red: 179 38 30;

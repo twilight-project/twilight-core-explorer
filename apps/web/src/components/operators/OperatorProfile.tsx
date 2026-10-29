@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { SourceChip } from '@/components/provenance/SourceChip';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState, LoadingState } from '@/components/states/States';
 import { CoreSlotHealthSection } from '@/components/coreslots/sections/CoreSlotHealthSection';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
 import { OperatorDrawPanel } from './OperatorDrawPanel';
 import { OperatorParticipantsPanel } from './OperatorParticipantsPanel';
-import { OperatorDashboard } from './OperatorDashboard';
 import { OperatorNav, operatorDisplayName } from './OperatorShell';
 import {
   useFeedEpochFanout,
@@ -16,6 +17,16 @@ import {
   type OperatorProfileResponse,
 } from '@/lib/api/queries';
 import { formatSlotStatus } from '@/lib/format/slot';
+
+// The dashboard carries ECharts (~195 kB gzipped): load it on demand, client-only, so the rest of
+// the overview (verdict, health, draw, track record) doesn't wait for or pay for the chart code.
+const OperatorDashboard = dynamic(
+  () => import('./OperatorDashboard').then((m) => m.OperatorDashboard),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[440px] rounded-2xl" />,
+  },
+);
 
 // Operator Overview: the verdict, then the DefiLlama-style dashboard (headline, key metrics,
 // history chart, tiles), signing health and the recent track record. Everything explanatory (who runs it, how to join,

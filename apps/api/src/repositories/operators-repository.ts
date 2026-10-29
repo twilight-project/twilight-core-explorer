@@ -321,11 +321,17 @@ export async function getOperatorHistoryDays(
       WHERE "slotId" = ${slotId}
       GROUP BY 1
     ),
+    -- Attested counts come from the operator's own feed, stored as published: only a plain
+    -- non-negative integer (up to 9 digits) is cast. Anything else (4.5, 3e9, a huge number) is
+    -- "no value" instead of an ::int error that would fail the whole query — and with it the
+    -- chain figures on the same row.
     feed AS (
       SELECT "epochNumber",
              CASE WHEN jsonb_typeof("payloadJson"->'counts'->'enrolled') = 'number'
+                       AND ("payloadJson"->'counts'->>'enrolled') ~ '^[0-9]{1,9}$'
                   THEN ("payloadJson"->'counts'->>'enrolled')::int END AS enrolled,
              CASE WHEN jsonb_typeof("payloadJson"->'counts'->'admitted') = 'number'
+                       AND ("payloadJson"->'counts'->>'admitted') ~ '^[0-9]{1,9}$'
                   THEN ("payloadJson"->'counts'->>'admitted')::int END AS admitted
       FROM "OperatorStatusSample"
       WHERE "slotId" = ${slotId} AND "kind" = 'epoch' AND "epochNumber" IS NOT NULL
@@ -371,8 +377,10 @@ export async function getOperatorHistoryDays(
   `;
 }
 
-// Miners per day from the payout lines: distinct recipients paid that day and how many of them
-// were paid by this slot for the first time (the growth curve).
+// Miners per day from the payout lines: distinct recipients and how many of them were paid by
+// this slot for the first time (the growth curve). A payout is bucketed by the CLOSE day of the
+// epoch it settles — the same day key getOperatorHistoryDays uses for that epoch's `paid` — so
+// every miner day is also a history day and no payout falls outside the series.
 export interface OperatorMinersDayRow {
   day: Date;
   activeMiners: bigint;
@@ -385,10 +393,11 @@ export async function getOperatorMinersDays(
 ): Promise<OperatorMinersDayRow[]> {
   return prisma.$queryRaw<OperatorMinersDayRow[]>`
     WITH p AS (
-      SELECT DISTINCT p."recipient", date_trunc('day', b."time") AS day
+      SELECT DISTINCT p."recipient", date_trunc('day', coalesce(re."blockTime", b."time")) AS day
       FROM "MiningSettlementPayout" p
-      JOIN "Block" b ON b."height" = p."height"
-      WHERE p."slotId" = ${slotId}
+      JOIN "RewardEpochProjection" re ON re."epochNumber" = p."epochNumber"
+      LEFT JOIN "Block" b ON b."height" = re."height"
+      WHERE p."slotId" = ${slotId} AND coalesce(re."blockTime", b."time") IS NOT NULL
     ),
     firsts AS (SELECT "recipient", min(day) AS day FROM p GROUP BY 1)
     SELECT p.day,

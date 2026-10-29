@@ -715,6 +715,68 @@ describe('operator history', () => {
     await app.close();
   });
 
+  const historySample = (epochNumber, counts) => ({
+    sampleKey: `3:epoch:${epochNumber}`, slotId: 3n, kind: 'epoch', epochNumber: BigInt(epochNumber),
+    baseUrl: 'https://as.example', payloadJson: { state: 'SETTLEMENT_RECONCILED', counts },
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null,
+  });
+
+  it('B1: a non-integer or huge attested count is ignored; the chain figures still come back', async () => {
+    const day1 = new Date('2026-06-26T05:00:00.000Z');
+    const app = await build({
+      blocks: [block(100, { time: day1 })],
+      epochs: [epoch(61, { height: 100n, blockTime: day1 }), epoch(62, { height: 110n, blockTime: day1 }), epoch(63, { height: 120n, blockTime: day1 })],
+      entitlements: [
+        entitlement(1, 3n, 61, { entitlementAmount: '300' }),
+        entitlement(2, 3n, 62, { entitlementAmount: '300' }),
+        entitlement(3, 3n, 63, { entitlementAmount: '300' }),
+      ],
+      payouts: [payout(1, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '200' })],
+      operatorStatusSamples: [
+        historySample(61, { enrolled: 4.5, admitted: 2 }),
+        historySample(62, { enrolled: 3000000000, admitted: 1e12 }),
+        historySample(63, { enrolled: 7, admitted: 3 }),
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/history' });
+    assert.equal(res.statusCode, 200);
+    const [a] = res.json().data.days;
+    assert.equal(a.entitlement, '900'); // chain figures intact
+    assert.equal(a.paid, '200');
+    assert.equal(a.feed.epochs, 1); // only the plain integer counts
+    assert.equal(a.feed.avgEnrolled, 7);
+    assert.equal(a.feed.maxEnrolled, 7);
+    assert.equal(a.feed.admitted, 5); // 2 (epoch 61, a plain integer) + 3; 1e12 ignored
+    await app.close();
+  });
+
+  it('M1: a payout made on a day with no epoch close is counted on its epoch\'s close day', async () => {
+    const day1 = new Date('2026-06-26T05:00:00.000Z');
+    const day2 = new Date('2026-06-27T05:00:00.000Z');
+    const late = new Date('2026-06-29T05:00:00.000Z'); // no epoch closes on this day
+    const app = await build({
+      blocks: [block(100, { time: day1 }), block(250, { time: day2 }), block(400, { time: late })],
+      epochs: [epoch(61, { height: 100n, blockTime: day1 }), epoch(63, { height: 240n, blockTime: day2 })],
+      entitlements: [
+        entitlement(1, 3n, 61, { entitlementAmount: '300' }),
+        entitlement(3, 3n, 63, { entitlementAmount: '300' }),
+      ],
+      payouts: [
+        payout(1, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1bbb', 250, { slotId: 3n, epochNumber: 63n, amount: '100' }),
+        // a late settlement of epoch 63, paid at a block on a day with no epoch close
+        payout(3, 'twilight1ccc', 400, { slotId: 3n, epochNumber: 63n, amount: '100' }),
+      ],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/history' })).json().data;
+    assert.deepEqual(d.days.map((x) => x.day), ['2026-06-26', '2026-06-27']);
+    const totalNew = d.days.reduce((n, x) => n + x.newMiners, 0);
+    assert.equal(totalNew, 3, 'every distinct miner is counted once'); // was 2: ccc's day was dropped
+    assert.equal(d.days[1].activeMiners, 2); // bbb and ccc, both settling epoch 63
+    await app.close();
+  });
+
   it('empty slot: no days', async () => {
     const app = await build({});
     const d = (await app.inject({ url: '/api/v1/operators/9/history' })).json().data;

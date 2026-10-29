@@ -640,8 +640,10 @@ export class MockPrisma {
         }
         g.paid += pays.reduce((a, x) => a + BigInt(x.amount), 0n);
         g.payouts += BigInt(pays.length);
-        if (typeof counts.enrolled === 'number') g.enrolled.push(counts.enrolled);
-        if (typeof counts.admitted === 'number') g.admitted.push(counts.admitted);
+        // mirrors the SQL guard: only a plain non-negative integer of up to 9 digits counts
+        const plainInt = (v) => typeof v === 'number' && /^[0-9]{1,9}$/.test(String(v));
+        if (plainInt(counts.enrolled)) g.enrolled.push(counts.enrolled);
+        if (plainInt(counts.admitted)) g.admitted.push(counts.admitted);
         groups.set(day.getTime(), g);
       }
       return [...groups.values()]
@@ -668,16 +670,18 @@ export class MockPrisma {
         });
     }
 
-    // getOperatorMinersDays: distinct recipients per settlement day and first-time ones.
+    // getOperatorMinersDays: distinct recipients per epoch-close day and first-time ones.
     if (sqlText.includes('AS "newMiners"')) {
       const slotId = values[0];
       const dayOf = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
       const seen = new Map(); // `${recipient}|${dayMs}`
       for (const x of this._payouts) {
         if (x.slotId !== slotId) continue;
-        const b = this._blocks.find((bl) => bl.height === x.height);
-        if (!b) continue;
-        const day = dayOf(b.time);
+        // bucket by the close day of the epoch the payout settles (as the SQL does)
+        const ep = this._epochs.find((e) => e.epochNumber === x.epochNumber);
+        const t = ep?.blockTime ?? this._blocks.find((bl) => bl.height === ep?.height)?.time;
+        if (!t) continue;
+        const day = dayOf(t);
         seen.set(`${x.recipient}|${day.getTime()}`, { recipient: x.recipient, day });
       }
       const first = new Map();

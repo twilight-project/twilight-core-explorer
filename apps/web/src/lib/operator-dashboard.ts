@@ -68,7 +68,7 @@ export const METRICS: MetricDef[] = [
     unit: 'TWLT',
     form: 'area',
     provenance: 'chain',
-    caption: 'TWLT released back to the operator because no miner qualified',
+    caption: 'TWLT kept as settlement remainder: residue and budget not paid to miners',
     value: (d) => twlt(d.kept),
   },
   {

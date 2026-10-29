@@ -7,6 +7,7 @@ import type { ECharts } from 'echarts/core';
 import { EChart, tooltipBase, useChartTheme, type ChartTheme } from '@/components/charts/EChart';
 import { SourceChip } from '@/components/provenance/SourceChip';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ErrorState } from '@/components/states/States';
 import {
   useOperatorHistory,
   useOperatorParticipants,
@@ -330,7 +331,10 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
       </div>
     );
   }
-  if (history.isError || days.length === 0) return null;
+  // A failed history request must be visible: this panel carries the chain figures (owed / paid /
+  // kept / share), so it never silently disappears. No owed epochs yet is the only empty case.
+  if (history.isError) return <ErrorState error={history.error} context="Operator history" />;
+  if (days.length === 0) return null;
 
   const all = totals(days);
   const today = days[days.length - 1] as HistoryDay;
@@ -343,8 +347,8 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
   const latestEnrolled = [...days].reverse().find((d) => d.feed.avgEnrolled !== null);
 
   const keyMetrics: Array<{ label: string; value: string; hint: string; chip?: ReactNode }> = [
-    { label: 'Owed to this slot', value: `${formatNumber(all.entitlement)} TWLT`, hint: 'Reward the chain allotted to slot 3 across every owed epoch.' },
-    { label: 'Kept by operator', value: `${formatNumber(all.kept)} TWLT`, hint: 'Released back to the operator when no miner qualified for an epoch.' },
+    { label: 'Owed to this slot', value: `${formatNumber(all.entitlement)} TWLT`, hint: 'Reward the chain allotted to this slot across every owed epoch.' },
+    { label: 'Kept by operator', value: `${formatNumber(all.kept)} TWLT`, hint: 'Settlement remainder sent to the operator: integer-division residue and any budget not paid to miners (for example when no miner qualified).' },
     { label: 'Share to miners (30d)', value: share30 === null ? '—' : `${share30.toFixed(1)}%`, hint: 'Share of the last 30 days of settled rewards that reached miners.' },
     { label: 'Epochs settled', value: `${formatNumber(all.settledEpochs)} / ${formatNumber(all.epochs)}`, hint: 'Owed epochs with a settlement on chain.' },
     { label: 'Miners ever paid', value: p ? `${p.paidAll}` : formatNumber(all.miners), hint: `Distinct addresses paid by this slot.${p ? ` ${p.paid30} in the last 30 days.` : ''}` },

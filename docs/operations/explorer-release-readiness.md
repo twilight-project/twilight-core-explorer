@@ -11,6 +11,11 @@ localnet**. **Outstanding (Issue #41 acceptance):** the primary **devnet** soak 
 pass. Treat 13d as **RC-ready on localnet**, not fully closed, until the devnet soak runs (or #41's
 acceptance criteria are amended to make devnet a follow-up).
 
+*(Correction note, 2026-10-29: **released as v1.0.0.** The release ships with the devnet soak still a
+known limitation (#41), as listed in `CHANGELOG.md` and `docs/releases/v1.0.0.md`. Since 13d, N2
+(per-client rate limiting) and N4 (log rotation) are done, and the dependency baseline is Node 24 /
+Next 16 / React 19 with 0 open Dependabot alerts. N3 (backups) and N5 (DB password) remain host tasks.)*
+
 ---
 
 ## 1. RC checklist (13d-1)

@@ -56,7 +56,10 @@ export function MarksLegend() {
   const rows: { kind: Provenance; text: string }[] = [
     { kind: 'chain', text: 'Indexed from blocks. Anyone can recompute it.' },
     { kind: 'attested', text: 'Published by the operator, shown with its age.' },
-    { kind: 'verified', text: 'Attested figure matches the chain for that epoch.' },
+    {
+      kind: 'verified',
+      text: 'The explorer re-derived this from chain data and every check matched. Where a check could not run, the panel names the limit.',
+    },
     { kind: 'mismatch', text: 'Attested figure disagrees; the chain number wins.' },
     { kind: 'declared', text: 'Free-text metadata. Never verified.' },
   ];

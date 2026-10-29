@@ -32,7 +32,7 @@ them.
 
 ## Quickstart
 
-Prerequisites: Node ≥ 18, a PostgreSQL instance, and (for live ingestion) a Twilight Core
+Prerequisites: Node ≥ 22.12 (CI and the Docker images use Node 24), a PostgreSQL instance, and (for live ingestion) a Twilight Core
 node exposing CometBFT RPC and REST.
 
 ```sh

@@ -10,6 +10,7 @@ export const testConfig = {
   corsOrigins: false,
   // Rate limiting OFF in tests — the suite must never be throttled or made flaky by it.
   rateLimit: { enabled: false, max: 100, timeWindowMs: 60_000 },
+  trustProxy: false,
 };
 
 const descBig = (a, b) => (a < b ? 1 : a > b ? -1 : 0);
@@ -50,6 +51,19 @@ export class MockPrisma {
     this._failedMigrations = data.failedMigrations ?? 0;
 
     this.indexerCursor = { findFirst: async () => this._indexerCursor };
+    this._selectionPolicyChanges = data.selectionPolicyChanges ?? [];
+    this.coreSlotSelectionPolicyChange = {
+      findFirst: async (args) => {
+        const w = args?.where ?? {};
+        const rows = this._selectionPolicyChanges
+          .filter((r) => w.slotId === undefined || r.slotId === w.slotId)
+          .filter((r) => w.policyVersion === undefined || r.policyVersion === w.policyVersion)
+          .filter((r) => w.height?.lte === undefined || r.height <= w.height.lte)
+          .filter((r) => w.height?.lt === undefined || r.height < w.height.lt)
+          .sort((a, b) => (a.height > b.height ? -1 : 1));
+        return rows[0] ?? null;
+      },
+    };
 
     this.operatorStatusSample = {
       findUnique: async ({ where }) =>
@@ -60,6 +74,14 @@ export class MockPrisma {
 
     this.projectionCursor = {
       findMany: async () => [...this._projectionCursors],
+      findUnique: async ({ where }) => {
+        const k = where.projectionName_chainId;
+        return (
+          this._projectionCursors.find(
+            (c) => c.projectionName === k.projectionName && c.chainId === k.chainId,
+          ) ?? null
+        );
+      },
     };
 
     this.projectionFailure = {
@@ -112,6 +134,10 @@ export class MockPrisma {
         if (w.height?.in) rows = rows.filter((a) => w.height.in.some((h) => h === a.height));
         if (w.slotId !== undefined) rows = rows.filter((a) => a.slotId === w.slotId);
         if (w.height?.lt !== undefined) rows = rows.filter((a) => a.height < w.height.lt);
+        if (w.height?.gte !== undefined) rows = rows.filter((a) => a.height >= w.height.gte);
+        if (w.height?.lte !== undefined) rows = rows.filter((a) => a.height <= w.height.lte);
+        if (w.attributionStatus !== undefined)
+          rows = rows.filter((a) => a.attributionStatus === w.attributionStatus);
         if (args.orderBy?.height === 'desc') rows.sort((a, b) => descBig(a.height, b.height));
         return args.take ? rows.slice(0, args.take) : rows;
       },
@@ -642,16 +668,21 @@ export class MockPrisma {
         });
     }
 
-    // getOperatorMinersDays: distinct recipients per settlement day and first-time ones.
+    // getOperatorMinersDays: distinct recipients per EPOCH CLOSE day and first-time ones.
     if (sqlText.includes('AS "newMiners"')) {
       const slotId = values[0];
       const dayOf = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      // epoch -> close day, from RewardEpochProjection.blockTime or the Block at its height.
+      const closeDay = new Map();
+      for (const e of this._epochs) {
+        const t = e.blockTime ?? this._blocks.find((bl) => bl.height === e.height)?.time ?? null;
+        if (t) closeDay.set(e.epochNumber.toString(), dayOf(t));
+      }
       const seen = new Map(); // `${recipient}|${dayMs}`
       for (const x of this._payouts) {
         if (x.slotId !== slotId) continue;
-        const b = this._blocks.find((bl) => bl.height === x.height);
-        if (!b) continue;
-        const day = dayOf(b.time);
+        const day = closeDay.get(x.epochNumber?.toString());
+        if (!day) continue;
         seen.set(`${x.recipient}|${day.getTime()}`, { recipient: x.recipient, day });
       }
       const first = new Map();
@@ -747,7 +778,11 @@ export class MockPrisma {
           (x) => x.slotId === ent.slotId && x.epochNumber === ent.epochNumber,
         );
         const cutoff = values.find((v) => v instanceof Date) ?? new Date(0);
-        const in30 = epochRow?.blockTime ? epochRow.blockTime >= cutoff : false;
+        // Mirrors the SQL's coalesce(re."blockTime", b."time"): the projector never writes
+        // blockTime today, so close time falls back to the Block at the close height.
+        const closeBlock = epochRow ? this._blocks.find((b) => b.height === epochRow.height) : null;
+        const closeTime = epochRow?.blockTime ?? closeBlock?.time ?? null;
+        const in30 = closeTime ? closeTime >= cutoff : false;
         const g = groups.get(ent.slotId) ?? {
           slotId: ent.slotId, owedAll: 0n, settledAll: 0n, owed30: 0n, settled30: 0n,
           lats: [], paid30: 0n, paidAll: 0n, kept30: 0n, keptAll: 0n,
@@ -819,7 +854,7 @@ export class MockPrisma {
         byAddr.set(x.recipient, e);
       }
       return [...byAddr.entries()]
-        .sort((a, b) => (a[1].total > b[1].total ? -1 : 1))
+        .sort((a, b) => (a[1].total === b[1].total ? (a[0] < b[0] ? -1 : 1) : a[1].total > b[1].total ? -1 : 1))
         .map(([recipient, e]) => ({
           recipient,
           epochsPaid: BigInt(e.epochs.size),
@@ -830,17 +865,20 @@ export class MockPrisma {
         }));
     }
 
-    // Distinct paid participants (all + 30d window): discriminated by the "recent" alias.
+    // Distinct paid participants (all + 30d + 7d windows): the "recent" alias discriminates.
     if (sqlText.includes('AS "recent"')) {
       const slotId = values.find((v) => typeof v === 'bigint');
-      const cutoff = values.find((v) => v instanceof Date);
-      const all = new Set(); const recent = new Set();
+      const dates = values.filter((v) => v instanceof Date);
+      const [cutoff, cutoff7] = dates;
+      const all = new Set(); const recent = new Set(); const recent7 = new Set();
       for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
         all.add(x.recipient);
         const blk = this._blocks.find((b) => b.height === x.height);
-        if (blk?.time && cutoff && blk.time >= cutoff) recent.add(x.recipient);
+        if (!blk?.time) continue;
+        if (cutoff && blk.time >= cutoff) recent.add(x.recipient);
+        if (cutoff7 && blk.time >= cutoff7) recent7.add(x.recipient);
       }
-      return [{ all: BigInt(all.size), recent: BigInt(recent.size) }];
+      return [{ all: BigInt(all.size), recent: BigInt(recent.size), recent7: BigInt(recent7.size) }];
     }
 
     // Feed-epoch chain facts (phase 15 §6.5).

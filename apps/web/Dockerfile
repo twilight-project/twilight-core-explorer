@@ -28,6 +28,12 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 #   the same-origin API proxy target must be present HERE, not just at runtime. Empty = no proxy.
 ARG API_PROXY_TARGET=
 ENV API_PROXY_TARGET=$API_PROXY_TARGET
+
+# Absolute origin for canonical/OG URLs, robots.txt and the sitemap. Like
+# NEXT_PUBLIC_API_BASE_URL this is inlined into the build, so it must be a BUILD ARG — a
+# runtime env would leave the bundle advertising the default host.
+ARG NEXT_PUBLIC_SITE_URL=
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 RUN npm --prefix apps/web run build
 
 ENV NODE_ENV=production

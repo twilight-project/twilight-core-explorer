@@ -279,3 +279,385 @@ describe('auth-server health probe', () => {
     assert.equal(after.payloadJson.up, true); // last good survives
   });
 });
+
+describe('fetcher hardening (M5/M6)', () => {
+
+  it('M6: a redirect is refused, never followed', async () => {
+    const { createServer } = await import('node:http');
+    const srv = createServer((req, res) => {
+      if (req.url === '/hop') { res.writeHead(302, { location: '/target' }); res.end(); }
+      else { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"leak":true}'); }
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const { makeFetchJson } = await import('../../dist/projections/operator-status-snapshot.js');
+    const fetchJson = makeFetchJson(5000);
+    const out = await fetchJson(`http://127.0.0.1:${port}/hop`);
+    srv.close();
+    assert.equal(out.ok, false);
+    assert.match(out.error, /redirect refused/);
+  });
+
+  it('M6: an oversized body is aborted at the byte cap', async () => {
+    const { createServer } = await import('node:http');
+    const srv = createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      const chunk = 'x'.repeat(64 * 1024);
+      // stream ~4 MB fast (cap is 2 MB)
+      for (let i = 0; i < 64; i++) res.write(chunk);
+      res.end();
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const { makeFetchJson } = await import('../../dist/projections/operator-status-snapshot.js');
+    const fetchJson = makeFetchJson(10000);
+    const out = await fetchJson(`http://127.0.0.1:${port}/big`);
+    srv.close();
+    assert.equal(out.ok, false);
+    assert.match(out.error, /response_too_large/);
+  });
+
+  it('M5: a failed draw fetch after settlement is retried (once discovery advertises it)', async () => {
+    const prisma = mockPrisma({ entitled: [61], finalized: [61] });
+    let drawCalls = 0;
+    let failDraw = true;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) {
+        drawCalls++;
+        return failDraw
+          ? { ok: false, status: 503, error: 'http 503' }
+          : { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      }
+      if (url.includes('well-known/twilight'))
+        return {
+          ok: true,
+          status: 200,
+          body: { draw_record: 'https://as/v1/selection/slots/3/epochs/{epoch}/candidates' },
+        };
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 61 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const t0 = new Date('2026-10-29T09:00:00Z');
+    // Run 1: epoch stored (settled), draw 503s.
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    assert.equal(drawCalls, 1);
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson, undefined);
+    // Run 2, past the backoff: the settled epoch is skipped but the DRAW retries and stores.
+    failDraw = false;
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 3_600_000),
+    });
+    assert.equal(drawCalls, 2);
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson.outcome, 'NO_CANDIDATES');
+    // Run 3: a stored draw payload is final — no further fetch.
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 7_200_000),
+    });
+    assert.equal(drawCalls, 2);
+  });
+});
+
+describe('privacy guard vs OAuth metadata (CR findings 4 / D / B)', () => {
+  const oidc = {
+    issuer: 'https://as',
+    userinfo_endpoint: 'https://as/oauth/userinfo',
+    userinfo_signing_alg_values_supported: ['ES256'],
+  };
+
+  it('D: only standard userinfo* keys are exempt on as_* kinds', async () => {
+    const { findPrivacyViolation, AS_METADATA_ALLOWED_KEY_RE } = await import(
+      '../../dist/projections/operator-status-snapshot.js'
+    );
+    // the REAL allowlist the sampler uses, not a copy of it
+    const allowKey = (k) => AS_METADATA_ALLOWED_KEY_RE.test(k);
+    // standard OIDC keys pass
+    assert.equal(findPrivacyViolation(oidc, '$', { allowKey }), null);
+    // non-standard userinfo_* names are not a back door
+    for (const bad of [{ userinfo_recipient_addresses: ['x'] }, { userinfo_user_ids: [1] }]) {
+      assert.match(findPrivacyViolation(bad, '$', { allowKey }) ?? '', /forbidden key/, JSON.stringify(bad));
+    }
+    // participant-ish keys are STILL refused on as_* kinds
+    for (const bad of [{ recipients: 1 }, { query_text: 'x' }, { participant_id: 'x' }, { user_id: 7 }]) {
+      assert.match(findPrivacyViolation(bad, '$', { allowKey }) ?? '', /forbidden key/, JSON.stringify(bad));
+    }
+    // and the bech32 value scan applies regardless
+    assert.match(
+      findPrivacyViolation({ ...oidc, note: 'twilight1mw4n9ksh7ank3ewqu4vpg7f82ccp83xw03xmgl' }, '$', { allowKey }) ?? '',
+      /bech32/,
+    );
+    // the feed kinds keep the full key rule
+    assert.match(findPrivacyViolation({ userinfo_endpoint: 'x' }) ?? '', /forbidden key/);
+  });
+
+  it('B: a deeply nested payload is a violation, not a stack overflow', async () => {
+    const { findPrivacyViolation } = await import('../../dist/projections/operator-status-snapshot.js');
+    let deep = { leaf: true };
+    for (let i = 0; i < 5000; i++) deep = { n: deep };
+    const v = findPrivacyViolation(deep);
+    assert.match(v ?? '', /nested deeper than/);
+  });
+
+  it('an OIDC metadata document is stored end to end', async () => {
+    const prisma = mockPrisma();
+    const fetchJson = async (url) => {
+      if (url.endsWith('/.well-known/oauth-authorization-server'))
+        return { ok: true, status: 200, body: oidc };
+      if (url.endsWith('/oauth/jwks.json')) return { ok: true, status: 200, body: { keys: [] } };
+      if (url.includes('/candidates')) return { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      if (url.includes('/operator-status/epochs/')) return { ok: true, status: 200, body: { state: 'OPEN' } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const r = await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(r.authServer, 'stored');
+    assert.equal(
+      prisma._samples.get(sampleKey(3n, 'as_metadata', null)).payloadJson.userinfo_endpoint,
+      'https://as/oauth/userinfo',
+    );
+  });
+});
+
+describe('draw retries never starve the epoch backfill (round-2 blocker A)', () => {
+  const DISCOVERY = {
+    version: 'twilight-operator-status-v1',
+    draw_record: 'https://as/v1/selection/slots/3/epochs/{epoch}/candidates',
+  };
+
+  it('12 epochs with a 404 draw route: all 12 epoch samples stored after two runs', async () => {
+    const entitled = Array.from({ length: 12 }, (_, i) => 100 + i);
+    const prisma = mockPrisma({ entitled });
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) {
+        drawCalls++;
+        return { ok: false, status: 404, error: 'http 404' };
+      }
+      if (url.includes('well-known/twilight')) return { ok: true, status: 200, body: DISCOVERY };
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 1 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as',
+      now: new Date(t0.getTime() + 60_000),
+    });
+    const storedEpochs = entitled.filter(
+      (e) => prisma._samples.get(sampleKey(3n, 'epoch', BigInt(e)))?.payloadJson != null,
+    );
+    assert.equal(storedEpochs.length, 12, `only ${storedEpochs.length} of 12 epoch samples stored`);
+    // 404 is terminal: at most the draw budget (2) per run, and never retried after a 404.
+    assert.ok(drawCalls <= 4, `draw fetched ${drawCalls} times`);
+  });
+
+  it('a draw 503 is retried only after the backoff, and a 404 never again', async () => {
+    const prisma = mockPrisma({ entitled: [61], finalized: [61] });
+    let draw = { ok: false, status: 503, error: 'http 503' };
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) { drawCalls++; return draw; }
+      if (url.includes('well-known/twilight')) return { ok: true, status: 200, body: DISCOVERY };
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 61 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    assert.equal(drawCalls, 1);
+    // one minute later: inside the backoff, no retry
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 60_000),
+    });
+    assert.equal(drawCalls, 1);
+    // an hour later: retried, and it succeeds
+    draw = { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 3_600_000),
+    });
+    assert.equal(drawCalls, 2);
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson.outcome, 'NO_CANDIDATES');
+  });
+
+  it('no draw is fetched when discovery does not advertise one', async () => {
+    const prisma = mockPrisma({ entitled: [61] });
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) { drawCalls++; return { ok: true, status: 200, body: {} }; }
+      if (url.includes('well-known/twilight'))
+        return { ok: true, status: 200, body: { version: 'twilight-operator-status-v1' } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'OPEN' } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(drawCalls, 0);
+  });
+});
+
+describe('health fetcher hardening (round-2 nit)', () => {
+  it('refuses a redirect and caps the drained body', async () => {
+    const { makeFetchHealth } = await import('../../dist/projections/operator-status-snapshot.js');
+    const { createServer } = await import('node:http');
+    const srv = createServer((req, res) => {
+      if (req.url === '/hop') { res.writeHead(302, { location: 'http://169.254.169.254/' }); res.end(); return; }
+      res.writeHead(200); res.end('ok');
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const fetchHealth = makeFetchHealth(5000);
+    const redirected = await fetchHealth(`http://127.0.0.1:${port}/hop`);
+    const healthy = await fetchHealth(`http://127.0.0.1:${port}/healthz`);
+    srv.close();
+    assert.equal(redirected.ok, false);
+    assert.match(redirected.error, /redirect refused/);
+    assert.equal(healthy.ok, true);
+    assert.equal(healthy.body.up, true);
+  });
+});
+
+describe('draw 404 before the draw exists (round-3 MAJ-1)', () => {
+  const DISCOVERY = {
+    version: 'twilight-operator-status-v1',
+    draw_record: 'https://as/v1/selection/slots/3/epochs/{epoch}/candidates',
+  };
+  // The operator server answers 404 for every epoch it has not drawn YET
+  // (twilight-minis internal/server/selection.go), so a 404 seen while the epoch is still
+  // open must not be final.
+  function feed({ epochState, draw }) {
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) { drawCalls++; return draw(); }
+      if (url.includes('well-known/twilight')) return { ok: true, status: 200, body: DISCOVERY };
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: epochState(), epoch: 61 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    return { fetchJson, calls: () => drawCalls };
+  }
+  const HOUR = 3_600_000;
+
+  it('a 404 while the epoch is open is retried, and the draw is stored once published', async () => {
+    const finalized = [];
+    const prisma = mockPrisma({ entitled: [61], finalized });
+    let state = 'OPEN';
+    let draw = { ok: false, status: 404, error: 'http 404' };
+    const f = feed({ epochState: () => state, draw: () => draw });
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    const run = (ms) =>
+      projectOperatorStatus({ prisma, fetchJson: f.fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + ms) });
+
+    await run(0); // entitlement just appeared: not drawn yet → 404
+    assert.equal(f.calls(), 1);
+    // the operator draws and settles; the chain finalizes
+    draw = { ok: true, status: 200, body: { outcome: 'SUCCESS', k: 1 } };
+    state = 'SETTLEMENT_RECONCILED';
+    finalized.push(61);
+    await run(HOUR);
+    assert.equal(f.calls(), 2, 'the pre-settlement 404 must not be terminal');
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n))?.payloadJson?.outcome, 'SUCCESS');
+  });
+
+  it('a 404 observed after the epoch settled is final (no draw for that epoch)', async () => {
+    const prisma = mockPrisma({ entitled: [61], finalized: [61] });
+    const f = feed({
+      epochState: () => 'SETTLEMENT_RECONCILED',
+      draw: () => ({ ok: false, status: 404, error: 'http 404' }),
+    });
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    for (let h = 0; h < 6; h++) {
+      await projectOperatorStatus({
+        prisma, fetchJson: f.fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + h * HOUR),
+      });
+    }
+    // fetched once in the same run that saw the epoch settled, never again
+    assert.equal(f.calls(), 1);
+  });
+
+  it('a 404 while open keeps being retried on the backoff, not every run', async () => {
+    const prisma = mockPrisma({ entitled: [61] });
+    const f = feed({ epochState: () => 'OPEN', draw: () => ({ ok: false, status: 404, error: 'http 404' }) });
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    for (let m = 0; m <= 120; m += 5) {
+      await projectOperatorStatus({
+        prisma, fetchJson: f.fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + m * 60_000),
+      });
+    }
+    // t0, +30, +60, +90, +120 minutes
+    assert.equal(f.calls(), 5);
+  });
+});
+
+describe('privacy refusals never republish what they refused (round-3 min-2)', () => {
+  const ADDR = 'twilight1mw4n9ksh7ank3ewqu4vpg7f82ccp83xw03xmgl';
+
+  it('an address used as an object key is refused, and not echoed', () => {
+    const v = findPrivacyViolation({ paid: { [ADDR]: '100' } }) ?? '';
+    assert.match(v, /bech32 address in key/);
+    assert.ok(!v.toLowerCase().includes(ADDR), v);
+  });
+
+  it('bech32 is matched case-insensitively, in values and keys', () => {
+    assert.match(findPrivacyViolation({ note: ADDR.toUpperCase() }) ?? '', /bech32 address in value/);
+    assert.match(findPrivacyViolation({ [ADDR.toUpperCase()]: 1 }) ?? '', /bech32 address in key/);
+  });
+
+  it('non-identifier keys on the refusal path are shown as *', () => {
+    const v = findPrivacyViolation({ 'user:alice@example.com': 1 }) ?? '';
+    assert.match(v, /forbidden key/);
+    assert.ok(!v.includes('alice@example.com'), v);
+    const nested = findPrivacyViolation({ paid: { [ADDR]: { recipient: 'x' } } }) ?? '';
+    assert.ok(!nested.toLowerCase().includes(ADDR), nested);
+  });
+
+  it('the stored lastError is capped and scrubbed of addresses', async () => {
+    const prisma = mockPrisma();
+    const fetchJson = async () => ({
+      ok: false,
+      status: null,
+      error: `Unexpected token in JSON: "${ADDR.toUpperCase()}${'x'.repeat(2000)}"`,
+    });
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    const row = prisma._samples.get(sampleKey(3n, 'clock', null));
+    assert.ok(row.lastError.length <= 300, `lastError is ${row.lastError.length} chars`);
+    assert.ok(!row.lastError.toLowerCase().includes('twilight1'), row.lastError);
+  });
+});
+
+describe('health fetcher drains at most 64 KiB (round-3 nit)', () => {
+  it('a huge 2xx body is not read to the end and the probe still reports up', async () => {
+    const { makeFetchHealth } = await import('../../dist/projections/operator-status-snapshot.js');
+    const { createServer } = await import('node:http');
+    let written = 0;
+    const srv = createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      const chunk = Buffer.alloc(16 * 1024, 120);
+      // stream up to 8 MiB, stopping early if the client goes away
+      const pump = () => {
+        while (written < 8 * 1024 * 1024) {
+          written += chunk.length;
+          if (!res.write(chunk)) return res.once('drain', pump);
+        }
+        res.end();
+      };
+      res.on('close', () => { written = Infinity; });
+      pump();
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const started = Date.now();
+    const out = await makeFetchHealth(5000)(`http://127.0.0.1:${port}/healthz`);
+    srv.close();
+    assert.equal(out.ok, true);
+    assert.equal(out.body.up, true);
+    assert.ok(Date.now() - started < 4000, 'probe returned without reading the whole stream');
+  });
+});

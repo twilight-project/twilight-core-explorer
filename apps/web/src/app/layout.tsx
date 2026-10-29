@@ -7,6 +7,8 @@ import { StatusStrip } from '@/components/StatusStrip';
 import { GlobalStatusBanner } from '@/components/freshness/GlobalStatusBanner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
+import { SITE_DESCRIPTION, SITE_NAME } from './site-meta';
+import { SITE_URL } from './site-url';
 import './globals.css';
 
 // `light` (twilight.org itself: periwinkle ground, ink, gradient accents) is the default theme;
@@ -19,16 +21,54 @@ const theme: 'dark' | 'light' = UI_THEME === 'dark' ? 'dark' : 'light';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
 
+// Icons and share images come from the file conventions next to this layout (favicon.ico,
+// icon.svg, apple-icon.png, opengraph-image.png, twitter-image.png, manifest.ts) — twilight.org's
+// own mark and the card rendered from its hero art; metadataBase makes their
+// URLs absolute so crawlers and link unfurlers can fetch them.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   // `%s` is filled by each route's `metadata.title`; routes without one fall back to `default`.
-  title: { default: 'Twilight Core Explorer', template: '%s · Twilight Core Explorer' },
-  description:
-    'Operator-grade explorer for Twilight Core — CoreSlot PoA, liveness, rewards, and network health.',
+  title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    'Twilight',
+    'Twilight Core',
+    'block explorer',
+    'CoreSlot',
+    'proof of authority',
+    'validators',
+    'operators',
+    'staking rewards',
+    'testnet',
+    'Cosmos SDK',
+  ],
+  category: 'technology',
+  // No `title` here on purpose: Next falls back to the resolved page title, so /blocks and
+  // friends share with their own titles instead of all showing the site name.
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    description: SITE_DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
+  formatDetection: { telephone: false, address: false, email: false },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Browser chrome tint: twilight.org's ground (#E7EAF3), and its midnight in dark mode.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#E7EAF3' },
+    { media: '(prefers-color-scheme: dark)', color: '#08081C' },
+  ],
+  colorScheme: 'dark light',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

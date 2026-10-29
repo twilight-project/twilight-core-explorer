@@ -3472,6 +3472,7 @@ export interface paths {
                             data: {
                                 paidAll: number;
                                 paid30: number;
+                                paid7: number;
                                 denom: string;
                                 /** @enum {string} */
                                 provenance: "chain";
@@ -3668,6 +3669,7 @@ export interface paths {
                                         ok: boolean | null;
                                         detail: string;
                                     }[];
+                                    caveats: string[];
                                 };
                             };
                         };

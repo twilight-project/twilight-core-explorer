@@ -137,6 +137,21 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
       },
     },
   },
+  // Slot 1 has no curated entry and no feed: the auth page must still render its silence
+  // state, so its profile is mocked with a minimal identity (unmocked paths fall back to an
+  // empty LIST shape, which is not a profile object).
+  '/operators/1/profile': {
+    data: {
+      identity: {
+        slotId: '1', status: 'SLOT_STATUS_ACTIVE', operatorAddress: 'twilight1op1',
+        payoutAddress: null, settlementAddress: null, consensusAddress: null,
+        consensusPower: '10', rewardWeight: '1', createdHeight: '1', metadata: null,
+        provenance: 'chain',
+      },
+      verdict: null, recipientsTrend: [], settlementAccountCheck: null, discovery: null,
+      rules: { distributionMethod: null, latestParams: null, provenance: 'chain' },
+    },
+  },
   '/operators/1/auth': {
     data: { status: 'no_status', reason: 'this operator publishes no authentication service' },
   },
@@ -146,7 +161,7 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
   },
   '/operators/3/participants': {
     data: {
-      paidAll: 2, paid30: 1, denom: 'utwlt', provenance: 'chain',
+      paidAll: 2, paid30: 1, paid7: 1, denom: 'utwlt', provenance: 'chain',
       enrolled: {
         epochNumber: '70', enrolled: 3, fetchedAt: new Date().toISOString(),
         ageSeconds: 30, provenance: 'attested',
@@ -154,6 +169,27 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
       participants: [
         { recipient: 'twilight1aaa', epochsPaid: 2, totalReceived: '200', firstEpoch: '61', lastEpoch: '62' },
         { recipient: 'twilight1bbb', epochsPaid: 1, totalReceived: '100', firstEpoch: '62', lastEpoch: '62' },
+      ],
+    },
+  },
+  // Daily history behind the operator dashboard: two consecutive days so the charts have a
+  // line to draw, one of them unsettled (null latency) so the gap path is exercised too.
+  '/operators/3/history': {
+    data: {
+      slotId: '3', denom: 'utwlt', provenance: 'chain',
+      days: [
+        {
+          day: '2026-10-08', firstEpoch: '61', lastEpoch: '62', epochs: 2, settledEpochs: 2,
+          entitlement: '400', paid: '300', kept: '100', payouts: 3,
+          activeMiners: 2, newMiners: 2, medianLatencyBlocks: '518',
+          feed: { epochs: 2, avgEnrolled: 2.5, maxEnrolled: 3, admitted: 4, provenance: 'attested' },
+        },
+        {
+          day: '2026-10-09', firstEpoch: '63', lastEpoch: '63', epochs: 1, settledEpochs: 0,
+          entitlement: '200', paid: '0', kept: '0', payouts: 0,
+          activeMiners: 0, newMiners: 0, medianLatencyBlocks: null,
+          feed: { epochs: 0, avgEnrolled: null, maxEnrolled: null, admitted: null, provenance: 'attested' },
+        },
       ],
     },
   },

@@ -22,8 +22,18 @@ x-backend-build: &backend-build
   context: .
   dockerfile: Dockerfile
 
+# Log rotation for every service (N4). Docker's default json-file driver never rotates, and the indexer
+# and projector log every tick — without a cap the logs grow until the disk fills. 5 × 10 MB per
+# container is plenty for diagnosis; ship logs elsewhere if longer history is needed.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
+    logging: *default-logging
     image: postgres:16
     container_name: twilight-explorer-devnet-postgres
     environment:
@@ -46,6 +56,7 @@ services:
   # indexer + api reference the resulting tag. Gating them on `service_completed_successfully` means
   # ingest/serving never start against an un-migrated schema.
   migrate:
+    logging: *default-logging
     build: *backend-build
     image: twilight-explorer-backend:devnet
     container_name: twilight-explorer-devnet-migrate
@@ -60,6 +71,7 @@ services:
   # Ingest loop (MODE=ingest): chain → canonical rows. Read-WRITE DB role. Ticks fast to keep lag low;
   # its FIRST tick backfills genesis…tip (the one long run, cursor-resumable on restart).
   indexer:
+    logging: *default-logging
     build: *backend-build
     image: twilight-explorer-backend:devnet
     container_name: twilight-explorer-devnet-indexer
@@ -86,6 +98,7 @@ services:
   # backfill rather than staying empty until it finishes. Independent ProjectionCursors + advisory locks
   # make it safe to run concurrently with the ingest loop.
   projector:
+    logging: *default-logging
     build: *backend-build
     image: twilight-explorer-backend:devnet
     container_name: twilight-explorer-devnet-projector
@@ -108,6 +121,7 @@ services:
   # DB-only public API (read-only DB role + production posture). Published on host LOOPBACK so a local
   # browser can reach it at http://localhost:8080; public traffic only ever arrives via caddy.
   api:
+    logging: *default-logging
     build: *backend-build
     image: twilight-explorer-backend:devnet
     container_name: twilight-explorer-devnet-api
@@ -119,6 +133,10 @@ services:
       API_ENV: ${API_ENV:-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      # The rate limiter keys on the client address. The API is reachable only on this Docker network
+      # and host loopback, so a private peer is Caddy, which always sends a single X-Forwarded-For
+      # (Cloudflare's CF-Connecting-IP). See caddy/Caddyfile and runbook §12.
+      API_TRUST_PROXY: ${API_TRUST_PROXY:-loopback,uniquelocal}
       PORT: "8080"
       HOST: "0.0.0.0"
       # Build stamp, surfaced at /api/v1/status data.build. A release deploy exports all three from the
@@ -134,6 +152,7 @@ services:
   # Next.js UI. NEXT_PUBLIC_API_BASE_URL is a BUILD ARG (inlined into the browser bundle) — see
   # apps/web/Dockerfile. Rebuild (`up --build`) if you change the API origin.
   web:
+    logging: *default-logging
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -141,6 +160,8 @@ services:
         # ${VAR-default} (no colon), NOT ${VAR:-default}: EMPTY is a meaningful value here — it
         # selects the same-origin posture — so the default must only apply when the var is UNSET.
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL-http://localhost:8080}
+        # Canonical origin for metadata/robots/sitemap; empty keeps the in-code default.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL-}
         # Build-time too: `next start` serves rewrites from the BUILD's routes-manifest.
         API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:8080}
     image: twilight-explorer-web:devnet
@@ -162,6 +183,7 @@ services:
   # Only 443 is published publicly (the SG allows it from Cloudflare IP ranges only); 3000/8080/5432 are
   # bound to host loopback, so they stay private even if the SG is ever loosened.
   caddy:
+    logging: *default-logging
     image: caddy:2
     container_name: twilight-explorer-devnet-caddy
     depends_on:

@@ -19,6 +19,12 @@ export const OPERATOR_STATUS_PROJECTION = 'operator_status_snapshot_v1';
 const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
 const AUTH_SERVER_MAX_AGE_MS = 60 * 60 * 1000;
 const EPOCH_FETCH_BUDGET = 8;
+// Draw-only retries get their OWN small budget: they must never crowd out the epoch
+// backfill (an operator without a draw route would otherwise burn the whole epoch budget
+// every run and stall older epochs forever).
+const DRAW_FETCH_BUDGET = 2;
+// A draw that failed is retried at most this often; a 404 is terminal (no draw exists).
+const DRAW_RETRY_BACKOFF_MS = 30 * 60 * 1000;
 const SETTLED_STATE = 'SETTLEMENT_RECONCILED';
 
 export interface OperatorStatusSampleDelegate {
@@ -44,6 +50,10 @@ export interface StoredSample {
   asHeight: bigint | null;
   fetchedAt: Date | null;
   lastError: string | null;
+  /** Last response status (404 on a draw means the epoch has no draw record). */
+  lastHttpStatus?: number | null;
+  /** When the last attempt ran, successful or not — drives the draw retry backoff. */
+  lastAttemptAt?: Date | null;
 }
 
 export interface OperatorStatusPrisma {
@@ -70,7 +80,38 @@ export type FetchOutcome =
 
 export type FetchJson = (url: string) => Promise<FetchOutcome>;
 
-/** Default fetcher: GET JSON with a timeout; every failure mode collapses to one taxonomy. */
+/** The most a feed response may be. Clock/epoch/draw payloads are a few KB; 2 MB is generous. */
+export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Read a response body as text with a hard byte cap. The cap guards the indexer's memory
+ * against a hostile or broken feed that streams fast within the timeout.
+ */
+async function readBodyCapped(res: Response, cap: number): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel();
+      throw new Error(`response_too_large: over ${cap} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * Default fetcher: GET JSON with a timeout; every failure mode collapses to one taxonomy.
+ * Redirects are NOT followed (redirect: 'manual') — the origin checks on jwks_uri and the
+ * draw-record template are string checks, so a 3xx from the operator's server must not be
+ * able to steer the fetch to another host (or an internal address). A redirect is recorded
+ * as a failed fetch, same as any other refusal.
+ */
 export function makeFetchJson(timeoutMs: number): FetchJson {
   return async (url: string): Promise<FetchOutcome> => {
     const controller = new AbortController();
@@ -78,12 +119,17 @@ export function makeFetchJson(timeoutMs: number): FetchJson {
     try {
       const res = await fetch(url, {
         signal: controller.signal,
+        redirect: 'manual',
         headers: { accept: 'application/json' },
       });
+      if (res.status >= 300 && res.status < 400) {
+        return { ok: false, status: res.status, error: `redirect refused (http ${res.status})` };
+      }
       if (!res.ok) {
         return { ok: false, status: res.status, error: `http ${res.status}` };
       }
-      const body: unknown = await res.json();
+      const text = await readBodyCapped(res, MAX_RESPONSE_BYTES);
+      const body: unknown = JSON.parse(text);
       return { ok: true, status: res.status, body };
     } catch (err) {
       return {
@@ -106,8 +152,14 @@ export function makeFetchHealth(timeoutMs: number): FetchJson {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, { signal: controller.signal, redirect: 'manual' });
+      if (res.status >= 300 && res.status < 400) {
+        return { ok: false, status: res.status, error: `redirect refused (http ${res.status})` };
+      }
       if (!res.ok) return { ok: false, status: res.status, error: `http ${res.status}` };
+      // The body is ignored (2xx is the whole signal), but drain it capped so a hostile
+      // endpoint cannot hold the connection with an endless stream.
+      await readBodyCapped(res, 64 * 1024).catch(() => '');
       return { ok: true, status: res.status, body: { up: true, httpStatus: res.status } };
     } catch (err) {
       return { ok: false, status: null, error: err instanceof Error ? err.message : String(err) };
@@ -127,31 +179,63 @@ const FORBIDDEN_KEY_RE =
 const ALLOWED_KEYS = new Set([
   'NO_VALID_PAYOUT_DESTINATION', // a COUNT bucket, not a destination
 ]);
-const BECH32_RE = /twilight1[0-9a-z]{20,}/;
+/**
+ * Standard OAuth 2.0 / OIDC discovery key names that collide with the forbidden-key
+ * patterns but name ENDPOINTS and capabilities, never participant data. Only these are
+ * exempt on the as_* kinds — every other forbidden key (recipient…, query_text, …) and the
+ * bech32 value scan still apply.
+ */
+export const AS_METADATA_ALLOWED_KEY_RE =
+  /^userinfo_(endpoint|(signing|encryption)_(alg|enc)_values_supported)$/;
+// Case-insensitive: bech32 is case-insensitive by spec, so TWILIGHT1… is the same address.
+const BECH32_RE = /twilight1[0-9a-z]{20,}/i;
+/** Nesting deeper than this counts as a violation: no feed payload is legitimately so deep,
+ *  and recursing without a limit lets one body overflow the stack and kill the whole run. */
+const MAX_PAYLOAD_DEPTH = 32;
+/** A key is echoed into the (public) refusal path only when it is a plain identifier; any
+ *  other key — an address, an email, free text — is shown as `*` so a refusal never
+ *  republishes the data it refused. */
+const SAFE_PATH_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const pathKey = (key: string): string =>
+  SAFE_PATH_KEY_RE.test(key) && !BECH32_RE.test(key) ? key : '*';
 
-export function findPrivacyViolation(value: unknown, path = '$'): string | null {
+export function findPrivacyViolation(
+  value: unknown,
+  path = '$',
+  opts: { allowKey?: (key: string) => boolean } = {},
+  depth = 0,
+): string | null {
+  if (depth > MAX_PAYLOAD_DEPTH) return `${path}: nested deeper than ${MAX_PAYLOAD_DEPTH}`;
   if (typeof value === 'string') {
     if (BECH32_RE.test(value)) return `${path}: bech32 address in value`;
     return null;
   }
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i++) {
-      const v = findPrivacyViolation(value[i], `${path}[${i}]`);
+      const v = findPrivacyViolation(value[i], `${path}[${i}]`, opts, depth + 1);
       if (v) return v;
     }
     return null;
   }
   if (typeof value === 'object' && value !== null) {
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      if (!ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
-        return `${path}.${key}: forbidden key`;
+      const keyPath = `${path}.${pathKey(key)}`;
+      if (BECH32_RE.test(key)) return `${keyPath}: bech32 address in key`;
+      const exempt = opts.allowKey?.(key) === true;
+      if (!exempt && !ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
+        return `${keyPath}: forbidden key`;
       }
-      const v = findPrivacyViolation(child, `${path}.${key}`);
+      const v = findPrivacyViolation(child, keyPath, opts, depth + 1);
       if (v) return v;
     }
   }
   return null;
 }
+
+/** Stored refusal reasons are served publicly; keep them short. */
+const MAX_LAST_ERROR_CHARS = 300;
+const capError = (s: string): string =>
+  s.length > MAX_LAST_ERROR_CHARS ? `${s.slice(0, MAX_LAST_ERROR_CHARS - 1)}…` : s;
 
 // ---- sample persistence -----------------------------------------------------------------
 
@@ -197,29 +281,41 @@ async function recordFetch(
   };
 
   if (!args.outcome.ok) {
+    // Transport errors can quote the body (newer JSON.parse messages include an excerpt of
+    // the input), and lastError is served publicly: drop any bech32 address and cap length.
+    const lastError = capError(args.outcome.error.replace(new RegExp(BECH32_RE.source, 'gi'), '<address>'));
     await prisma.operatorStatusSample.upsert({
       where: { sampleKey: key },
-      create: { ...base, lastHttpStatus: args.outcome.status, lastError: args.outcome.error },
+      create: { ...base, lastHttpStatus: args.outcome.status, lastError },
       update: {
         baseUrl: args.baseUrl,
         lastAttemptAt: args.now,
         lastHttpStatus: args.outcome.status,
-        lastError: args.outcome.error,
+        lastError,
       },
     });
     return 'failed';
   }
 
-  const violation = findPrivacyViolation(args.outcome.body);
+  // AS metadata/JWKS are standard OAuth/OIDC documents in which a few standard key NAMES
+  // (userinfo_endpoint, userinfo_*_values_supported) collide with the participant-data
+  // patterns: exactly those are exempt on the as_* kinds. Every other key rule and the
+  // bech32 scan (keys and values) still apply to everything.
+  const violation = findPrivacyViolation(
+    args.outcome.body,
+    '$',
+    args.kind.startsWith('as_') ? { allowKey: (k) => AS_METADATA_ALLOWED_KEY_RE.test(k) } : {},
+  );
   if (violation !== null) {
+    const lastError = capError(`privacy_refused: ${violation}`);
     await prisma.operatorStatusSample.upsert({
       where: { sampleKey: key },
-      create: { ...base, lastHttpStatus: args.outcome.status, lastError: `privacy_refused: ${violation}` },
+      create: { ...base, lastHttpStatus: args.outcome.status, lastError },
       update: {
         baseUrl: args.baseUrl,
         lastAttemptAt: args.now,
         lastHttpStatus: args.outcome.status,
-        lastError: `privacy_refused: ${violation}`,
+        lastError,
       },
     });
     return 'refused';
@@ -257,6 +353,8 @@ export interface OperatorStatusRunResult {
   authServer: 'stored' | 'refused' | 'failed' | 'fresh';
   epochsFetched: number;
   epochsFailed: number;
+  drawsFetched: number;
+  drawsFailed: number;
 }
 
 /**
@@ -298,12 +396,14 @@ export async function projectOperatorStatus(args: {
   baseUrl: string;
   now?: Date;
   epochBudget?: number;
+  drawBudget?: number;
 }): Promise<OperatorStatusRunResult> {
   const { prisma, fetchJson, slotId } = args;
   const fetchHealth = args.fetchHealth ?? fetchJson;
   const baseUrl = args.baseUrl.replace(/\/+$/, '');
   const now = args.now ?? new Date();
   const budget = args.epochBudget ?? EPOCH_FETCH_BUDGET;
+  const drawBudget = args.drawBudget ?? DRAW_FETCH_BUDGET;
 
   // Discovery: hourly (age-gated on last success).
   const discoveryKeyed = await prisma.operatorStatusSample.findUnique({
@@ -436,45 +536,101 @@ export async function projectOperatorStatus(args: {
   });
   const byEpoch = new Map(existing.map((s) => [s.epochNumber?.toString() ?? '-', s]));
 
-  // The draw record rides along with each epoch fetch (same first-sight / refresh-after-
-  // settle / immutable-after-settle cadence), using the discovery document's template.
+  // Epoch samples and draw records are fetched in the same pass but on SEPARATE budgets.
+  // The epoch cadence is unchanged (first sight, refresh after the chain settles, immutable
+  // once SETTLEMENT_RECONCILED). A draw record is fetched only when discovery advertises
+  // one, retried on its own merits while no payload is stored — with a backoff. A 404 is
+  // treated as "this epoch has no draw" only once the epoch has settled on the feed (before
+  // that it just means "not drawn yet"), so it is neither retried forever nor given up early.
   const discoveryBody = (
     await prisma.operatorStatusSample.findUnique({
       where: { sampleKey: sampleKey(slotId, 'discovery', null) },
     })
   )?.payloadJson;
+  const drawAdvertised =
+    typeof discoveryBody === 'object' &&
+    discoveryBody !== null &&
+    typeof (discoveryBody as Record<string, unknown>)['draw_record'] === 'string';
+
+  const drawSamples = await prisma.operatorStatusSample.findMany({
+    where: { slotId, kind: 'draw' },
+  });
+  const drawByEpoch = new Map(drawSamples.map((s) => [s.epochNumber?.toString() ?? '-', s]));
 
   let epochsFetched = 0;
   let epochsFailed = 0;
+  let drawsFetched = 0;
+  let drawsFailed = 0;
   for (const { epochNumber } of entitled) {
-    if (epochsFetched + epochsFailed >= budget) break;
+    const epochBudgetLeft = epochsFetched + epochsFailed < budget;
+    const drawBudgetLeft = drawsFetched + drawsFailed < drawBudget;
+    if (!epochBudgetLeft && !drawBudgetLeft) break;
+
     const stored = byEpoch.get(epochNumber.toString()) ?? null;
     const state = epochStateOf(stored);
-    if (state === SETTLED_STATE) continue;
     const hasPayload = stored?.payloadJson != null;
     const chainSettled = finalized.has(epochNumber.toString());
-    if (hasPayload && !chainSettled) continue; // fresh enough; re-fetch only after settle
-    const result = await recordFetch(prisma, {
-      slotId,
-      kind: 'epoch',
-      epochNumber,
-      baseUrl,
-      now,
-      outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${epochNumber}`),
-    });
-    await recordFetch(prisma, {
-      slotId,
-      kind: 'draw',
-      epochNumber,
-      baseUrl,
-      now,
-      outcome: await fetchJson(drawUrlFrom(discoveryBody, baseUrl, slotId, epochNumber)),
-    });
-    if (result === 'stored') epochsFetched++;
-    else epochsFailed++;
+    const needEpoch = state !== SETTLED_STATE && (!hasPayload || chainSettled);
+
+    const drawRow = drawByEpoch.get(epochNumber.toString()) ?? null;
+    const drawStored = drawRow?.payloadJson != null;
+    const lastDrawAttempt = drawRow?.lastAttemptAt?.getTime() ?? null;
+    // A 404 means "no published draw record for that epoch" — which the operator server
+    // also answers for every epoch it has not drawn YET (twilight-minis selection.go:
+    // "the ordinary state of every epoch until it is not"). The draw runs before settlement,
+    // so a 404 is only final when it was observed once the feed already reported this epoch
+    // SETTLEMENT_RECONCILED; before that it is retried like any other failure.
+    const feedSettledAt = state === SETTLED_STATE ? (stored?.fetchedAt?.getTime() ?? null) : null;
+    const drawTerminal =
+      drawRow?.lastHttpStatus === 404 &&
+      feedSettledAt !== null &&
+      lastDrawAttempt !== null &&
+      lastDrawAttempt >= feedSettledAt;
+    const drawBackoffElapsed =
+      lastDrawAttempt === null || now.getTime() - lastDrawAttempt >= DRAW_RETRY_BACKOFF_MS;
+    const needDraw =
+      drawAdvertised &&
+      !drawStored &&
+      !drawTerminal &&
+      drawBackoffElapsed &&
+      (hasPayload || needEpoch);
+
+    if (needEpoch && epochBudgetLeft) {
+      const result = await recordFetch(prisma, {
+        slotId,
+        kind: 'epoch',
+        epochNumber,
+        baseUrl,
+        now,
+        outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${epochNumber}`),
+      });
+      if (result === 'stored') epochsFetched++;
+      else epochsFailed++;
+    }
+    if (needDraw && drawBudgetLeft) {
+      const drawResult = await recordFetch(prisma, {
+        slotId,
+        kind: 'draw',
+        epochNumber,
+        baseUrl,
+        now,
+        outcome: await fetchJson(drawUrlFrom(discoveryBody, baseUrl, slotId, epochNumber)),
+      });
+      if (drawResult === 'stored') drawsFetched++;
+      else drawsFailed++;
+    }
   }
 
-  return { slotId: slotId.toString(), clock, discovery, authServer, epochsFetched, epochsFailed };
+  return {
+    slotId: slotId.toString(),
+    clock,
+    discovery,
+    authServer,
+    epochsFetched,
+    epochsFailed,
+    drawsFetched,
+    drawsFailed,
+  };
 }
 
 /** Parse OPERATOR_STATUS_URLS: `3=https://rewards.nyks.dev,5=https://…`. */

@@ -233,6 +233,8 @@ export const DrawVerification = Type.Object(
         detail: Type.String(),
       }),
     ),
+    /** Honest limits of a green verdict (e.g. the single-anchor rule is not yet checked). */
+    caveats: Type.Array(Type.String()),
   },
   { $id: 'DrawVerification' },
 );
@@ -256,6 +258,8 @@ export const OperatorParticipantsResponse = Type.Object(
       paidAll: Type.Integer(),
       /** Distinct addresses paid in the last 30 days (chain). */
       paid30: Type.Integer(),
+      /** Distinct addresses paid in the last 7 days (chain). */
+      paid7: Type.Integer(),
       denom: Type.String(),
       provenance: Type.Literal('chain'),
       /** The operator's live enrolled count for its newest reported epoch (attested). */

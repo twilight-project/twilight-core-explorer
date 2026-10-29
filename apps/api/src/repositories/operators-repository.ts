@@ -5,6 +5,7 @@
 import type { PrismaClient } from '@twilight-explorer/db';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 // §6.1–§6.3 in one statement per window set: owed epochs (entitlement > 0), settled (a
 // finalization exists), latency percentiles over settled epochs, paid vs kept vs entitlement.
@@ -248,7 +249,7 @@ export async function getPaidParticipants(
     FROM "MiningSettlementPayout"
     WHERE "slotId" = ${slotId}
     GROUP BY "recipient"
-    ORDER BY sum("amount"::numeric) DESC
+    ORDER BY sum("amount"::numeric) DESC, "recipient" ASC
     LIMIT ${limit}
   `;
 }
@@ -256,16 +257,19 @@ export async function getPaidParticipants(
 export async function countPaidParticipants(
   prisma: PrismaClient,
   slotId: bigint,
-): Promise<{ all: bigint; recent: bigint }> {
-  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
-  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint }[]>`
+): Promise<{ all: bigint; recent: bigint; recent7: bigint }> {
+  const now = Date.now();
+  const cutoff = new Date(now - THIRTY_DAYS_MS);
+  const cutoff7 = new Date(now - SEVEN_DAYS_MS);
+  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint; recent7: bigint }[]>`
     SELECT count(DISTINCT p."recipient")::bigint AS "all",
-           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent"
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent",
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff7})::bigint AS "recent7"
     FROM "MiningSettlementPayout" p
     LEFT JOIN "Block" b ON b."height" = p."height"
     WHERE p."slotId" = ${slotId}
   `;
-  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n };
+  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n, recent7: row?.recent7 ?? 0n };
 }
 
 /** Newest feed epoch sample for a slot (any state) — carries the live enrolled count. */
@@ -371,8 +375,12 @@ export async function getOperatorHistoryDays(
   `;
 }
 
-// Miners per day from the payout lines: distinct recipients paid that day and how many of them
-// were paid by this slot for the first time (the growth curve).
+// Miners per day from the payout lines: distinct recipients paid for the epochs that closed
+// that day, and how many of them were paid by this slot for the first time (the growth curve).
+//
+// The day is the EPOCH CLOSE day, not the day the payout tx landed. An operator settles some
+// hundreds of blocks after the close, so a payout block routinely falls on the next UTC day;
+// keying on it would put a day's miners beside another day's owed/paid/kept figures.
 export interface OperatorMinersDayRow {
   day: Date;
   activeMiners: bigint;
@@ -384,11 +392,16 @@ export async function getOperatorMinersDays(
   slotId: bigint,
 ): Promise<OperatorMinersDayRow[]> {
   return prisma.$queryRaw<OperatorMinersDayRow[]>`
-    WITH p AS (
-      SELECT DISTINCT p."recipient", date_trunc('day', b."time") AS day
-      FROM "MiningSettlementPayout" p
-      JOIN "Block" b ON b."height" = p."height"
-      WHERE p."slotId" = ${slotId}
+    WITH close AS (
+      SELECT re."epochNumber", date_trunc('day', coalesce(re."blockTime", b."time")) AS day
+      FROM "RewardEpochProjection" re
+      LEFT JOIN "Block" b ON b."height" = re."height"
+    ),
+    p AS (
+      SELECT DISTINCT pay."recipient", c.day
+      FROM "MiningSettlementPayout" pay
+      JOIN close c ON c."epochNumber" = pay."epochNumber"
+      WHERE pay."slotId" = ${slotId} AND c.day IS NOT NULL
     ),
     firsts AS (SELECT "recipient", min(day) AS day FROM p GROUP BY 1)
     SELECT p.day,

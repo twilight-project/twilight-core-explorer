@@ -9179,6 +9179,7 @@
                       "required": [
                         "paidAll",
                         "paid30",
+                        "paid7",
                         "denom",
                         "provenance",
                         "enrolled",
@@ -9189,6 +9190,9 @@
                           "type": "integer"
                         },
                         "paid30": {
+                          "type": "integer"
+                        },
+                        "paid7": {
                           "type": "integer"
                         },
                         "denom": {
@@ -9712,7 +9716,8 @@
                               "type": "object",
                               "required": [
                                 "result",
-                                "checks"
+                                "checks",
+                                "caveats"
                               ],
                               "properties": {
                                 "result": {
@@ -9764,6 +9769,12 @@
                                         "type": "string"
                                       }
                                     }
+                                  }
+                                },
+                                "caveats": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
                                   }
                                 }
                               },

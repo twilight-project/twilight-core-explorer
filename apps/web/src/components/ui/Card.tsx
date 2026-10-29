@@ -2,7 +2,6 @@ import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { ICON_TONE, ICON_TONE_NEUTRAL, type IconTone } from './icon-tone';
-import { BandGlyph } from '@/components/brand/BandGlyph';
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -44,11 +43,11 @@ export function CardHeader({
           // domain's metrics. Decorative (aria-hidden); the h2 stays the section's accessible name.
           <span
             className={clsx(
-              'inline-flex h-7 w-7 shrink-0 items-center justify-center',
+              'tw-icon-tile inline-flex h-7 w-7 shrink-0 items-center justify-center',
               iconTone ? ICON_TONE[iconTone] : ICON_TONE_NEUTRAL,
             )}
           >
-            <BandGlyph seed={Icon.displayName ?? String(title)} size={22} />
+            <Icon className="tw-icon h-4 w-4" strokeWidth={1.25} aria-hidden />
           </span>
         ) : null}
         <h2 className="truncate font-serif text-xl text-text">{title}</h2>

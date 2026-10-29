@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
 import type { LucideIcon } from 'lucide-react';
 import { ICON_TONE, ICON_TONE_NEUTRAL, type IconTone } from './icon-tone';
-import { BandGlyph } from '@/components/brand/BandGlyph';
 
 // Compact stat tile (denser than KpiCard) for inner grids. Optionally leads with a decorative icon
 // chip: `icon` is a lucide component and `iconTone` tints it by category using the shared tone map, so
@@ -32,11 +31,11 @@ export function StatCard({
             className={clsx(
               // rounded-lg (not rounded-md) so the chip corner follows the theme radius token, matching
               // KpiCard — sharp in minimal-operator, softer in the gold themes.
-              'inline-flex h-6 w-6 shrink-0 items-center justify-center',
+              'tw-icon-tile inline-flex h-6 w-6 shrink-0 items-center justify-center',
               iconTone ? ICON_TONE[iconTone] : ICON_TONE_NEUTRAL,
             )}
           >
-            <BandGlyph seed={Icon.displayName ?? label} size={18} />
+            <Icon className="tw-icon h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
           </span>
         ) : null}
         <span className="truncate text-xs uppercase tracking-tighter-1 text-text-muted">{label}</span>

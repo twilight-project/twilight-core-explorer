@@ -280,3 +280,122 @@ export async function getNewestEpochSample(
   });
   return rows[0] ?? null;
 }
+
+// Daily history for the operator dashboard: every owed epoch bucketed by the UTC day of its close
+// block, with the §6.1–§6.4 definitions above (kept = released remainder, paid = payout lines,
+// latency = finalization height − close height). Feed columns are the operator's attested
+// per-epoch counts, averaged over the epochs that have a stored sample — never chain fact.
+export interface OperatorHistoryDayRow {
+  day: Date;
+  firstEpoch: bigint;
+  lastEpoch: bigint;
+  epochs: bigint;
+  settledEpochs: bigint;
+  entitlement: string;
+  paid: string;
+  kept: string;
+  payouts: bigint;
+  medianLatencyBlocks: bigint | null;
+  feedEpochs: bigint;
+  avgEnrolled: number | null;
+  maxEnrolled: number | null;
+  admitted: bigint | null;
+}
+
+export async function getOperatorHistoryDays(
+  prisma: PrismaClient,
+  slotId: bigint,
+): Promise<OperatorHistoryDayRow[]> {
+  return prisma.$queryRaw<OperatorHistoryDayRow[]>`
+    WITH fin AS (
+      SELECT DISTINCT ON ("epochNumber")
+             "epochNumber", coalesce("finalizedHeight", "height") AS fin_height,
+             coalesce("releasedRemainder", '0') AS remainder
+      FROM "MiningSettlementFinalization"
+      WHERE "slotId" = ${slotId}
+      ORDER BY "epochNumber", "height" DESC
+    ),
+    pay AS (
+      SELECT "epochNumber", count(*) AS payouts, coalesce(sum("amount"::numeric), 0) AS paid
+      FROM "MiningSettlementPayout"
+      WHERE "slotId" = ${slotId}
+      GROUP BY 1
+    ),
+    feed AS (
+      SELECT "epochNumber",
+             CASE WHEN jsonb_typeof("payloadJson"->'counts'->'enrolled') = 'number'
+                  THEN ("payloadJson"->'counts'->>'enrolled')::int END AS enrolled,
+             CASE WHEN jsonb_typeof("payloadJson"->'counts'->'admitted') = 'number'
+                  THEN ("payloadJson"->'counts'->>'admitted')::int END AS admitted
+      FROM "OperatorStatusSample"
+      WHERE "slotId" = ${slotId} AND "kind" = 'epoch' AND "epochNumber" IS NOT NULL
+    ),
+    joined AS (
+      SELECT ent."epochNumber",
+             date_trunc('day', coalesce(re."blockTime", b."time")) AS day,
+             ent."entitlementAmount"::numeric AS entitlement,
+             (f."epochNumber" IS NOT NULL) AS settled,
+             (CASE WHEN f."epochNumber" IS NOT NULL AND re."height" IS NOT NULL
+                   THEN f.fin_height - re."height" END) AS lat,
+             coalesce(f.remainder::numeric, 0) AS kept,
+             coalesce(p.paid, 0) AS paid,
+             coalesce(p.payouts, 0) AS payouts,
+             fd.enrolled, fd.admitted
+      FROM "SlotEntitlementProjection" ent
+      LEFT JOIN "RewardEpochProjection" re ON re."epochNumber" = ent."epochNumber"
+      LEFT JOIN "Block" b ON b."height" = re."height"
+      LEFT JOIN fin f ON f."epochNumber" = ent."epochNumber"
+      LEFT JOIN pay p ON p."epochNumber" = ent."epochNumber"
+      LEFT JOIN feed fd ON fd."epochNumber" = ent."epochNumber"
+      WHERE ent."slotId" = ${slotId} AND ent."entitlementAmount"::numeric > 0
+    )
+    SELECT day,
+           min("epochNumber")::bigint AS "firstEpoch",
+           max("epochNumber")::bigint AS "lastEpoch",
+           count(*)::bigint AS epochs,
+           count(*) FILTER (WHERE settled)::bigint AS "settledEpochs",
+           sum(entitlement)::text AS entitlement,
+           sum(paid)::text AS paid,
+           sum(kept)::text AS kept,
+           sum(payouts)::bigint AS payouts,
+           round(percentile_cont(0.5) WITHIN GROUP (ORDER BY lat) FILTER (WHERE lat IS NOT NULL))::bigint
+             AS "medianLatencyBlocks",
+           count(enrolled)::bigint AS "feedEpochs",
+           avg(enrolled)::float8 AS "avgEnrolled",
+           max(enrolled) AS "maxEnrolled",
+           sum(admitted)::bigint AS admitted
+    FROM joined
+    WHERE day IS NOT NULL
+    GROUP BY day
+    ORDER BY day ASC
+  `;
+}
+
+// Miners per day from the payout lines: distinct recipients paid that day and how many of them
+// were paid by this slot for the first time (the growth curve).
+export interface OperatorMinersDayRow {
+  day: Date;
+  activeMiners: bigint;
+  newMiners: bigint;
+}
+
+export async function getOperatorMinersDays(
+  prisma: PrismaClient,
+  slotId: bigint,
+): Promise<OperatorMinersDayRow[]> {
+  return prisma.$queryRaw<OperatorMinersDayRow[]>`
+    WITH p AS (
+      SELECT DISTINCT p."recipient", date_trunc('day', b."time") AS day
+      FROM "MiningSettlementPayout" p
+      JOIN "Block" b ON b."height" = p."height"
+      WHERE p."slotId" = ${slotId}
+    ),
+    firsts AS (SELECT "recipient", min(day) AS day FROM p GROUP BY 1)
+    SELECT p.day,
+           count(*)::bigint AS "activeMiners",
+           count(*) FILTER (WHERE f.day = p.day)::bigint AS "newMiners"
+    FROM p JOIN firsts f ON f."recipient" = p."recipient"
+    GROUP BY p.day
+    ORDER BY p.day ASC
+  `;
+}

@@ -284,6 +284,47 @@ export const OperatorParticipantsResponse = Type.Object(
   { $id: 'OperatorParticipantsResponse' },
 );
 
+export const OperatorHistoryResponse = Type.Object(
+  {
+    data: Type.Object({
+      slotId: HeightString,
+      denom: Type.String(),
+      /** One row per UTC day, oldest first; a day is the close day of the epochs it holds. */
+      days: Type.Array(
+        Type.Object({
+          /** YYYY-MM-DD (UTC). */
+          day: Type.String(),
+          firstEpoch: HeightString,
+          lastEpoch: HeightString,
+          /** Epochs owed that day (entitlement > 0) and how many have a finalization (chain). */
+          epochs: Type.Integer(),
+          settledEpochs: Type.Integer(),
+          /** Base-denom integer strings (chain). */
+          entitlement: Type.String(),
+          paid: Type.String(),
+          kept: Type.String(),
+          /** Payout lines across the day's epochs (chain). */
+          payouts: Type.Integer(),
+          /** Distinct addresses paid by settlement txs that day, and first-time ones (chain). */
+          activeMiners: Type.Integer(),
+          newMiners: Type.Integer(),
+          medianLatencyBlocks: Nullable(HeightString),
+          /** The operator's published per-epoch counts (attested), over feedEpochs samples. */
+          feed: Type.Object({
+            epochs: Type.Integer(),
+            avgEnrolled: Nullable(Type.Number()),
+            maxEnrolled: Nullable(Type.Integer()),
+            admitted: Nullable(Type.Integer()),
+            provenance: Type.Literal('attested'),
+          }),
+        }),
+      ),
+      provenance: Type.Literal('chain'),
+    }),
+  },
+  { $id: 'OperatorHistoryResponse' },
+);
+
 export const OperatorSlotParams = Type.Object({ slotId: Type.String() });
 export const OperatorEpochParams = Type.Object({ slotId: Type.String(), epoch: Type.String() });
 

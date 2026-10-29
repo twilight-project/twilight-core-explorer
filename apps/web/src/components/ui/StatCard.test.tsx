@@ -18,7 +18,7 @@ describe('StatCard icon slot', () => {
 
   it('falls back to the neutral chip when a toneless icon is given (e.g. "Unknown")', () => {
     const { container } = render(<StatCard icon={HeartPulse} label="Unknown" value="0" />);
-    expect(container.querySelector('svg')?.parentElement?.className).toContain('text-text-muted');
+    expect(container.querySelector('svg')?.parentElement?.className).toContain('text-primary-light');
   });
 
   it('renders no icon (and no chip) when `icon` is omitted — unchanged existing behavior', () => {

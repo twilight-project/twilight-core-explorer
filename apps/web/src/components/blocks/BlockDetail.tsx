@@ -127,7 +127,7 @@ export function BlockDetail({ height }: { height: string; tab?: string | string[
         </div>
 
         <div className="font-mono text-xs uppercase tracking-[.08em] text-primary">
-          ⸸ {b.txCount} transaction{b.txCount === 1 ? '' : 's'}
+          / {b.txCount} transaction{b.txCount === 1 ? '' : 's'}
         </div>
         <div className="-mt-4">
           <BlockTxsSection height={b.height} />

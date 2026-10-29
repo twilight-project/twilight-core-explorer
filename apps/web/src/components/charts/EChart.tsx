@@ -32,6 +32,8 @@ export interface ChartTheme {
   primarySoft: string;
   primaryFaint: string;
   copper: string;
+  /** The secondary accent at low alpha — the far end of area fills (indigo → rose, like the art). */
+  copperFaint: string;
   text: string;
   textSecondary: string;
   muted: string;
@@ -41,16 +43,17 @@ export interface ChartTheme {
 }
 
 const FALLBACK: ChartTheme = {
-  primary: 'rgb(232 158 40)',
-  primarySoft: 'rgb(232 158 40 / 0.35)',
-  primaryFaint: 'rgb(232 158 40 / 0.02)',
-  copper: 'rgb(217 126 72)',
-  text: 'rgb(249 250 251)',
-  textSecondary: 'rgb(163 163 179)',
-  muted: 'rgb(138 138 152)',
-  grid: 'rgb(31 31 35 / 0.7)',
-  card: 'rgb(10 10 12)',
-  border: 'rgb(31 31 35)',
+  primary: 'rgb(67 61 176)',
+  primarySoft: 'rgba(67,61,176,0.35)',
+  primaryFaint: 'rgba(67,61,176,0.02)',
+  copper: 'rgb(182 76 138)',
+  copperFaint: 'rgba(182,76,138,0.06)',
+  text: 'rgb(17 17 17)',
+  textSecondary: 'rgb(58 61 70)',
+  muted: 'rgb(90 93 102)',
+  grid: 'rgba(196,199,212,0.7)',
+  card: 'rgb(243 244 249)',
+  border: 'rgb(196 199 212)',
 };
 
 function readTheme(): ChartTheme {
@@ -67,6 +70,7 @@ function readTheme(): ChartTheme {
     primarySoft: rgb('--primary', 0.35) ?? FALLBACK.primarySoft,
     primaryFaint: rgb('--primary', 0.02) ?? FALLBACK.primaryFaint,
     copper: rgb('--accent-blue') ?? FALLBACK.copper,
+    copperFaint: rgb('--accent-blue', 0.06) ?? FALLBACK.copperFaint,
     text: rgb('--text') ?? FALLBACK.text,
     textSecondary: rgb('--text-secondary') ?? FALLBACK.textSecondary,
     muted: rgb('--text-muted') ?? FALLBACK.muted,
@@ -96,7 +100,7 @@ export function tooltipBase(t: ChartTheme) {
     borderWidth: 1,
     padding: [8, 10],
     textStyle: { color: t.text, fontSize: 12, fontFamily: 'var(--font-mono), monospace' },
-    extraCssText: 'border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);',
+    extraCssText: 'border-radius:4px;box-shadow:none;',
   };
 }
 

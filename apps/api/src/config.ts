@@ -2,6 +2,8 @@
 // Postgres and must never load chain RPC/REST URLs. It does NOT use packages/config (loadConfig),
 // which is chain-oriented — importing that would smuggle chain transport into a DB-only service.
 
+import { isIP } from 'node:net';
+
 export type ApiEnv = 'production' | 'development' | 'test';
 
 /** Per-IP rate limit. Disabled by default outside production so local dev + the test suite are never
@@ -77,7 +79,7 @@ export function readTrustProxy(raw: string | undefined, isProduction: boolean): 
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  if (list.length === 0 || list.some((s) => !presets.has(s) && !/^[0-9a-f:.]+(\/\d{1,3})?$/.test(s))) {
+  if (list.length === 0 || list.some((s) => !presets.has(s) && !isTrustAddress(s))) {
     throw new Error(
       'API_TRUST_PROXY must be false or a comma-separated list of IPs/CIDRs (or loopback/linklocal/uniquelocal)',
     );
@@ -172,4 +174,18 @@ function readCors(raw: string | undefined, isProduction: boolean): boolean | str
     .split(',')
     .map((o) => o.trim())
     .filter((o) => o.length > 0 && o !== '*');
+}
+
+/** A real IP, or a CIDR with a prefix the proxy parser accepts (/1–/32 for IPv4, /1–/128 for IPv6).
+ *  Anything else would make Fastify throw while compiling the trust policy at startup. */
+function isTrustAddress(s: string): boolean {
+  const parts = s.split('/');
+  if (parts.length > 2) return false;
+  const [address = '', prefix] = parts;
+  const family = isIP(address);
+  if (family === 0) return false;
+  if (prefix === undefined) return true;
+  if (!/^\d+$/.test(prefix)) return false;
+  const bits = Number(prefix);
+  return bits >= 1 && bits <= (family === 4 ? 32 : 128);
 }

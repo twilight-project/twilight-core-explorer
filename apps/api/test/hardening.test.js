@@ -156,5 +156,10 @@ describe('API_TRUST_PROXY parsing (N2)', () => {
     assert.throws(() => readTrustProxy('true', true), /refused in production/);
     assert.throws(() => readTrustProxy('1', true), /hop counts are not supported/);
     assert.throws(() => readTrustProxy('yes please', true), /comma-separated list/);
+    // invalid addresses and prefixes are refused here, not later inside Fastify's startup
+    for (const bad of ['999.999.999.999', '10.0.0.0/0', '10.0.0.0/33', '::1/129', '1.2.3']) {
+      assert.throws(() => readTrustProxy(bad, true), /comma-separated list/, bad);
+    }
+    assert.deepEqual(readTrustProxy('::1, fd00::/8, 127.0.0.1/32', true), ['::1', 'fd00::/8', '127.0.0.1/32']);
   });
 });

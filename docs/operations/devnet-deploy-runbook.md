@@ -240,8 +240,9 @@ then switch the SSL mode.
 `X-Forwarded-For` to the API — Cloudflare's `CF-Connecting-IP`, or the direct peer without Cloudflare —
 and replaces any client-supplied value. The API trusts that header only from private peers
 (`API_TRUST_PROXY=loopback,uniquelocal`, the compose default), which is safe because the API listens
-only on the Docker network and host loopback. Leave it unset (`false`) if the API is ever exposed
-directly; never set `true` in production (refused at boot). Hop counts are refused: this Fastify version
+only on the Docker network and host loopback. If the API is ever exposed directly, set
+`API_TRUST_PROXY=false` **explicitly** (compose turns an unset value into the private-peer default);
+never set `true` in production (refused at boot). Hop counts are refused: this Fastify version
 ignores a numeric `trustProxy`.
 
 **Log rotation (N4).** Every service uses the `x-logging` anchor in `docker-compose.devnet.yml` (json-file,

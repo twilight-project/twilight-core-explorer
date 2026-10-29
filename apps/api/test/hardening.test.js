@@ -89,3 +89,72 @@ describe('rate limiting (disable-able; 429 uses the { error } envelope)', () => 
     await app.close();
   });
 });
+
+// N2: behind Cloudflare → Caddy the TCP peer is always Caddy, so without trustProxy every visitor
+// shares one bucket. Caddy (a private address on the Docker network) sends a single X-Forwarded-For.
+describe('rate limiting keys on the real client behind the proxy (N2)', () => {
+  const TRUSTED = ['loopback', 'uniquelocal'];
+  const limited = (trustProxy) => ({
+    ...testConfig,
+    trustProxy,
+    rateLimit: { enabled: true, max: 2, timeWindowMs: 60_000 },
+  });
+  const CADDY = '172.18.0.5';
+  const hit = (app, client, peer = CADDY) =>
+    app.inject({
+      method: 'GET',
+      url: '/api/v1/status',
+      remoteAddress: peer,
+      headers: client ? { 'x-forwarded-for': client } : {},
+    });
+
+  it('behind the trusted proxy, each client gets its own bucket', async () => {
+    const app = await buildServer({ config: limited(TRUSTED), prisma: new MockPrisma({}) });
+    assert.equal((await hit(app, '203.0.113.1')).statusCode, 200);
+    assert.equal((await hit(app, '203.0.113.1')).statusCode, 200);
+    assert.equal((await hit(app, '203.0.113.1')).statusCode, 429, 'client A is over its limit');
+    assert.equal((await hit(app, '203.0.113.2')).statusCode, 200, 'client B is unaffected by A');
+    await app.close();
+  });
+
+  it('a client cannot escape its bucket by prepending its own X-Forwarded-For', async () => {
+    // Caddy replaces the header, but even if a chain arrived, only the address next to the trusted
+    // proxy counts — the client-controlled left part is ignored.
+    const app = await buildServer({ config: limited(TRUSTED), prisma: new MockPrisma({}) });
+    await hit(app, '1.1.1.1, 203.0.113.9');
+    await hit(app, '2.2.2.2, 203.0.113.9');
+    assert.equal((await hit(app, '3.3.3.3, 203.0.113.9')).statusCode, 429);
+    await app.close();
+  });
+
+  it('a public peer is not trusted: its X-Forwarded-For is ignored', async () => {
+    const app = await buildServer({ config: limited(TRUSTED), prisma: new MockPrisma({}) });
+    const direct = '198.51.100.7';
+    await hit(app, '203.0.113.1', direct);
+    await hit(app, '203.0.113.2', direct);
+    assert.equal((await hit(app, '203.0.113.3', direct)).statusCode, 429);
+    await app.close();
+  });
+
+  it('without trustProxy, X-Forwarded-For is ignored (the peer is the client)', async () => {
+    const app = await buildServer({ config: limited(false), prisma: new MockPrisma({}) });
+    await hit(app, '203.0.113.1');
+    await hit(app, '203.0.113.2');
+    assert.equal((await hit(app, '203.0.113.3')).statusCode, 429);
+    await app.close();
+  });
+});
+
+describe('API_TRUST_PROXY parsing (N2)', () => {
+  it('parses off and address lists; refuses true in production, hop counts and junk', async () => {
+    const { readTrustProxy } = await import('../dist/config.js');
+    assert.equal(readTrustProxy(undefined, true), false);
+    assert.equal(readTrustProxy('false', true), false);
+    assert.deepEqual(readTrustProxy('loopback,uniquelocal', true), ['loopback', 'uniquelocal']);
+    assert.deepEqual(readTrustProxy('10.0.0.0/8, 172.16.0.0/12', true), ['10.0.0.0/8', '172.16.0.0/12']);
+    assert.equal(readTrustProxy('true', false), true);
+    assert.throws(() => readTrustProxy('true', true), /refused in production/);
+    assert.throws(() => readTrustProxy('1', true), /hop counts are not supported/);
+    assert.throws(() => readTrustProxy('yes please', true), /comma-separated list/);
+  });
+});

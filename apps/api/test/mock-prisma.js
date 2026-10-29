@@ -10,6 +10,7 @@ export const testConfig = {
   corsOrigins: false,
   // Rate limiting OFF in tests — the suite must never be throttled or made flaky by it.
   rateLimit: { enabled: false, max: 100, timeWindowMs: 60_000 },
+  trustProxy: false,
 };
 
 const descBig = (a, b) => (a < b ? 1 : a > b ? -1 : 0);

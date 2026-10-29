@@ -19,6 +19,7 @@ const stubConfig: ApiConfig = {
   isProduction: false,
   corsOrigins: false,
   rateLimit: { enabled: false, max: 100, timeWindowMs: 60_000 },
+  trustProxy: false,
 };
 
 const stubPrisma = { $disconnect: async () => {} } as unknown as PrismaClient;

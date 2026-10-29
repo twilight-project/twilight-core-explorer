@@ -26,6 +26,12 @@ export interface ApiConfig {
    *  string[] = explicit allow-list. */
   corsOrigins: boolean | string[];
   rateLimit: RateLimitConfig;
+  /** Fastify `trustProxy`: which peers may set the client address (X-Forwarded-For) that the rate
+   *  limiter keys on. `false` (default) = the TCP peer is the client. Behind the documented
+   *  Cloudflare → Caddy topology the API is reachable only on the Docker network / host loopback, so
+   *  it is `['loopback', 'uniquelocal']`: Caddy (a private address) is trusted and always sends one
+   *  address (runbook §12). Never `true` in production — that trusts any client-supplied header. */
+  trustProxy: boolean | string[];
 }
 
 const DEFAULT_PORT = 8080;
@@ -40,8 +46,43 @@ export function loadApiConfig(env: Record<string, string | undefined> = process.
   const host = readString(env, 'HOST', DEFAULT_HOST);
   const corsOrigins = readCors(env.CORS_ORIGINS, isProduction);
   const rateLimit = readRateLimit(env, isProduction);
+  const trustProxy = readTrustProxy(env.API_TRUST_PROXY, isProduction);
 
-  return { databaseUrl, port, host, env: apiEnv, isProduction, corsOrigins, rateLimit };
+  return { databaseUrl, port, host, env: apiEnv, isProduction, corsOrigins, rateLimit, trustProxy };
+}
+
+/** API_TRUST_PROXY: unset/false → false; otherwise a comma-separated list of trusted proxy addresses —
+ *  IPs, CIDRs, or the presets loopback / linklocal / uniquelocal. Hop counts are refused: this Fastify
+ *  version fails closed on a numeric trustProxy (it cannot validate the immediate peer), so `1` would
+ *  silently trust nothing. `true` (trust every peer) is refused in production, where it would let any
+ *  client choose its own rate-limit bucket via X-Forwarded-For. */
+export function readTrustProxy(raw: string | undefined, isProduction: boolean): boolean | string[] {
+  const value = raw?.trim().toLowerCase();
+  if (!value || value === 'false' || value === '0') return false;
+  if (value === 'true') {
+    if (isProduction) {
+      throw new Error(
+        'API_TRUST_PROXY=true is refused in production; list the proxy addresses (e.g. loopback,uniquelocal)',
+      );
+    }
+    return true;
+  }
+  if (/^\d+$/.test(value)) {
+    throw new Error(
+      'API_TRUST_PROXY hop counts are not supported (Fastify ignores them); list the proxy addresses instead',
+    );
+  }
+  const presets = new Set(['loopback', 'linklocal', 'uniquelocal']);
+  const list = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (list.length === 0 || list.some((s) => !presets.has(s) && !/^[0-9a-f:.]+(\/\d{1,3})?$/.test(s))) {
+    throw new Error(
+      'API_TRUST_PROXY must be false or a comma-separated list of IPs/CIDRs (or loopback/linklocal/uniquelocal)',
+    );
+  }
+  return list;
 }
 
 /** Rate limit: enabled in production by default (override with RATE_LIMIT_ENABLED=true/false), 100

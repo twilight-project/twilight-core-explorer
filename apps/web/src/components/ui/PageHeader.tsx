@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
 import type { LucideIcon } from 'lucide-react';
-import { ICON_TONE, type IconTone } from './icon-tone';
+import { ICON_TONE, ICON_TONE_NEUTRAL, type IconTone } from './icon-tone';
+import { BandGlyph } from '@/components/brand/BandGlyph';
 
 // Airy/premium page header used across the redesign: an optional category icon tile, a small brand-
 // accent eyebrow, a serif h1, an optional muted sub-paragraph, and a right-aligned actions slot
@@ -31,11 +32,11 @@ export function PageHeader({
           // Larger tile than the card chips (this anchors the whole page), rounded-xl to follow theme.
           <span
             className={clsx(
-              'mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
-              iconTone ? ICON_TONE[iconTone] : 'bg-white/5 text-text-muted',
+              'mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center',
+              iconTone ? ICON_TONE[iconTone] : ICON_TONE_NEUTRAL,
             )}
           >
-            <Icon className="h-5 w-5" aria-hidden />
+            <BandGlyph seed={Icon.displayName ?? String(title)} size={36} />
           </span>
         ) : null}
         <div className="space-y-2">

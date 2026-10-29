@@ -4,129 +4,147 @@
 
 /*
   Theme bridge. Tailwind colors resolve via CSS variables, switched with `data-theme` on <html>.
-  Two themes only — `dark` (the Twilight auction look: gold on near-black, the default) and `light`
-  (its paper counterpart). They share one voice and shape language; only the ground differs.
+  Two themes, both following twilight.org (Oct 2026): `light` is the site itself — pale periwinkle
+  ground, near-black ink, hairline rules, square corners, accents taken from the gradient art
+  (deep indigo, rose) — and the default. `dark` is the same voice on midnight.
 */
 
-:root {
-  /* Semantic font ROLES resolve onto the faces loaded by next/font in layout.tsx (each bound to a
-     unique --font-* var). A theme repoints --font-serif (the display role used by headings) to change
-     its heading voice; --font-sans (body) stays Inter across all themes. Fallbacks keep text rendering
-     if a face fails to load. */
-  /* Twilight brand pair (twilight.org auction reference): Instrument Serif for display headings,
-     Inter for UI copy, JetBrains Mono for every number, hash, address, caption and label. */
-  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, 'Times New Roman', serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
-    sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
-  /* Hero-numeral role (KPI/stat values). Mono — operator honesty: heights and amounts
-     stay monospaced so digits align and cannot be misread. */
-  --font-metric: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-
-  /* KPI category legend. Every category hue except "violet" already exists as a per-theme --accent-*
-     (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. The brand
-     palette has no violet: the coreslot category renders in a warm sand instead (constant across
-     themes; the token keeps its historical name so component classes stay stable). */
-  --accent-violet: 201 164 106;
+/* twilight.org's own faces, served from twilight.org with Access-Control-Allow-Origin: * (each
+   ships a single weight; weights the face lacks are not synthesized — see body below). */
+@font-face {
+  font-family: 'Manner Pro';
+  src: url('https://twilight.org/assets/fonts/MannerPro-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Atlas Grotesk';
+  src: url('https://twilight.org/assets/fonts/AtlasGrotesk-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Andale Mono';
+  src: url('https://twilight.org/assets/fonts/AndaleMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* Dark — the Twilight auction reference: gold on near-black. Page #050505 · card #0A0A0C ·
-   raised #0E0E10 · hairline #1F1F23 / #2A2A2E · gold #E89E28 (primary, links, active tab, charts) ·
-   copper #D97E48 (secondary series) · green #18C37D (healthy/success) · red #FF4A4A.
-   No yellow: the warning tint IS the gold accent (state reads from its label, never hue alone). */
-[data-theme='dark'] {
-  --page: 5 5 5;
-  --background: 5 5 5;
-  --background-secondary: 10 10 12;
-  --background-tertiary: 24 24 27;
-  --background-primary: 0 0 0;
+:root {
+  /* Semantic font ROLES (twilight.org): Manner Pro Light for display headings, Atlas Grotesk for
+     UI copy, Andale Mono for every number, hash, address, caption and label. next/font's Inter /
+     JetBrains Mono stay as fallbacks while the brand faces load. */
+  --font-serif: 'Manner Pro', var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Atlas Grotesk', var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    Segoe UI, Roboto, sans-serif;
+  --font-mono: 'Andale Mono', var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, monospace;
+  /* Hero-numeral role (KPI/stat values). Mono — operator honesty: heights and amounts
+     stay monospaced so digits align and cannot be misread. */
+  --font-metric: 'Andale Mono', var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, monospace;
 
-  --card: 10 10 12;
-  --card-hover: 14 14 16;
-  --card-border: 31 31 35;
+  /* KPI category legend. Every category hue except "violet" already exists as a per-theme --accent-*
+     (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. The
+     coreslot category takes the gradient's lavender (constant across themes). */
+  --accent-violet: 123 120 214;
+}
 
-  --primary: 232 158 40;
-  --primary-light: 246 180 108;
-  --primary-dark: 198 127 26;
+/* Light — twilight.org. Page #E7EAF3 · sheet #F3F4F9 · ink #111 · muted #5A5D66 · rule #C4C7D4 ·
+   indigo #433DB0 (primary: links, active tab, charts — the deep band of the gradient art at text
+   depth) · rose #B64C8A (secondary series) · burnt orange #A8441A (attested — the operator's
+   own words) · green #366A00 / red #B3261E (status, text-safe depths of the site's #8BD100 /
+   #E8552F). No yellow: the warning tint IS the primary accent. */
+[data-theme='light'] {
+  --page: 231 234 243;
+  --background: 231 234 243;
+  --background-secondary: 223 226 236;
+  --background-tertiary: 211 215 227;
+  --background-primary: 243 244 249;
 
-  --accent-blue: 217 126 72;
-  --accent-orange: 198 127 26;
-  --accent-yellow: 232 158 40;
-  --accent-green: 24 195 125;
-  --accent-red: 255 74 74;
+  --card: 243 244 249;
+  --card-hover: 236 238 246;
+  --card-border: 196 199 212;
 
-  --accent-gold: 232 158 40;
-  --accent-gold-light: 246 180 108;
-  --accent-gold-dark: 198 127 26;
-  --accent-amber: 232 158 40;
-  --accent-burgundy: 63 29 29;
+  /* AA on --background, --card and their 10% tints (theme-tokens.test.ts). */
+  --primary: 67 61 176;
+  --primary-light: 123 120 214;
+  --primary-dark: 46 41 140;
 
-  --text: 249 250 251;
-  --text-secondary: 163 163 179;
-  /* WCAG 1.4.3: ≈5.6:1 on the near-black --background (the reference's #6B6B7A was 3.9:1). */
-  --text-muted: 138 138 152;
+  --accent-blue: 182 76 138;
+  --accent-orange: 168 68 26;
+  --accent-yellow: 67 61 176;
+  --accent-green: 54 106 0;
+  --accent-red: 179 38 30;
 
-  --border: 31 31 35;
-  --border-light: 42 42 46;
+  --accent-gold: 67 61 176;
+  --accent-gold-light: 123 120 214;
+  --accent-gold-dark: 46 41 140;
+  --accent-amber: 67 61 176;
+  --accent-burgundy: 245 214 222;
 
-  /* reference shape language: 16px card corners, hairline border + a soft drop shadow */
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 4px 24px rgba(0, 0, 0, 0.45);
-  --display-tracking: -0.01em;
+  --text: 17 17 17;
+  --text-secondary: 58 61 70;
+  /* WCAG 1.4.3: ≈5.5:1 on the --background (the site's own #5A5D66). */
+  --text-muted: 90 93 102;
+
+  --border: 196 199 212;
+  --border-light: 170 174 190;
+
+  /* twilight.org shape language: square tiles and hairline rules, no drop shadow. */
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.25rem;
+  --radius-2xl: 0.375rem;
+  --shadow-card: none;
+  --display-tracking: -0.02em;
   --card-border-width: 1px;
 }
 
-/* Light — the same brand on paper. Picked automatically for first-time visitors whose OS prefers
-   light (see the pre-paint script in layout.tsx); always available from the toggle. Gold is carried
-   at text-safe depth (amber-800). All text/status pairs are AA-verified against both --background
-   and --card by theme-tokens.test.ts — keep them passing when retuning. */
-[data-theme='light'] {
-  --page: 250 249 247;
-  --background: 250 249 247;
-  --background-secondary: 244 242 238;
-  --background-tertiary: 233 230 224;
-  --background-primary: 255 255 255;
+/* Dark — the same brand on midnight (#08081C, the site's --midnight). Lavender carries the
+   primary; the site's green #8BD100 and a warm red read as-is on this ground. */
+[data-theme='dark'] {
+  --page: 8 8 28;
+  --background: 8 8 28;
+  --background-secondary: 12 12 34;
+  --background-tertiary: 26 26 56;
+  --background-primary: 4 4 18;
 
-  --card: 255 255 255;
-  --card-hover: 250 247 242;
-  --card-border: 226 222 214;
+  --card: 14 14 38;
+  --card-hover: 20 20 48;
+  --card-border: 36 36 74;
 
-  /* Deep amber: the gold identity at ≈6.4:1 on white. Status/brand text also sits on 10%-tint
-     surfaces (badges, the lag banner) over this ground, which RAISES the effective background —
-     every pair below must clear AA on the tint blend too (guarded by theme-tokens.test.ts). */
-  --primary: 146 64 14;
-  --primary-light: 180 83 9;
-  --primary-dark: 120 53 15;
+  --primary: 170 166 245;
+  --primary-light: 200 198 250;
+  --primary-dark: 123 120 214;
 
-  --accent-blue: 154 82 30;
-  --accent-orange: 180 83 9;
-  --accent-yellow: 146 64 14;
-  --accent-green: 13 107 76;
-  --accent-red: 185 28 28;
+  --accent-blue: 240 139 201;
+  --accent-orange: 255 160 90;
+  --accent-yellow: 170 166 245;
+  --accent-green: 139 209 0;
+  --accent-red: 255 107 74;
 
-  --accent-gold: 146 64 14;
-  --accent-gold-light: 180 83 9;
-  --accent-gold-dark: 120 53 15;
-  --accent-amber: 146 64 14;
-  --accent-burgundy: 250 236 220;
+  --accent-gold: 170 166 245;
+  --accent-gold-light: 200 198 250;
+  --accent-gold-dark: 123 120 214;
+  --accent-amber: 170 166 245;
+  --accent-burgundy: 58 26 52;
 
-  --text: 24 24 27;
-  --text-secondary: 63 63 70;
-  /* WCAG 1.4.3: ≈5.7:1 on the --background. */
-  --text-muted: 92 92 102;
+  --text: 244 245 250;
+  --text-secondary: 180 182 200;
+  /* WCAG 1.4.3: ≈6.3:1 on the midnight --background. */
+  --text-muted: 142 144 168;
 
-  --border: 226 222 214;
-  --border-light: 205 200 190;
+  --border: 36 36 74;
+  --border-light: 52 52 96;
 
-  /* the same corner language on paper */
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --shadow-card: 0 0 0 1px rgba(30, 24, 12, 0.05), 0 2px 12px rgba(30, 24, 12, 0.05);
-  --display-tracking: -0.01em;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.25rem;
+  --radius-2xl: 0.375rem;
+  --shadow-card: none;
+  --display-tracking: -0.02em;
   --card-border-width: 1px;
 }
 
@@ -155,6 +173,9 @@ body {
   background-color: rgb(var(--background));
   color: rgb(var(--text));
   font-family: var(--font-sans);
+  /* The brand faces ship one weight each; a faux-bold Atlas or Manner Pro looks wrong, so
+     emphasis comes from size and colour, as on twilight.org. */
+  font-synthesis-weight: none;
 }
 
 /* Heading rhythm is a theme-owned expressive lever: each brand sets its own display tracking
@@ -165,14 +186,14 @@ h2 {
   letter-spacing: var(--display-tracking, -0.01em);
 }
 
-/* Display headings are Instrument Serif (single 400 weight, like the reference hero) — regular,
-   never synthesized bold. Element-level, so any explicit font-weight utility still wins. */
+/* Display headings are Manner Pro Light (its only weight, as on twilight.org) — never synthesized
+   bold. Element-level, so any explicit font-weight utility still wins. */
 h1,
 h2 {
-  font-weight: 400;
+  font-weight: 300;
 }
 .font-serif {
-  font-weight: 400;
+  font-weight: 300;
   font-synthesis: none;
 }
 
@@ -241,4 +262,39 @@ html {
     rgb(var(--card)) 63%
   );
   background-size: 200% 100%;
+}
+
+/* BandGlyph (components/brand/BandGlyph.tsx): twilight.org's band art in miniature. Each band rises
+   in on mount (staggered by --i), then breathes slowly out of phase with its neighbours. */
+@keyframes tw-band-rise {
+  from {
+    transform: scaleY(0.08);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes tw-band-breathe {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.72);
+  }
+}
+.tw-band {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation:
+    tw-band-rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both,
+    tw-band-breathe 3.6s ease-in-out infinite;
+  animation-delay:
+    calc(var(--i, 0) * 70ms),
+    calc(900ms + var(--i, 0) * 260ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tw-band {
+    animation: none;
+  }
 }

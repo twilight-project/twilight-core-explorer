@@ -123,7 +123,7 @@ export function NodeView({ slotId, ownNode = true }: { slotId: string; ownNode?:
         <div className="flex flex-col gap-2.5">
           <div className="flex items-baseline justify-between font-mono text-xs">
             <span className="uppercase tracking-[.08em] text-primary">
-              ⸸ signing · last {cells.length || 200} blocks
+              / signing · last {cells.length || 200} blocks
             </span>
             <span className="text-text-muted">
               {missedIdx.length === 0

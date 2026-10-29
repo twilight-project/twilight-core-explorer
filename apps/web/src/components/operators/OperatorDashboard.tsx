@@ -172,7 +172,7 @@ function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
               y2: 1,
               colorStops: [
                 { offset: 0, color: t.primarySoft },
-                { offset: 1, color: t.primaryFaint },
+                { offset: 1, color: t.copperFaint },
               ],
             },
           },

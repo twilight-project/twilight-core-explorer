@@ -4,16 +4,16 @@ import { clsx } from 'clsx';
 import { Palette } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-// Theme switch: one ground, two grounds. `dark` is the operator console (default), `light` is the
-// same voice and shape language on paper — only the palette depth differs. Persisted in
+// Theme switch: `light` is twilight.org itself (default), `dark` is the same voice on midnight —
+// only the palette depth differs. Persisted in
 // localStorage and applied pre-paint by the inline script in layout.tsx, which also migrates any
 // id stored before the set was reduced to these two.
 //
 // The former `density` axis (compact/airy) was removed: the dense console spacing is now the only
 // scale, so its tokens are plain constants in globals.css rather than a runtime switch.
 const THEMES = [
-  { id: 'dark', label: 'Dark' },
   { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
 ] as const;
 type ThemeId = (typeof THEMES)[number]['id'];
 
@@ -58,12 +58,12 @@ function Group<T extends string>({
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeId>('dark');
+  const [theme, setTheme] = useState<ThemeId>('light');
   // On phones the full chip panel would sit on top of content — collapse it behind a button.
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setTheme((document.documentElement.dataset.theme as ThemeId) || 'dark');
+    setTheme((document.documentElement.dataset.theme as ThemeId) || 'light');
   }, []);
 
   function pickTheme(id: ThemeId) {

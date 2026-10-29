@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Instrument_Serif, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -9,21 +9,14 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
 import './globals.css';
 
-// `dark` (gold on near-black, the twilight.org auction look) is the default theme; `light` is its
-// paper counterpart.
-const UI_THEME = (process.env.NEXT_PUBLIC_UI_THEME ?? 'dark').toLowerCase();
-const theme: 'dark' | 'light' = UI_THEME === 'light' ? 'light' : 'dark';
+// `light` (twilight.org itself: periwinkle ground, ink, gradient accents) is the default theme;
+// `dark` is the same brand on midnight, picked from the toggle.
+const UI_THEME = (process.env.NEXT_PUBLIC_UI_THEME ?? 'light').toLowerCase();
+const theme: 'dark' | 'light' = UI_THEME === 'dark' ? 'dark' : 'light';
 
-// Faces are bound to UNIQUE css vars (not the role names). globals.css maps the semantic roles
-// (--font-sans / --font-serif / --font-mono / --font-metric) onto these. Brand trio from the
-// reference: Instrument Serif for display headings, Inter for UI copy, JetBrains Mono for every
-// number, hash, address and caption.
+// next/font faces are FALLBACKS only: the brand roles in globals.css lead with twilight.org's own
+// Manner Pro / Atlas Grotesk / Andale Mono and fall back to these while those load.
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const instrumentSerif = Instrument_Serif({
-  subsets: ['latin'],
-  weight: '400',
-  variable: '--font-instrument-serif',
-});
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
 
 export const metadata: Metadata = {
@@ -43,17 +36,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       data-theme={theme}
-      className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="bg-background text-text">
         {/* Apply the persisted brand theme before paint (no FOUC); overrides SSR defaults.
             Also migrates any theme id stored before the set was reduced to dark/light, so a stale
-            value cannot leave the page with no palette. With no persisted choice, an OS light-mode
-            preference selects the light theme — an explicit toggle pick always wins thereafter. */}
+            value cannot leave the page with no palette. With no persisted choice the server default
+            (light, twilight.org) stands; an explicit toggle pick always wins thereafter. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var m={auction:'dark',daylight:'light','gold-orbit':'dark','minimal-operator':'dark',legacy:'dark'};var t=localStorage.getItem('tw-theme');if(t){t=m[t]||t;if(t!=='dark'&&t!=='light'){t='dark';}document.documentElement.dataset.theme=t;localStorage.setItem('tw-theme',t);localStorage.removeItem('tw-density');}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches){document.documentElement.dataset.theme='light';}}catch(e){}})();",
+              "(function(){try{var m={auction:'dark',daylight:'light','gold-orbit':'dark','minimal-operator':'dark',legacy:'dark'};var t=localStorage.getItem('tw-theme');if(t){t=m[t]||t;if(t!=='dark'&&t!=='light'){t='dark';}document.documentElement.dataset.theme=t;localStorage.setItem('tw-theme',t);localStorage.removeItem('tw-density');}}catch(e){}})();",
           }}
         />
         {/* WCAG 2.4.1 — first focusable element: bypass the header/nav straight to content. */}

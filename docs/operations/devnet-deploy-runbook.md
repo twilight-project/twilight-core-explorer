@@ -236,9 +236,18 @@ then switch the SSL mode.
 - Keep these in a private ops store, **not in this public repo**: origin IP/host, SSH access, Cloudflare
   account/zone IDs and API tokens, the Origin CA private key, `.env.devnet`.
 
-> **Known gap (readiness §5 "proxy keying"):** the API rate-limits on `request.ip`, which behind
-> Cloudflare → Caddy is Caddy's container address — so all clients share one bucket. Fix tracked
-> separately (trust the proxy hop and key on the real client IP).
+**Rate limiting per client (N2).** The API rate-limits on `request.ip`. Caddy sends exactly one
+`X-Forwarded-For` to the API — Cloudflare's `CF-Connecting-IP`, or the direct peer without Cloudflare —
+and replaces any client-supplied value. The API trusts that header only from private peers
+(`API_TRUST_PROXY=loopback,uniquelocal`, the compose default), which is safe because the API listens
+only on the Docker network and host loopback. If the API is ever exposed directly, set
+`API_TRUST_PROXY=false` **explicitly** (compose turns an unset value into the private-peer default);
+never set `true` in production (refused at boot). Hop counts are refused: this Fastify version
+ignores a numeric `trustProxy`.
+
+**Log rotation (N4).** Every service uses the `x-logging` anchor in `docker-compose.devnet.yml` (json-file,
+5 × 10 MB per container). Containers created before this change keep the old setting until recreated
+(`up -d --build` recreates changed services; `--force-recreate` for the rest).
 
 ## 13. Releases and deploys (tag-based)
 

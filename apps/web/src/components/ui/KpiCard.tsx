@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import type { LucideIcon } from 'lucide-react';
 import type { BadgeTone } from '@/lib/format/status';
 import { ICON_TONE, ICON_TONE_NEUTRAL, type IconTone } from './icon-tone';
+import { BandGlyph } from '@/components/brand/BandGlyph';
 
 // A big, airy KPI stat card for the redesigned pages. Top row: an optional decorative icon chip +
 // uppercase label + an optional status "delta" chip (tone-colored). Then a large mono value (+ optional
@@ -58,11 +59,11 @@ export function KpiCard({
             // to the neutral white-alpha/muted chrome. Either way the icon is aria-hidden, never a name.
             <span
               className={clsx(
-                'tw-icon-tile inline-flex h-9 w-9 shrink-0 items-center justify-center',
+                'inline-flex h-9 w-9 shrink-0 items-center justify-center',
                 iconTone ? ICON_TONE[iconTone] : ICON_TONE_NEUTRAL,
               )}
             >
-              <Icon className="tw-icon h-[18px] w-[18px]" strokeWidth={1.25} aria-hidden />
+              <BandGlyph seed={Icon.displayName ?? label} size={28} />
             </span>
           ) : null}
           <span className="truncate text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted">

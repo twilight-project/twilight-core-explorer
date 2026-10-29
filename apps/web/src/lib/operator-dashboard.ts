@@ -182,9 +182,28 @@ export function totals(days: HistoryDay[]): HistoryTotals {
   };
 }
 
-/** The last `n` days (the history is oldest first). */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function dayToMs(day: string): number {
+  return Date.parse(`${day}T00:00:00Z`);
+}
+
+/** True when `day` (YYYY-MM-DD, UTC) is the current UTC date. */
+export function isToday(day: string, now: number = Date.now()): boolean {
+  return new Date(now).toISOString().slice(0, 10) === day;
+}
+
+/**
+ * The rows falling in the `n` calendar days ending at the newest row's day (history is
+ * oldest first). A day with no owed epoch has NO row, so slicing the last `n` rows would
+ * reach back over however many idle days it took to find them — on this chain, a slot that
+ * settles twice a week would call 15 weeks of rows "the last 30 days".
+ */
 export function lastDays(days: HistoryDay[], n: number): HistoryDay[] {
-  return days.slice(Math.max(0, days.length - n));
+  const newest = days[days.length - 1];
+  if (!newest) return [];
+  const start = dayToMs(newest.day) - (n - 1) * DAY_MS;
+  return days.filter((d) => dayToMs(d.day) >= start);
 }
 
 const CSV_COLUMNS: Array<[string, (d: HistoryDay) => string | number | null]> = [

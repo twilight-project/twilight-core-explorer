@@ -5,6 +5,7 @@
 import type { PrismaClient } from '@twilight-explorer/db';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 // §6.1–§6.3 in one statement per window set: owed epochs (entitlement > 0), settled (a
 // finalization exists), latency percentiles over settled epochs, paid vs kept vs entitlement.
@@ -256,16 +257,19 @@ export async function getPaidParticipants(
 export async function countPaidParticipants(
   prisma: PrismaClient,
   slotId: bigint,
-): Promise<{ all: bigint; recent: bigint }> {
-  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
-  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint }[]>`
+): Promise<{ all: bigint; recent: bigint; recent7: bigint }> {
+  const now = Date.now();
+  const cutoff = new Date(now - THIRTY_DAYS_MS);
+  const cutoff7 = new Date(now - SEVEN_DAYS_MS);
+  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint; recent7: bigint }[]>`
     SELECT count(DISTINCT p."recipient")::bigint AS "all",
-           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent"
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent",
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff7})::bigint AS "recent7"
     FROM "MiningSettlementPayout" p
     LEFT JOIN "Block" b ON b."height" = p."height"
     WHERE p."slotId" = ${slotId}
   `;
-  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n };
+  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n, recent7: row?.recent7 ?? 0n };
 }
 
 /** Newest feed epoch sample for a slot (any state) — carries the live enrolled count. */

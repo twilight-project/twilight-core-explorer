@@ -651,6 +651,29 @@ describe('draw route: attribution finality, cache and policy lookup', () => {
   });
 });
 
+describe('operator participants windows', () => {
+  it('counts distinct addresses paid in the last 7 days alongside 30d and all time', async () => {
+    const now = Date.now();
+    const ago = (n) => new Date(now - n * 24 * 60 * 60 * 1000);
+    const app = await build({
+      blocks: [block(10, { time: ago(2) }), block(20, { time: ago(2) }), block(30, { time: ago(20) })],
+      payouts: [
+        // twilight1aaa is paid twice inside the 7-day window: still ONE distinct address.
+        payout(1, 'twilight1aaa', 10, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1aaa', 20, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+        payout(3, 'twilight1bbb', 20, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+        // Older than 7 days, inside 30.
+        payout(4, 'twilight1ccc', 30, { slotId: 3n, epochNumber: 50n, amount: '100' }),
+      ],
+    });
+    const p = (await app.inject({ url: '/api/v1/operators/3/participants' })).json().data;
+    assert.equal(p.paid7, 2);
+    assert.equal(p.paid30, 3);
+    assert.equal(p.paidAll, 3);
+    await app.close();
+  });
+});
+
 describe('operator history', () => {
   it('buckets owed epochs by close day with paid, kept, miners and the attested enrolled count', async () => {
     const day1 = new Date('2026-06-26T05:00:00.000Z');

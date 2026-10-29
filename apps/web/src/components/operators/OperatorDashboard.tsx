@@ -18,6 +18,7 @@ import {
   METRICS,
   formatCompact,
   formatDay,
+  isToday,
   formatNumber,
   historyCsv,
   lastDays,
@@ -337,13 +338,17 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
   if (days.length === 0) return null;
 
   const all = totals(days);
-  const today = days[days.length - 1] as HistoryDay;
-  const todayPaid = utwltToTwlt(today.paid) ?? 0;
+  // The newest row the chain has, which is only "today" when an epoch closed today.
+  const latest = days[days.length - 1] as HistoryDay;
+  const latestIsToday = isToday(latest.day);
+  const latestPaid = utwltToTwlt(latest.paid) ?? 0;
   const last30 = totals(recent);
   const share30 = last30.paid + last30.kept > 0 ? (last30.paid / (last30.paid + last30.kept)) * 100 : null;
   const v = profile.data?.data.verdict ?? null;
   const p = participants.data?.data ?? null;
-  const last7Miners = lastDays(days, 7).reduce((a, d) => a + d.activeMiners, 0);
+  // Distinct addresses over the window, from the API. Summing the per-day distinct counts
+  // would count a miner once for every day it was paid.
+  const last7Miners = p?.paid7 ?? null;
   const latestEnrolled = [...days].reverse().find((d) => d.feed.avgEnrolled !== null);
 
   const keyMetrics: Array<{ label: string; value: string; hint: string; chip?: ReactNode }> = [
@@ -361,7 +366,8 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
     { label: 'Settlement time', value: v?.medianLatencyBlocks ? `${v.medianLatencyBlocks} blocks` : '—', hint: `Median blocks from epoch close to settlement.${v?.p90LatencyBlocks ? ` p90 ${v.p90LatencyBlocks}.` : ''}` },
   ];
 
-  const lastDay = formatDay(today.day, true);
+  const lastDay = formatDay(latest.day, true);
+  const latestDayShort = formatDay(latest.day);
 
   return (
     <section aria-label="Operator dashboard" className="flex flex-col gap-2">
@@ -379,10 +385,10 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
                 <span className="ml-1.5 text-base text-text-muted">TWLT</span>
               </span>
               <span className="font-mono text-sm text-text-muted">
-                <span className={todayPaid > 0 ? 'text-accent-green' : 'text-text-secondary'}>
-                  +{formatNumber(todayPaid)}
+                <span className={latestPaid > 0 ? 'text-accent-green' : 'text-text-secondary'}>
+                  +{formatNumber(latestPaid)}
                 </span>{' '}
-                today
+                {latestIsToday ? 'today' : latestDayShort}
               </span>
             </div>
           </div>
@@ -507,10 +513,14 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
 
       {/* Compact tiles */}
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <Tile title="Miners paid" value={`${last7Miners}`} sub="last 7d">
+        <Tile title="Miners paid" value={last7Miners === null ? '—' : `${last7Miners}`} sub="distinct, last 7d">
           <EChart option={minersTile} height={72} label="Miners paid per day, last 30 days" />
         </Tile>
-        <Tile title="Paid to miners" value={`${formatNumber(todayPaid)}`} sub="TWLT today">
+        <Tile
+          title="Paid to miners"
+          value={`${formatNumber(latestPaid)}`}
+          sub={latestIsToday ? 'TWLT today' : `TWLT on ${latestDayShort}`}
+        >
           <EChart option={paidTile} height={72} label="TWLT paid to miners per day, last 30 days" />
         </Tile>
         <Tile title="Share to miners" value={share30 === null ? '—' : `${share30.toFixed(1)}%`} sub="30d">

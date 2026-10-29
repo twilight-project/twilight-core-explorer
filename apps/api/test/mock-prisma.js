@@ -867,14 +867,16 @@ export class MockPrisma {
     // Distinct paid participants (all + 30d window): discriminated by the "recent" alias.
     if (sqlText.includes('AS "recent"')) {
       const slotId = values.find((v) => typeof v === 'bigint');
-      const cutoff = values.find((v) => v instanceof Date);
-      const all = new Set(); const recent = new Set();
+      const [cutoff, cutoff7] = values.filter((v) => v instanceof Date);
+      const all = new Set(); const recent = new Set(); const recent7 = new Set();
       for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
         all.add(x.recipient);
         const blk = this._blocks.find((b) => b.height === x.height);
-        if (blk?.time && cutoff && blk.time >= cutoff) recent.add(x.recipient);
+        if (!blk?.time) continue;
+        if (cutoff && blk.time >= cutoff) recent.add(x.recipient);
+        if (cutoff7 && blk.time >= cutoff7) recent7.add(x.recipient);
       }
-      return [{ all: BigInt(all.size), recent: BigInt(recent.size) }];
+      return [{ all: BigInt(all.size), recent: BigInt(recent.size), recent7: BigInt(recent7.size) }];
     }
 
     // Feed-epoch chain facts (phase 15 §6.5).

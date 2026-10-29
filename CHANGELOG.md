@@ -8,6 +8,33 @@ its release and commit at `GET /api/v1/status` (`data.build`).
 
 ## [Unreleased]
 
+### Added
+- `GET /api/v1/operators/{slotId}/history` — one row per UTC day for a slot: owed, paid and kept,
+  owed and settled epoch counts, payout lines, miners paid and first-time miners, median settlement
+  latency, and the operator's published enrolled/admitted counts (attested) for the same days. A day
+  is the **close day of the epochs it holds**, so every figure in a row describes the same epochs.
+- `paid7` on `GET /api/v1/operators/{slotId}/participants` — distinct addresses paid in the last 7
+  days, beside the existing `paid30` and `paidAll`. Both additions are backwards compatible.
+- Operator Overview carries a dashboard: a headline total, key metrics, a selectable daily history
+  chart (distinct miners, paid, owed, kept, miners paid, new miners, enrolled, latency), compact
+  tiles and a CSV export of the daily rows. It replaces the three-chart Trends panel, and loads on
+  demand so the rest of the page does not carry the chart code.
+
+### Fixed
+- Miners per day were counted against the day the **payout transaction** landed, while every other
+  figure in the row was counted against the day the **epoch closed**. Operators settle some hundreds
+  of blocks after a close, so payouts routinely cross midnight UTC and a day's miner count sat beside
+  another day's owed/paid/kept figures — and a payout landing on a day with no epoch close was
+  dropped from the series entirely.
+- An attested feed count that was not a plain integer aborted the history query, which hid that day's
+  chain figures. Only a non-negative integer of up to 9 digits is read; anything else is no value.
+- "Miners paid, last 7d" summed each day's distinct-miner count, so a miner paid on several days was
+  counted once per day.
+- The daily windows behind the dashboard counted rows rather than calendar days, so for a slot with
+  idle days "the last 30 days" could reach back over several months.
+- The headline delta and the paid tile were labelled "today" from the newest row even when no epoch
+  had closed today, dating stale figures to now.
+
 ## [1.0.0] — 2026-10-29
 
 **The first release.** Everything built so far: a Twilight-native explorer for **Twilight Core** (a

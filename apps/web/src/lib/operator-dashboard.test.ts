@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   historyCsv,
+  isToday,
   lastDays,
   payoutSharePct,
   seriesFor,
@@ -73,6 +74,28 @@ describe('operator dashboard data', () => {
     expect(payoutSharePct(DAYS[0] as HistoryDay)).toBe(57.7);
     expect(payoutSharePct(DAYS[1] as HistoryDay)).toBe(100);
     expect(payoutSharePct(DAYS[2] as HistoryDay)).toBeNull();
+  });
+
+  it('windows by calendar day, not by row count', () => {
+    // A slot that settles occasionally has no row for its idle days. Three rows spanning
+    // five weeks must not all count as "the last 7 days".
+    const sparse: HistoryDay[] = [
+      day({ day: '2026-09-05' }),
+      day({ day: '2026-10-01' }),
+      day({ day: '2026-10-08' }),
+      day({ day: '2026-10-09' }),
+    ];
+    expect(lastDays(sparse, 7).map((d) => d.day)).toEqual(['2026-10-08', '2026-10-09']);
+    expect(lastDays(sparse, 30).map((d) => d.day)).toEqual(['2026-10-01', '2026-10-08', '2026-10-09']);
+    // Inclusive of the anchor day: n = 1 is the newest day alone.
+    expect(lastDays(sparse, 1).map((d) => d.day)).toEqual(['2026-10-09']);
+    expect(lastDays([], 7)).toEqual([]);
+  });
+
+  it('only calls a day today when it is the current UTC date', () => {
+    const now = Date.parse('2026-10-09T04:00:00Z');
+    expect(isToday('2026-10-09', now)).toBe(true);
+    expect(isToday('2026-10-08', now)).toBe(false);
   });
 
   it('writes a CSV with a header and one row per day', () => {

@@ -14,7 +14,7 @@ import {
 } from '../dto/operators.js';
 import { ErrorResponse } from '../dto/common.js';
 import { notFound } from '../lib/errors.js';
-import { parseSlotId } from '../lib/slot-id.js';
+import { parseEpochId, parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
 import { verifyDraw, type WindowBlock } from '../lib/draw-verify.js';
 import {
@@ -437,7 +437,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const slotId = parseSlotId(request.params.slotId);
-      const epoch = parseSlotId(request.params.epoch);
+      const epoch = parseEpochId(request.params.epoch);
       const sample = await getDrawSample(app.prisma, slotId, epoch);
       if (!sample || sample.payloadJson == null) {
         return {
@@ -528,7 +528,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const slotId = parseSlotId(request.params.slotId);
-      const epoch = parseSlotId(request.params.epoch);
+      const epoch = parseEpochId(request.params.epoch);
       const sample = await getFeedEpochSample(app.prisma, slotId, epoch);
       if (!sample || sample.payloadJson == null) {
         return { data: { status: 'no_status' as const, reason: 'no operator status for this epoch' } };

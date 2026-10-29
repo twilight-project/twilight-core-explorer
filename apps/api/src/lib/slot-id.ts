@@ -12,3 +12,12 @@ export function parseSlotId(raw: string): bigint {
   }
   return slotId;
 }
+
+/** Parse a path :epoch with the same bounds; non-digit / out-of-int64 → 400 invalid_epoch. */
+export function parseEpochId(raw: string): bigint {
+  const epoch = parseUint64(raw);
+  if (epoch === null) {
+    throw badRequest('invalid_epoch', 'invalid epoch number');
+  }
+  return epoch;
+}

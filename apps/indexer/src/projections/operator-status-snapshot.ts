@@ -70,7 +70,38 @@ export type FetchOutcome =
 
 export type FetchJson = (url: string) => Promise<FetchOutcome>;
 
-/** Default fetcher: GET JSON with a timeout; every failure mode collapses to one taxonomy. */
+/** The most a feed response may be. Clock/epoch/draw payloads are a few KB; 2 MB is generous. */
+export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Read a response body as text with a hard byte cap. The cap guards the indexer's memory
+ * against a hostile or broken feed that streams fast within the timeout.
+ */
+async function readBodyCapped(res: Response, cap: number): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel();
+      throw new Error(`response_too_large: over ${cap} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * Default fetcher: GET JSON with a timeout; every failure mode collapses to one taxonomy.
+ * Redirects are NOT followed (redirect: 'manual') — the origin checks on jwks_uri and the
+ * draw-record template are string checks, so a 3xx from the operator's server must not be
+ * able to steer the fetch to another host (or an internal address). A redirect is recorded
+ * as a failed fetch, same as any other refusal.
+ */
 export function makeFetchJson(timeoutMs: number): FetchJson {
   return async (url: string): Promise<FetchOutcome> => {
     const controller = new AbortController();
@@ -78,12 +109,17 @@ export function makeFetchJson(timeoutMs: number): FetchJson {
     try {
       const res = await fetch(url, {
         signal: controller.signal,
+        redirect: 'manual',
         headers: { accept: 'application/json' },
       });
+      if (res.status >= 300 && res.status < 400) {
+        return { ok: false, status: res.status, error: `redirect refused (http ${res.status})` };
+      }
       if (!res.ok) {
         return { ok: false, status: res.status, error: `http ${res.status}` };
       }
-      const body: unknown = await res.json();
+      const text = await readBodyCapped(res, MAX_RESPONSE_BYTES);
+      const body: unknown = JSON.parse(text);
       return { ok: true, status: res.status, body };
     } catch (err) {
       return {
@@ -106,8 +142,14 @@ export function makeFetchHealth(timeoutMs: number): FetchJson {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, { signal: controller.signal, redirect: 'manual' });
+      if (res.status >= 300 && res.status < 400) {
+        return { ok: false, status: res.status, error: `redirect refused (http ${res.status})` };
+      }
       if (!res.ok) return { ok: false, status: res.status, error: `http ${res.status}` };
+      // The body is ignored (2xx is the whole signal), but drain it capped so a hostile
+      // endpoint cannot hold the connection with an endless stream.
+      await readBodyCapped(res, 64 * 1024).catch(() => '');
       return { ok: true, status: res.status, body: { up: true, httpStatus: res.status } };
     } catch (err) {
       return { ok: false, status: null, error: err instanceof Error ? err.message : String(err) };
@@ -444,32 +486,50 @@ export async function projectOperatorStatus(args: {
     })
   )?.payloadJson;
 
+  const drawSamples = await prisma.operatorStatusSample.findMany({
+    where: { slotId, kind: 'draw' },
+  });
+  const drawByEpoch = new Map(drawSamples.map((s) => [s.epochNumber?.toString() ?? '-', s]));
+
   let epochsFetched = 0;
   let epochsFailed = 0;
   for (const { epochNumber } of entitled) {
     if (epochsFetched + epochsFailed >= budget) break;
     const stored = byEpoch.get(epochNumber.toString()) ?? null;
     const state = epochStateOf(stored);
-    if (state === SETTLED_STATE) continue;
     const hasPayload = stored?.payloadJson != null;
     const chainSettled = finalized.has(epochNumber.toString());
-    if (hasPayload && !chainSettled) continue; // fresh enough; re-fetch only after settle
-    const result = await recordFetch(prisma, {
-      slotId,
-      kind: 'epoch',
-      epochNumber,
-      baseUrl,
-      now,
-      outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${epochNumber}`),
-    });
-    await recordFetch(prisma, {
-      slotId,
-      kind: 'draw',
-      epochNumber,
-      baseUrl,
-      now,
-      outcome: await fetchJson(drawUrlFrom(discoveryBody, baseUrl, slotId, epochNumber)),
-    });
+
+    // The DRAW retries on its own merits: as long as no draw payload is stored for an
+    // epoch whose epoch-sample exists, keep trying — a single 503 on the run right after
+    // settlement must not silence /draw/{epoch} forever. A stored draw payload is final.
+    const drawStored = drawByEpoch.get(epochNumber.toString())?.payloadJson != null;
+    const needEpoch = state !== SETTLED_STATE && (!hasPayload || chainSettled);
+    const needDraw = !drawStored && (hasPayload || needEpoch);
+    if (!needEpoch && !needDraw) continue;
+
+    let result: 'stored' | 'refused' | 'failed' | null = null;
+    if (needEpoch) {
+      result = await recordFetch(prisma, {
+        slotId,
+        kind: 'epoch',
+        epochNumber,
+        baseUrl,
+        now,
+        outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${epochNumber}`),
+      });
+    }
+    if (needDraw) {
+      const drawResult = await recordFetch(prisma, {
+        slotId,
+        kind: 'draw',
+        epochNumber,
+        baseUrl,
+        now,
+        outcome: await fetchJson(drawUrlFrom(discoveryBody, baseUrl, slotId, epochNumber)),
+      });
+      if (result === null) result = drawResult; // draw-only retries also consume budget
+    }
     if (result === 'stored') epochsFetched++;
     else epochsFailed++;
   }

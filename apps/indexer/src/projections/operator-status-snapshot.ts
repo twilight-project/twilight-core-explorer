@@ -185,11 +185,19 @@ const ALLOWED_KEYS = new Set([
  * exempt on the as_* kinds — every other forbidden key (recipient…, query_text, …) and the
  * bech32 value scan still apply.
  */
-const AS_METADATA_ALLOWED_KEY_RE = /^userinfo(_[a-z0-9_]+)?$/;
-const BECH32_RE = /twilight1[0-9a-z]{20,}/;
+export const AS_METADATA_ALLOWED_KEY_RE =
+  /^userinfo_(endpoint|(signing|encryption)_(alg|enc)_values_supported)$/;
+// Case-insensitive: bech32 is case-insensitive by spec, so TWILIGHT1… is the same address.
+const BECH32_RE = /twilight1[0-9a-z]{20,}/i;
 /** Nesting deeper than this counts as a violation: no feed payload is legitimately so deep,
  *  and recursing without a limit lets one body overflow the stack and kill the whole run. */
 const MAX_PAYLOAD_DEPTH = 32;
+/** A key is echoed into the (public) refusal path only when it is a plain identifier; any
+ *  other key — an address, an email, free text — is shown as `*` so a refusal never
+ *  republishes the data it refused. */
+const SAFE_PATH_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const pathKey = (key: string): string =>
+  SAFE_PATH_KEY_RE.test(key) && !BECH32_RE.test(key) ? key : '*';
 
 export function findPrivacyViolation(
   value: unknown,
@@ -211,16 +219,23 @@ export function findPrivacyViolation(
   }
   if (typeof value === 'object' && value !== null) {
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const keyPath = `${path}.${pathKey(key)}`;
+      if (BECH32_RE.test(key)) return `${keyPath}: bech32 address in key`;
       const exempt = opts.allowKey?.(key) === true;
       if (!exempt && !ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
-        return `${path}.${key}: forbidden key`;
+        return `${keyPath}: forbidden key`;
       }
-      const v = findPrivacyViolation(child, `${path}.${key}`, opts, depth + 1);
+      const v = findPrivacyViolation(child, keyPath, opts, depth + 1);
       if (v) return v;
     }
   }
   return null;
 }
+
+/** Stored refusal reasons are served publicly; keep them short. */
+const MAX_LAST_ERROR_CHARS = 300;
+const capError = (s: string): string =>
+  s.length > MAX_LAST_ERROR_CHARS ? `${s.slice(0, MAX_LAST_ERROR_CHARS - 1)}…` : s;
 
 // ---- sample persistence -----------------------------------------------------------------
 
@@ -266,36 +281,41 @@ async function recordFetch(
   };
 
   if (!args.outcome.ok) {
+    // Transport errors can quote the body (newer JSON.parse messages include an excerpt of
+    // the input), and lastError is served publicly: drop any bech32 address and cap length.
+    const lastError = capError(args.outcome.error.replace(new RegExp(BECH32_RE.source, 'gi'), '<address>'));
     await prisma.operatorStatusSample.upsert({
       where: { sampleKey: key },
-      create: { ...base, lastHttpStatus: args.outcome.status, lastError: args.outcome.error },
+      create: { ...base, lastHttpStatus: args.outcome.status, lastError },
       update: {
         baseUrl: args.baseUrl,
         lastAttemptAt: args.now,
         lastHttpStatus: args.outcome.status,
-        lastError: args.outcome.error,
+        lastError,
       },
     });
     return 'failed';
   }
 
-  // AS metadata/JWKS are standard OAuth/OIDC documents whose key NAMES legitimately match
-  // the participant-data patterns (userinfo_endpoint, …): the key rule is skipped for the
-  // as_* kinds, while the bech32 VALUE scan still applies to everything.
+  // AS metadata/JWKS are standard OAuth/OIDC documents in which a few standard key NAMES
+  // (userinfo_endpoint, userinfo_*_values_supported) collide with the participant-data
+  // patterns: exactly those are exempt on the as_* kinds. Every other key rule and the
+  // bech32 scan (keys and values) still apply to everything.
   const violation = findPrivacyViolation(
     args.outcome.body,
     '$',
     args.kind.startsWith('as_') ? { allowKey: (k) => AS_METADATA_ALLOWED_KEY_RE.test(k) } : {},
   );
   if (violation !== null) {
+    const lastError = capError(`privacy_refused: ${violation}`);
     await prisma.operatorStatusSample.upsert({
       where: { sampleKey: key },
-      create: { ...base, lastHttpStatus: args.outcome.status, lastError: `privacy_refused: ${violation}` },
+      create: { ...base, lastHttpStatus: args.outcome.status, lastError },
       update: {
         baseUrl: args.baseUrl,
         lastAttemptAt: args.now,
         lastHttpStatus: args.outcome.status,
-        lastError: `privacy_refused: ${violation}`,
+        lastError,
       },
     });
     return 'refused';
@@ -519,8 +539,9 @@ export async function projectOperatorStatus(args: {
   // Epoch samples and draw records are fetched in the same pass but on SEPARATE budgets.
   // The epoch cadence is unchanged (first sight, refresh after the chain settles, immutable
   // once SETTLEMENT_RECONCILED). A draw record is fetched only when discovery advertises
-  // one, retried on its own merits while no payload is stored — with a backoff, and a 404
-  // treated as "this epoch has no draw" rather than retried forever.
+  // one, retried on its own merits while no payload is stored — with a backoff. A 404 is
+  // treated as "this epoch has no draw" only once the epoch has settled on the feed (before
+  // that it just means "not drawn yet"), so it is neither retried forever nor given up early.
   const discoveryBody = (
     await prisma.operatorStatusSample.findUnique({
       where: { sampleKey: sampleKey(slotId, 'discovery', null) },
@@ -553,8 +574,18 @@ export async function projectOperatorStatus(args: {
 
     const drawRow = drawByEpoch.get(epochNumber.toString()) ?? null;
     const drawStored = drawRow?.payloadJson != null;
-    const drawTerminal = drawRow?.lastHttpStatus === 404; // no draw for this epoch, ever
     const lastDrawAttempt = drawRow?.lastAttemptAt?.getTime() ?? null;
+    // A 404 means "no published draw record for that epoch" — which the operator server
+    // also answers for every epoch it has not drawn YET (twilight-minis selection.go:
+    // "the ordinary state of every epoch until it is not"). The draw runs before settlement,
+    // so a 404 is only final when it was observed once the feed already reported this epoch
+    // SETTLEMENT_RECONCILED; before that it is retried like any other failure.
+    const feedSettledAt = state === SETTLED_STATE ? (stored?.fetchedAt?.getTime() ?? null) : null;
+    const drawTerminal =
+      drawRow?.lastHttpStatus === 404 &&
+      feedSettledAt !== null &&
+      lastDrawAttempt !== null &&
+      lastDrawAttempt >= feedSettledAt;
     const drawBackoffElapsed =
       lastDrawAttempt === null || now.getTime() - lastDrawAttempt >= DRAW_RETRY_BACKOFF_MS;
     const needDraw =

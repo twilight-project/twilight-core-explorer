@@ -3581,6 +3581,7 @@ export interface paths {
                                         ok: boolean | null;
                                         detail: string;
                                     }[];
+                                    caveats: string[];
                                 };
                             };
                         };

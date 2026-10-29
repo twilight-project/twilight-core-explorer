@@ -82,7 +82,7 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
             kind={verifyKind}
             title={
               verifyKind === 'verified'
-                ? 'The explorer re-ran the whole draw from chain data and every digest matches'
+                ? `The explorer re-ran the whole draw from chain data and every digest matches.${d.verification.caveats.length ? ' Not covered: ' + d.verification.caveats.join('; ') : ''}`
                 : verifyKind === 'mismatch'
                   ? 'A published figure contradicts the chain'
                   : "Published by the operator; some inputs weren't available to re-derive"
@@ -181,7 +181,10 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
             ))}
             <span className="font-mono text-[11px] leading-relaxed text-text-muted">
               Entrants are pseudonymous draw ids, never addresses (by contract). The winners
-              are the people paid above — which id is which address stays private.
+              are the people paid above
+              {winnerIds.size > 1
+                ? ' — which id is which address stays private.'
+                : ' — with a single winner, the id and the address correspond one-to-one.'}
             </span>
           </div>
         ) : null}
@@ -244,6 +247,11 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
                     {c.detail}
                   </span>
                 </div>
+              ))}
+              {d.verification.caveats.map((c) => (
+                <p key={c} className="pt-1 font-mono text-[11px] leading-relaxed text-accent-orange">
+                  not covered: {c}
+                </p>
               ))}
               <p className="pt-2 text-[12px] leading-relaxed text-text-muted">
                 The explorer re-runs the draw from its own indexed chain rows: the commitment

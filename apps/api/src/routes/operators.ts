@@ -16,7 +16,13 @@ import { ErrorResponse } from '../dto/common.js';
 import { notFound } from '../lib/errors.js';
 import { parseEpochId, parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
-import { verifyDraw, type WindowBlock } from '../lib/draw-verify.js';
+import {
+  MAX_WINDOW_BLOCKS,
+  toBoundedBig,
+  verifyDraw,
+  type DrawVerification,
+  type WindowBlock,
+} from '../lib/draw-verify.js';
 import {
   countPaidParticipants,
   getDrawSample,
@@ -37,6 +43,10 @@ import {
 // definitions; feed reads serve the stored operator-status samples verbatim inside an
 // envelope that names their provenance ('attested'), age and staleness. A slot with no
 // configured feed answers `{status:'no_status'}` with 200 — silence is a state, not an error.
+
+// Verdicts are deterministic per stored sample; cache them so a GET never re-hashes an
+// unchanged record (bounded, insertion-order eviction).
+const drawVerdictCache = new Map<string, DrawVerification>();
 
 const CLOCK_STALE_SECONDS = 180;
 // AS metadata/JWKS are sampled hourly; two missed rounds = stale.
@@ -446,64 +456,89 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
       }
       const tip = await app.prisma.block.aggregate({ _max: { height: true } });
 
-      // Independent re-derivation (selectionv1): anchor memo + window blocks come from OUR
-      // index, so a green result is the chain's confirmation, not the operator's word.
+      // Independent re-derivation (selectionv1). The record is hostile input: every bound
+      // it names goes through toBoundedBig, the block query is capped by the COMMITTED
+      // window length, and attribution rows are required to be final — a missing or
+      // non-final row degrades the beacon check to null (never a guess). Verdicts are
+      // cached per stored sample, so a request never re-hashes an unchanged record (m5).
       const record =
         typeof sample.payloadJson === 'object' && sample.payloadJson !== null
           ? (sample.payloadJson as Record<string, unknown>)
           : {};
-      const anchorRec =
-        typeof record['anchor'] === 'object' && record['anchor'] !== null
-          ? (record['anchor'] as Record<string, unknown>)
-          : {};
-      const beaconRec =
-        typeof record['beacon'] === 'object' && record['beacon'] !== null
-          ? (record['beacon'] as Record<string, unknown>)
+      const cacheKey = `${slotId}:${epoch}:${sample.fetchedAt?.getTime() ?? 0}`;
+      let verification = drawVerdictCache.get(cacheKey);
+      if (!verification) {
+        const anchorRec =
+          typeof record['anchor'] === 'object' && record['anchor'] !== null
+            ? (record['anchor'] as Record<string, unknown>)
+            : {};
+        const beaconRec =
+          typeof record['beacon'] === 'object' && record['beacon'] !== null
+            ? (record['beacon'] as Record<string, unknown>)
+            : null;
+        const anchorHash =
+          typeof anchorRec['tx_hash'] === 'string' && /^[0-9a-fA-F]{64}$/.test(anchorRec['tx_hash'])
+            ? anchorRec['tx_hash'].toUpperCase()
+            : null;
+        const cursor = await app.prisma.indexerCursor.findFirst({ orderBy: { updatedAt: 'desc' } });
+        const anchorTx = anchorHash
+          ? await app.prisma.explorerTransaction.findUnique({
+              where: { hash: anchorHash },
+              select: { memo: true, height: true },
+            })
           : null;
-      const anchorHash =
-        typeof anchorRec['tx_hash'] === 'string' ? anchorRec['tx_hash'].toUpperCase() : null;
-      const cursor = await app.prisma.indexerCursor.findFirst();
-      const anchorTx = anchorHash
-        ? await app.prisma.explorerTransaction.findUnique({
-            where: { hash: anchorHash },
-            select: { memo: true, height: true },
-          })
-        : null;
-      const start =
-        beaconRec && typeof beaconRec['start_height'] === 'number'
-          ? BigInt(beaconRec['start_height'])
-          : null;
-      const end =
-        beaconRec && typeof beaconRec['end_height'] === 'number'
-          ? BigInt(beaconRec['end_height'])
-          : null;
-      let windowBlocks: WindowBlock[] = [];
-      if (start !== null && end !== null && end >= start && end - start < 1000n) {
-        const [blocks, attributions] = await Promise.all([
-          app.prisma.block.findMany({
-            where: { height: { gte: start, lte: end } },
-            select: { height: true, hash: true },
-          }),
-          app.prisma.blockProposerAttribution.findMany({
-            where: { height: { gte: start, lte: end } },
-            select: { height: true, slotId: true },
-          }),
-        ]);
-        const slotByHeight = new Map(attributions.map((a) => [a.height, a.slotId]));
-        windowBlocks = blocks.map((b) => ({
-          height: b.height,
-          hash: b.hash,
-          proposerSlotId: slotByHeight.get(b.height) ?? null,
-        }));
+        const start = toBoundedBig(beaconRec?.['start_height']);
+        const end = toBoundedBig(beaconRec?.['end_height']);
+        let windowBlocks: WindowBlock[] = [];
+        if (start !== null && end !== null && end >= start && end - start < MAX_WINDOW_BLOCKS) {
+          const [blocks, attributions] = await Promise.all([
+            app.prisma.block.findMany({
+              where: { height: { gte: start, lte: end } },
+              select: { height: true, hash: true },
+            }),
+            app.prisma.blockProposerAttribution.findMany({
+              where: { height: { gte: start, lte: end } },
+              select: { height: true, slotId: true, attributionStatus: true },
+            }),
+          ]);
+          // Only FINAL attributions count; anything else is missing data (M2).
+          const slotByHeight = new Map(
+            attributions
+              .filter((x) => x.attributionStatus === 'attributed' && x.slotId !== null)
+              .map((x) => [x.height, x.slotId as bigint]),
+          );
+          windowBlocks = blocks.map((b) => ({
+            height: b.height,
+            hash: b.hash,
+            proposerSlotId: slotByHeight.get(b.height) ?? null,
+          }));
+        }
+        const policyRow = await app.prisma.coreSlotSelectionPolicyChange.findFirst({
+          where: { slotId },
+          orderBy: { height: 'desc' },
+          select: { selectionRateBps: true, maxSelectedParticipants: true },
+        });
+        verification = verifyDraw({
+          chainId: cursor?.chainId ?? '',
+          slotId,
+          epoch,
+          record,
+          anchor: anchorTx ? { memo: anchorTx.memo, height: anchorTx.height } : null,
+          blocks: windowBlocks,
+          chainPolicy: policyRow
+            ? {
+                selectionRateBps:
+                  policyRow.selectionRateBps === null ? null : BigInt(policyRow.selectionRateBps),
+                maxSelectedParticipants: policyRow.maxSelectedParticipants,
+              }
+            : null,
+        });
+        drawVerdictCache.set(cacheKey, verification);
+        if (drawVerdictCache.size > 500) {
+          const oldest = drawVerdictCache.keys().next().value;
+          if (oldest !== undefined) drawVerdictCache.delete(oldest);
+        }
       }
-      const verification = verifyDraw({
-        chainId: cursor?.chainId ?? '',
-        slotId,
-        epoch,
-        record,
-        anchor: anchorTx ? { memo: anchorTx.memo, height: anchorTx.height } : null,
-        blocks: windowBlocks,
-      });
 
       return {
         data: {

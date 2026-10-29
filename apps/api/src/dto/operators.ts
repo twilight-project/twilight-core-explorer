@@ -233,6 +233,8 @@ export const DrawVerification = Type.Object(
         detail: Type.String(),
       }),
     ),
+    /** Honest limits of a green verdict (e.g. the single-anchor rule is not yet checked). */
+    caveats: Type.Array(Type.String()),
   },
   { $id: 'DrawVerification' },
 );

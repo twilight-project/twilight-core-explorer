@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { verifyDraw, winnerCount } from '../dist/lib/draw-verify.js';
+import {
+  candidateSetHashV1,
+  selectedDrawIdsHashV1,
+  verifyDraw,
+  winnerCount,
+} from '../dist/lib/draw-verify.js';
+
+const libSync = () => ({ candidateSetHashV1, selectedDrawIdsHashV1 });
+const verifyDrawEmptySelected = () =>
+  selectedDrawIdsHashV1('twilight-testnet-1', 3n, 1657n, []).toString('hex');
 
 // GOLDEN VECTOR: the real slot-3 epoch-1657 draw record published by rewards.nyks.dev
 // (the first real draw on twilight-testnet-1) plus the 24 beacon-window blocks exactly as
@@ -11,8 +20,11 @@ const BLOCKS = [{"height": "597070", "hash": "D03CAAC083DBD9806AAF749BD919B2C71C
   height: BigInt(b.height), hash: b.hash,
   proposerSlotId: b.proposerSlotId === null ? null : BigInt(b.proposerSlotId),
 }));
+// n3: the memo below is the EXACT string carried by tx 1f638f34… on twilight-testnet-1
+// (block 597022) — taken from the chain, not rebuilt from the record, so this also proves
+// the strict drawanchor.Decode-compatible parsing accepts the real producer's bytes.
 const ANCHOR = {
-  memo: JSON.stringify({ v: 1, slot: 3, epoch: 1657, set: RECORD.candidate_set_hash, params: RECORD.anchor.committed_params_hash }),
+  memo: '{"v":1,"slot":3,"epoch":1657,"set":"9539cac0508da4c9e83079053cadd2f88392724c44856351048f8a41f987926f","params":"36c8ee0e661da9a90194bbb105c14e644d717ef83831c1b7fa3c8b5402e1e89c"}',
   height: BigInt(RECORD.anchor.confirmed_height),
 };
 const INPUT = { chainId: 'twilight-testnet-1', slotId: 3n, epoch: 1657n, record: RECORD, anchor: ANCHOR, blocks: BLOCKS };
@@ -33,11 +45,11 @@ describe('draw verification (selectionv1 port)', () => {
     assert.equal(v.checks.find((c) => c.name === 'winners_redrawn').ok, false);
   });
 
-  it('a tampered candidate list breaks the set hash AND the anchor commitment', () => {
+  it('a tampered candidate list is rejected as non-canonical: mismatch', () => {
     const forged = JSON.parse(JSON.stringify(RECORD));
-    forged.candidates = [...forged.candidates].reverse();
+    forged.candidates = [...forged.candidates].reverse(); // unsorted = non-canonical
     const v = verifyDraw({ ...INPUT, record: forged });
-    assert.equal(v.checks.find((c) => c.name === 'candidate_set_hash').ok, false);
+    assert.equal(v.checks.find((c) => c.name === 'candidates_canonical').ok, false);
     assert.equal(v.result, 'mismatch');
   });
 
@@ -53,5 +65,129 @@ describe('draw verification (selectionv1 port)', () => {
     assert.equal(winnerCount(2n, 2500n, 10n, 64n), 1n); // floor(C/2) cap
     assert.equal(winnerCount(8n, 2500n, 10n, 64n), 2n);
     assert.equal(winnerCount(100n, 2500n, 10n, 64n), 10n); // M cap
+  });
+});
+
+// n4: every outcome path + the adversarial probes from the #93 review (B1/B2/M1/M2/M3/M4).
+describe('draw verification — outcome re-derivation and forgeries', () => {
+  const forge = (over) => ({ ...INPUT, record: { ...JSON.parse(JSON.stringify(RECORD)), ...over } });
+  const check = (v, name) => v.checks.find((c) => c.name === name);
+
+  it('B1: NO_VALID_BEACON claimed over a VALID window is a mismatch', () => {
+    const v = verifyDraw(forge({ outcome: 'NO_VALID_BEACON', winners: [], k: 1,
+      beacon: { ...RECORD.beacon, admissible: false, hash: null } }));
+    assert.equal(v.result, 'mismatch');
+    // the beacon recomputation itself contradicts the record (we find it admissible)
+    assert.equal(check(v, 'beacon_recomputed').ok, false);
+  });
+
+  it('B1: beacon stripped to null with two candidates is a mismatch', () => {
+    const v = verifyDraw(forge({ outcome: 'NO_VALID_BEACON', winners: [], beacon: null }));
+    assert.equal(v.result, 'mismatch');
+    assert.equal(check(v, 'beacon_recomputed').ok, false);
+  });
+
+  it('B1: an unknown outcome with forged winners is a mismatch', () => {
+    const v = verifyDraw(forge({ outcome: 'garbage' }));
+    assert.equal(v.result, 'mismatch');
+    assert.equal(check(v, 'outcome_rederived').ok, false);
+  });
+
+  it('B1: SUCCESS published over an INADMISSIBLE window is a mismatch', () => {
+    // all 24 window blocks proposed by one external slot -> distinct=1 < threshold 3
+    const monoBlocks = BLOCKS.map((b) => ({ ...b, proposerSlotId: 1n }));
+    const v = verifyDraw({ ...forge({}), blocks: monoBlocks });
+    assert.equal(v.result, 'mismatch');
+    assert.equal(check(v, 'outcome_rederived').ok, false); // expected NO_VALID_BEACON
+  });
+
+  it('M1: an HONEST NO_VALID_BEACON (null hash, true counts) verifies', () => {
+    const monoBlocks = BLOCKS.map((b) => ({ ...b, proposerSlotId: b.proposerSlotId === 3n ? 3n : 1n }));
+    const usable = monoBlocks.filter((b) => b.proposerSlotId !== 3n).length;
+    const v = verifyDraw({
+      ...forge({
+        outcome: 'NO_VALID_BEACON', winners: [], k: 1,
+        selected_draw_ids_hash: verifyDrawEmptySelected(),
+        beacon: { ...RECORD.beacon, admissible: false, hash: null,
+          usable_blocks: usable, distinct_external_proposers: 1,
+          excluded_target_blocks: 24 - usable, unattributable_blocks: 0 },
+      }),
+      blocks: monoBlocks,
+    });
+    assert.equal(v.result, 'verified', JSON.stringify(v.checks));
+  });
+
+  it('B2: an absurd window bound is rejected fast, without iterating it', () => {
+    const t0 = Date.now();
+    const v = verifyDraw(forge({ beacon: { ...RECORD.beacon, end_height: '99999999999999999999' } }));
+    const ms = Date.now() - t0;
+    assert.equal(check(v, 'beacon_window_placement').ok, false);
+    assert.equal(v.result, 'mismatch');
+    assert.ok(ms < 1000, `took ${ms}ms`);
+  });
+
+  it('M2: missing proposer attribution degrades to unverifiable, never verified', () => {
+    const unattributed = BLOCKS.map((b) => ({ ...b, proposerSlotId: null }));
+    const v = verifyDraw({ ...forge({}), blocks: unattributed });
+    assert.equal(v.result, 'unverifiable');
+    assert.equal(check(v, 'beacon_recomputed').ok, null);
+  });
+
+  it('M3: duplicate, all-zero and uppercase candidate ids are non-canonical', () => {
+    for (const cands of [
+      [RECORD.candidates[0], RECORD.candidates[0]],
+      ['0'.repeat(64)],
+      [RECORD.candidates[0].toUpperCase()],
+    ]) {
+      const v = verifyDraw(forge({ candidates: cands }));
+      assert.equal(check(v, 'candidates_canonical').ok, false, JSON.stringify(cands[0]).slice(0, 20));
+      assert.equal(v.result, 'mismatch');
+    }
+  });
+
+  it('M4: parameters that contradict the indexed chain policy are a mismatch', () => {
+    const v = verifyDraw({ ...forge({}), chainPolicy: { selectionRateBps: 1000n, maxSelectedParticipants: 10n } });
+    assert.equal(check(v, 'parameters_match_chain_policy').ok, false);
+    assert.equal(v.result, 'mismatch');
+    const ok = verifyDraw({ ...forge({}), chainPolicy: { selectionRateBps: 2500n, maxSelectedParticipants: 10n } });
+    assert.equal(check(ok, 'parameters_match_chain_policy').ok, true);
+    assert.equal(ok.result, 'verified');
+  });
+
+  it('honest NO_CANDIDATES verifies, with the empty-winners digest checked', () => {
+    const { candidateSetHashV1, selectedDrawIdsHashV1 } = libSync();
+    const setHash = candidateSetHashV1('twilight-testnet-1', 3n, 1657n, []).toString('hex');
+    const memo = `{"v":1,"slot":3,"epoch":1657,"set":"${setHash}","params":"${RECORD.anchor.committed_params_hash}"}`;
+    const v = verifyDraw({
+      ...forge({
+        outcome: 'NO_CANDIDATES', candidates: [], winners: null, k: 0, beacon: null,
+        candidate_set_hash: setHash,
+        selected_draw_ids_hash: selectedDrawIdsHashV1('twilight-testnet-1', 3n, 1657n, []).toString('hex'),
+        anchor: { ...RECORD.anchor, committed_set_hash: setHash },
+      }),
+      anchor: { memo, height: BigInt(RECORD.anchor.confirmed_height) },
+      blocks: [],
+    });
+    assert.equal(v.result, 'verified', JSON.stringify(v.checks));
+    assert.equal(check(v, 'winners_redrawn').ok, true);
+    assert.equal(check(v, 'selected_draw_ids_hash').ok, true);
+  });
+
+  it('C=1 wins without a beacon', () => {
+    const { candidateSetHashV1, selectedDrawIdsHashV1 } = libSync();
+    const only = RECORD.candidates[0];
+    const setHash = candidateSetHashV1('twilight-testnet-1', 3n, 1657n, [Buffer.from(only, 'hex')]).toString('hex');
+    const memo = `{"v":1,"slot":3,"epoch":1657,"set":"${setHash}","params":"${RECORD.anchor.committed_params_hash}"}`;
+    const v = verifyDraw({
+      ...forge({
+        outcome: 'SUCCESS', candidates: [only], winners: [only], k: 1, beacon: null,
+        candidate_set_hash: setHash,
+        selected_draw_ids_hash: selectedDrawIdsHashV1('twilight-testnet-1', 3n, 1657n, [Buffer.from(only, 'hex')]).toString('hex'),
+        anchor: { ...RECORD.anchor, committed_set_hash: setHash },
+      }),
+      anchor: { memo, height: BigInt(RECORD.anchor.confirmed_height) },
+      blocks: [],
+    });
+    assert.equal(v.result, 'verified', JSON.stringify(v.checks));
   });
 });

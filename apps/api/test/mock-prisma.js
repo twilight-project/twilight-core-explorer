@@ -50,6 +50,15 @@ export class MockPrisma {
     this._failedMigrations = data.failedMigrations ?? 0;
 
     this.indexerCursor = { findFirst: async () => this._indexerCursor };
+    this._selectionPolicyChanges = data.selectionPolicyChanges ?? [];
+    this.coreSlotSelectionPolicyChange = {
+      findFirst: async (args) => {
+        const rows = this._selectionPolicyChanges
+          .filter((r) => args?.where?.slotId === undefined || r.slotId === args.where.slotId)
+          .sort((a, b) => (a.height > b.height ? -1 : 1));
+        return rows[0] ?? null;
+      },
+    };
 
     this.operatorStatusSample = {
       findUnique: async ({ where }) =>

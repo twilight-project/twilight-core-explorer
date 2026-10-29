@@ -279,3 +279,72 @@ describe('auth-server health probe', () => {
     assert.equal(after.payloadJson.up, true); // last good survives
   });
 });
+
+describe('fetcher hardening (M5/M6)', () => {
+
+  it('M6: a redirect is refused, never followed', async () => {
+    const { createServer } = await import('node:http');
+    const srv = createServer((req, res) => {
+      if (req.url === '/hop') { res.writeHead(302, { location: '/target' }); res.end(); }
+      else { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"leak":true}'); }
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const { makeFetchJson } = await import('../../dist/projections/operator-status-snapshot.js');
+    const fetchJson = makeFetchJson(5000);
+    const out = await fetchJson(`http://127.0.0.1:${port}/hop`);
+    srv.close();
+    assert.equal(out.ok, false);
+    assert.match(out.error, /redirect refused/);
+  });
+
+  it('M6: an oversized body is aborted at the byte cap', async () => {
+    const { createServer } = await import('node:http');
+    const srv = createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      const chunk = 'x'.repeat(64 * 1024);
+      // stream ~4 MB fast (cap is 2 MB)
+      for (let i = 0; i < 64; i++) res.write(chunk);
+      res.end();
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const { makeFetchJson } = await import('../../dist/projections/operator-status-snapshot.js');
+    const fetchJson = makeFetchJson(10000);
+    const out = await fetchJson(`http://127.0.0.1:${port}/big`);
+    srv.close();
+    assert.equal(out.ok, false);
+    assert.match(out.error, /response_too_large/);
+  });
+
+  it('M5: a failed draw fetch after settlement is retried on the next run', async () => {
+    const prisma = mockPrisma({ entitled: [61], finalized: [61] });
+    let drawCalls = 0;
+    let failDraw = true;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) {
+        drawCalls++;
+        return failDraw
+          ? { ok: false, status: 503, error: 'http 503' }
+          : { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+      }
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 61 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    // Run 1: epoch stored (settled), draw 503s.
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(drawCalls, 1);
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson, undefined);
+    // Run 2: the settled epoch is skipped, but the DRAW retries and stores.
+    failDraw = false;
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(drawCalls, 2);
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson.outcome, 'NO_CANDIDATES');
+    // Run 3: stored draw is final — no further fetch.
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(drawCalls, 2);
+  });
+});

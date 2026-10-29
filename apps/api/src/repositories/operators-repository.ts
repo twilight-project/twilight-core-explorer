@@ -248,7 +248,7 @@ export async function getPaidParticipants(
     FROM "MiningSettlementPayout"
     WHERE "slotId" = ${slotId}
     GROUP BY "recipient"
-    ORDER BY sum("amount"::numeric) DESC
+    ORDER BY sum("amount"::numeric) DESC, "recipient" ASC
     LIMIT ${limit}
   `;
 }

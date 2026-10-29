@@ -373,3 +373,49 @@ describe('operator participants', () => {
     await app.close();
   });
 });
+
+describe('param validation on operator routes (m3)', () => {
+  const BAD_SLOT = ['abc', '-1', '9'.repeat(40), '1.5'];
+  it('malformed or oversized slot ids answer 400 invalid_slot_id', async () => {
+    const app = await build({});
+    for (const bad of BAD_SLOT) {
+      for (const path of [`/api/v1/operators/${bad}/participants`, `/api/v1/operators/${bad}/auth`, `/api/v1/operators/${bad}/draw/1`]) {
+        const res = await app.inject({ url: path });
+        assert.equal(res.statusCode, 400, path);
+        assert.equal(res.json().error.code, 'invalid_slot_id', path);
+      }
+    }
+    await app.close();
+  });
+
+  it('malformed or oversized epochs answer 400 invalid_epoch', async () => {
+    const app = await build({});
+    for (const bad of BAD_SLOT) {
+      for (const path of [`/api/v1/operators/3/draw/${bad}`, `/api/v1/operators/3/status/epochs/${bad}`]) {
+        const res = await app.inject({ url: path });
+        assert.equal(res.statusCode, 400, path);
+        assert.equal(res.json().error.code, 'invalid_epoch', path);
+      }
+    }
+    await app.close();
+  });
+});
+
+describe('30-day window close time (n1 regression)', () => {
+  it('epochs with NULL RewardEpochProjection.blockTime still count via Block.time', async () => {
+    const now = new Date();
+    const app = await build({
+      coreSlots: [coreSlot(3, { settlementAddress: null })],
+      blocks: [{ ...block(100), time: new Date(now.getTime() - 60_000) }],
+      epochs: [{ ...epoch(61), height: 100n, blockTime: null }],
+      entitlements: [entitlement(1, 3, 61)],
+      finalizations: [settlementFinalization(3, 61, 120)],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/profile' });
+    assert.equal(res.statusCode, 200, res.body.slice(0, 200));
+    const d = res.json().data;
+    assert.equal(d.verdict.owed30, 1); // close_time coalesced from the Block row
+    assert.equal(d.verdict.owedAll, 1);
+    await app.close();
+  });
+});

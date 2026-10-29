@@ -658,7 +658,11 @@ export class MockPrisma {
           (x) => x.slotId === ent.slotId && x.epochNumber === ent.epochNumber,
         );
         const cutoff = values.find((v) => v instanceof Date) ?? new Date(0);
-        const in30 = epochRow?.blockTime ? epochRow.blockTime >= cutoff : false;
+        // Mirrors the SQL's coalesce(re."blockTime", b."time"): the projector never writes
+        // blockTime today, so close time falls back to the Block at the close height.
+        const closeBlock = epochRow ? this._blocks.find((b) => b.height === epochRow.height) : null;
+        const closeTime = epochRow?.blockTime ?? closeBlock?.time ?? null;
+        const in30 = closeTime ? closeTime >= cutoff : false;
         const g = groups.get(ent.slotId) ?? {
           slotId: ent.slotId, owedAll: 0n, settledAll: 0n, owed30: 0n, settled30: 0n,
           lats: [], paid30: 0n, paidAll: 0n, kept30: 0n, keptAll: 0n,
@@ -730,7 +734,7 @@ export class MockPrisma {
         byAddr.set(x.recipient, e);
       }
       return [...byAddr.entries()]
-        .sort((a, b) => (a[1].total > b[1].total ? -1 : 1))
+        .sort((a, b) => (a[1].total === b[1].total ? (a[0] < b[0] ? -1 : 1) : a[1].total > b[1].total ? -1 : 1))
         .map(([recipient, e]) => ({
           recipient,
           epochsPaid: BigInt(e.epochs.size),

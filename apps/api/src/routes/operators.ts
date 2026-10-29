@@ -556,6 +556,21 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
               select: { policyVersion: true, selectionRateBps: true, maxSelectedParticipants: true },
             })
           : null;
+        // Policy rows come from the structural projection, which runs separately from tx
+        // ingestion: until it has processed the anchor height, a missing or older row says
+        // nothing, so the comparison waits (unverifiable) instead of accusing an honest
+        // record that names a policy the projection has not reached yet.
+        const structural =
+          anchorTx && cursor?.chainId
+            ? await app.prisma.projectionCursor.findUnique({
+                where: {
+                  projectionName_chainId: { projectionName: 'coreslot_structural_v1', chainId: cursor.chainId },
+                },
+                select: { lastProjectedHeight: true },
+              })
+            : null;
+        const policyProjectionBehind =
+          anchorTx !== null && (structural === null || structural.lastProjectedHeight < anchorTx.height);
         verification = verifyDraw({
           chainId: cursor?.chainId ?? '',
           slotId,
@@ -571,6 +586,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
                 maxSelectedParticipants: policyRow.maxSelectedParticipants,
               }
             : null,
+          policyProjectionBehind,
         });
         const cache = drawVerdictCache(app);
         cache.delete(cacheKey); // re-insert at the end so eviction stays oldest-first

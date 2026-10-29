@@ -441,6 +441,9 @@ export function verifyDraw(input: {
   /** The indexed on-chain selection policy in force at the anchor height, when available
    *  (M4). The caller must choose it by anchor height, never by the record's version. */
   chainPolicy?: ChainPolicy | null;
+  /** True when the policy projection has not yet processed the anchor height, so the
+   *  absence (or age) of a row says nothing yet. */
+  policyProjectionBehind?: boolean;
 }): DrawVerification {
   const { chainId, slotId, epoch } = input;
   const checks: DrawCheck[] = [];
@@ -472,8 +475,21 @@ export function verifyDraw(input: {
   if (r['chain_id'] !== chainId) shapeProblems.push(`chain_id is not ${chainId}`);
   if (toBoundedBig(r['slot_id']) !== slotId) shapeProblems.push(`slot_id is not ${slotId}`);
   if (toBoundedBig(r['target_epoch']) !== epoch) shapeProblems.push(`target_epoch is not ${epoch}`);
-  if (Array.isArray(r['winners']) && (r['winners'] as unknown[]).some((w) => typeof w !== 'string')) {
+  // Go encodes an empty winners list as null (`json:"winners"`, no omitempty), so null is
+  // the honest no-winner shape; anything else that is not an array is malformed.
+  if (r['winners'] !== null && !Array.isArray(r['winners'])) shapeProblems.push('winners is not an array');
+  else if (Array.isArray(r['winners']) && (r['winners'] as unknown[]).some((w) => typeof w !== 'string')) {
     shapeProblems.push('winners contains a non-string entry');
+  }
+  // Every published digest must be present as a string (Go checkShape) — checked here, up
+  // front, so a malformed record is refused before any expensive re-derivation.
+  for (const [label, value] of [
+    ['candidate_set_hash', r['candidate_set_hash']],
+    ['selected_draw_ids_hash', r['selected_draw_ids_hash']],
+    ['anchor.committed_set_hash', anchorRec['committed_set_hash']],
+    ['anchor.committed_params_hash', anchorRec['committed_params_hash']],
+  ] as const) {
+    if (typeof value !== 'string') shapeProblems.push(`${label} is missing or not a string`);
   }
   push(
     'record_shape',
@@ -506,7 +522,15 @@ export function verifyDraw(input: {
     caveats.push(
       'window, offset, thresholds and caps are not compared with the chain (only the selection rate and max-selected are)',
     );
-    if (!pol || (pol.selectionRateBps === null && pol.maxSelectedParticipants === null)) {
+    if (input.policyProjectionBehind) {
+      // Comparing with an index that has not caught up would publish a false
+      // "contradicts the chain" for an honest record naming a newer policy: not yet.
+      push(
+        'parameters_match_chain_policy',
+        null,
+        'the selection-policy projection has not reached the anchor height yet; compared once it has',
+      );
+    } else if (!pol || (pol.selectionRateBps === null && pol.maxSelectedParticipants === null)) {
       caveats.push('on-chain selection policy not indexed for this slot — the committed parameters could not be compared with the chain');
     } else {
       // MAJ-1: the row is the one in force AT THE ANCHOR, chosen by the chain-indexed

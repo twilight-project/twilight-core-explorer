@@ -529,6 +529,8 @@ describe('draw route: attribution finality, cache and policy lookup', () => {
   };
   // The record's anchor tx, indexed at the record's confirmed height.
   const ANCHOR_TX = { hash: 'AB'.repeat(32), height: 597022n, memo: null };
+  // The structural projection (policy rows) has processed past the anchor.
+  const STRUCTURAL = [{ projectionName: 'coreslot_structural_v1', chainId: 'twilight-testnet-1', lastProjectedHeight: 700000n, status: 'idle', updatedAt: new Date(), error: null }];
   const policyCheck = (d) => d.verification.checks.find((c) => c.name === 'parameters_match_chain_policy');
   const withPolicy = (over) => ({ ...RECORD, parameters: { ...RECORD.parameters, ...over } });
   const pol = (v, h, rate, max = 10n) =>
@@ -576,7 +578,7 @@ describe('draw route: attribution finality, cache and policy lookup', () => {
 
   it('MAJ-1: the policy row is the one in force at the anchor height (not the newest row)', async () => {
     const app = await build({
-      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX],
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
       operatorStatusSamples: [drawSample(RECORD)],
       selectionPolicyChanges: [pol(1, 500000, 2500), pol(2, 900000, 1000, 5n)],
     });
@@ -589,7 +591,7 @@ describe('draw route: attribution finality, cache and policy lookup', () => {
   it('NEW-B1: a record naming a superseded version is compared with the row actually in force', async () => {
     // v2 (2500) was replaced by v3 (1000) before the anchor; the record still names v2
     const app = await build({
-      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX],
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
       operatorStatusSamples: [drawSample(withPolicy({ selection_policy_version: 2, selection_rate_bps: 2500 }))],
       selectionPolicyChanges: [pol(2, 500000, 2500), pol(3, 590000, 1000)],
     });
@@ -602,7 +604,7 @@ describe('draw route: attribution finality, cache and policy lookup', () => {
   it('NEW-B1: a record naming a version created after the anchor does not verify', async () => {
     // v2 (1000) only exists from height 700000; the record (anchored at 597022) claims it
     const app = await build({
-      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX],
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
       operatorStatusSamples: [drawSample(withPolicy({ selection_policy_version: 2, selection_rate_bps: 1000 }))],
       selectionPolicyChanges: [pol(1, 500000, 2500), pol(2, 700000, 1000)],
     });
@@ -613,12 +615,26 @@ describe('draw route: attribution finality, cache and policy lookup', () => {
 
   it('a policy tx AT the anchor height is not yet in force (effective from H+1)', async () => {
     const app = await build({
-      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX],
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
       operatorStatusSamples: [drawSample(RECORD)],
       selectionPolicyChanges: [pol(1, 500000, 2500), pol(2, 597022, 1000)],
     });
     const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
     assert.equal(p.ok, true, JSON.stringify(p));
+    await app.close();
+  });
+
+  it('while the policy projection is behind the anchor, the comparison waits (no false accusation)', async () => {
+    // an honest record names v3, whose row the structural projection has not reached yet
+    const behind = [{ ...STRUCTURAL[0], lastProjectedHeight: 590000n }];
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: behind,
+      operatorStatusSamples: [drawSample(withPolicy({ selection_policy_version: 3 }))],
+      selectionPolicyChanges: [pol(2, 500000, 2500)],
+    });
+    const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
+    assert.equal(p.ok, null, JSON.stringify(p));
+    assert.match(p.detail, /has not reached the anchor height/);
     await app.close();
   });
 

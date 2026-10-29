@@ -73,6 +73,14 @@ export class MockPrisma {
 
     this.projectionCursor = {
       findMany: async () => [...this._projectionCursors],
+      findUnique: async ({ where }) => {
+        const k = where.projectionName_chainId;
+        return (
+          this._projectionCursors.find(
+            (c) => c.projectionName === k.projectionName && c.chainId === k.chainId,
+          ) ?? null
+        );
+      },
     };
 
     this.projectionFailure = {

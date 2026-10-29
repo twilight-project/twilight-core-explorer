@@ -390,3 +390,25 @@ describe('round-3 fixes: explorer limits, malformed digests, relaxation, policy 
     assert.match(p.detail, /record names v1, rate 2500 bps, max 10/);
   });
 });
+
+describe('round-3 follow-up: digest and winners shape are checked up front', () => {
+  const recordWith = (mutate) => {
+    const r = JSON.parse(JSON.stringify(RECORD));
+    mutate(r);
+    return { ...INPUT, record: r };
+  };
+  it('a non-string selected_draw_ids_hash is refused at the shape check, before re-derivation', () => {
+    const v = verifyDraw(recordWith((r) => { r.selected_draw_ids_hash = null; }));
+    assert.equal(v.result, 'mismatch');
+    assert.equal(v.checks.find((c) => c.name === 'record_shape').ok, false);
+    assert.equal(v.checks.find((c) => c.name === 'winners_redrawn'), undefined);
+  });
+  it('winners that is not an array is malformed', () => {
+    const v = verifyDraw(recordWith((r) => { r.winners = 'x'; }));
+    assert.equal(v.result, 'mismatch');
+    assert.match(v.checks.find((c) => c.name === 'record_shape').detail, /winners is not an array/);
+  });
+  it('the golden record still verifies', () => {
+    assert.equal(verifyDraw(INPUT).result, 'verified');
+  });
+});

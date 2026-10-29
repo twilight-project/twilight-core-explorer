@@ -721,4 +721,50 @@ describe('operator history', () => {
     assert.deepEqual(d.days, []);
     await app.close();
   });
+
+  it('miners count against the epoch close day even when the payout tx lands the next day', async () => {
+    // Epoch 70 closes just before midnight; the operator settles ~40 minutes later, so the
+    // payout block falls on the following UTC day. The miner belongs to the close day, with
+    // the owed/paid figures for the epoch it was paid for.
+    const close = new Date('2026-07-01T23:50:00.000Z');
+    const settle = new Date('2026-07-02T00:30:00.000Z');
+    const app = await build({
+      blocks: [block(400, { time: close }), block(560, { time: settle })],
+      epochs: [epoch(70, { height: 400n, blockTime: close })],
+      entitlements: [entitlement(1, 3n, 70, { entitlementAmount: '500' })],
+      finalizations: [settlementFinalization(3n, 70, 560, { releasedRemainder: '0' })],
+      payouts: [payout(1, 'twilight1ccc', 560, { slotId: 3n, epochNumber: 70n, amount: '500' })],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/history' })).json().data;
+    assert.equal(d.days.length, 1, 'one day, not one for the close and one for the payout');
+    const [only] = d.days;
+    assert.equal(only.day, '2026-07-01');
+    assert.equal(only.paid, '500');
+    assert.equal(only.activeMiners, 1);
+    assert.equal(only.newMiners, 1);
+    await app.close();
+  });
+});
+
+describe('operator participants windows', () => {
+  it('counts distinct addresses paid in the last 7 days alongside 30d and all time', async () => {
+    const now = Date.now();
+    const d = (n) => new Date(now - n * 24 * 60 * 60 * 1000);
+    const app = await build({
+      blocks: [block(10, { time: d(2) }), block(20, { time: d(2) }), block(30, { time: d(20) })],
+      payouts: [
+        // twilight1aaa is paid twice inside the 7-day window: still ONE distinct address.
+        payout(1, 'twilight1aaa', 10, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1aaa', 20, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+        payout(3, 'twilight1bbb', 20, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+        // Older than 7 days, inside 30.
+        payout(4, 'twilight1ccc', 30, { slotId: 3n, epochNumber: 50n, amount: '100' }),
+      ],
+    });
+    const p = (await app.inject({ url: '/api/v1/operators/3/participants' })).json().data;
+    assert.equal(p.paid7, 2);
+    assert.equal(p.paid30, 3);
+    assert.equal(p.paidAll, 3);
+    await app.close();
+  });
 });

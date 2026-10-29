@@ -432,6 +432,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
         data: {
           paidAll: Number(counts.all),
           paid30: Number(counts.recent),
+          paid7: Number(counts.recent7),
           denom: 'utwlt',
           provenance: 'chain' as const,
           enrolled:

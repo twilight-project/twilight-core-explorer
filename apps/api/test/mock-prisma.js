@@ -668,16 +668,21 @@ export class MockPrisma {
         });
     }
 
-    // getOperatorMinersDays: distinct recipients per settlement day and first-time ones.
+    // getOperatorMinersDays: distinct recipients per EPOCH CLOSE day and first-time ones.
     if (sqlText.includes('AS "newMiners"')) {
       const slotId = values[0];
       const dayOf = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      // epoch -> close day, from RewardEpochProjection.blockTime or the Block at its height.
+      const closeDay = new Map();
+      for (const e of this._epochs) {
+        const t = e.blockTime ?? this._blocks.find((bl) => bl.height === e.height)?.time ?? null;
+        if (t) closeDay.set(e.epochNumber.toString(), dayOf(t));
+      }
       const seen = new Map(); // `${recipient}|${dayMs}`
       for (const x of this._payouts) {
         if (x.slotId !== slotId) continue;
-        const b = this._blocks.find((bl) => bl.height === x.height);
-        if (!b) continue;
-        const day = dayOf(b.time);
+        const day = closeDay.get(x.epochNumber?.toString());
+        if (!day) continue;
         seen.set(`${x.recipient}|${day.getTime()}`, { recipient: x.recipient, day });
       }
       const first = new Map();
@@ -860,17 +865,20 @@ export class MockPrisma {
         }));
     }
 
-    // Distinct paid participants (all + 30d window): discriminated by the "recent" alias.
+    // Distinct paid participants (all + 30d + 7d windows): the "recent" alias discriminates.
     if (sqlText.includes('AS "recent"')) {
       const slotId = values.find((v) => typeof v === 'bigint');
-      const cutoff = values.find((v) => v instanceof Date);
-      const all = new Set(); const recent = new Set();
+      const dates = values.filter((v) => v instanceof Date);
+      const [cutoff, cutoff7] = dates;
+      const all = new Set(); const recent = new Set(); const recent7 = new Set();
       for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
         all.add(x.recipient);
         const blk = this._blocks.find((b) => b.height === x.height);
-        if (blk?.time && cutoff && blk.time >= cutoff) recent.add(x.recipient);
+        if (!blk?.time) continue;
+        if (cutoff && blk.time >= cutoff) recent.add(x.recipient);
+        if (cutoff7 && blk.time >= cutoff7) recent7.add(x.recipient);
       }
-      return [{ all: BigInt(all.size), recent: BigInt(recent.size) }];
+      return [{ all: BigInt(all.size), recent: BigInt(recent.size), recent7: BigInt(recent7.size) }];
     }
 
     // Feed-epoch chain facts (phase 15 §6.5).

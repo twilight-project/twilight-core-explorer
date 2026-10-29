@@ -9179,6 +9179,7 @@
                       "required": [
                         "paidAll",
                         "paid30",
+                        "paid7",
                         "denom",
                         "provenance",
                         "enrolled",
@@ -9189,6 +9190,9 @@
                           "type": "integer"
                         },
                         "paid30": {
+                          "type": "integer"
+                        },
+                        "paid7": {
                           "type": "integer"
                         },
                         "denom": {

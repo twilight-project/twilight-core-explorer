@@ -8,7 +8,7 @@
     ],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "noEmit": true,
     "allowJs": true,
     "esModuleInterop": true,

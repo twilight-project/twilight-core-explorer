@@ -7,6 +7,8 @@ import { StatusStrip } from '@/components/StatusStrip';
 import { GlobalStatusBanner } from '@/components/freshness/GlobalStatusBanner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Providers } from './providers';
+import { SITE_DESCRIPTION, SITE_NAME } from './brand-image';
+import { SITE_URL } from './site-url';
 import './globals.css';
 
 // `dark` (gold on near-black, the twilight.org auction look) is the default theme; `light` is its
@@ -26,16 +28,53 @@ const instrumentSerif = Instrument_Serif({
 });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono' });
 
+// Icons and share images come from the file conventions next to this layout (icon.svg,
+// apple-icon.tsx, opengraph-image.tsx, twitter-image.tsx, manifest.ts); metadataBase makes their
+// URLs absolute so crawlers and link unfurlers can fetch them.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   // `%s` is filled by each route's `metadata.title`; routes without one fall back to `default`.
-  title: { default: 'Twilight Core Explorer', template: '%s · Twilight Core Explorer' },
-  description:
-    'Operator-grade explorer for Twilight Core — CoreSlot PoA, liveness, rewards, and network health.',
+  title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    'Twilight',
+    'Twilight Core',
+    'block explorer',
+    'CoreSlot',
+    'proof of authority',
+    'validators',
+    'operators',
+    'staking rewards',
+    'testnet',
+    'Cosmos SDK',
+  ],
+  category: 'technology',
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
+  formatDetection: { telephone: false, address: false, email: false },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Browser chrome tint: the page ground of each theme (--background in globals.css).
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#050505' },
+    { media: '(prefers-color-scheme: light)', color: '#FAF9F7' },
+  ],
+  colorScheme: 'dark light',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

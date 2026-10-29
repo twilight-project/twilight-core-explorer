@@ -93,6 +93,12 @@ export function OperatorParticipantsPanel({
                 </div>
               );
             })}
+            {d.participants.length < d.paidAll ? (
+              <p className="pt-2 font-mono text-[11px] text-text-muted">
+                top {d.participants.length} of {d.paidAll} by total received — the rest are on
+                their account pages via the settlement details.
+              </p>
+            ) : null}
             <p className="pt-3 font-mono text-[11px] leading-relaxed text-text-muted">
               Addresses come from settlement payouts on chain <SourceChip kind="chain" /> —
               enrolled-but-unpaid participants stay pseudonymous by the feed contract.

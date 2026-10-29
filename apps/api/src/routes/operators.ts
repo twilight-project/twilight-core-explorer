@@ -62,7 +62,14 @@ function toVerdict(row: OperatorVerdictRow | undefined): OperatorVerdictT | null
   };
 }
 
-function sampleEnvelope(sample: FeedSample, indexedTip: bigint | null, now: Date) {
+function sampleEnvelope(
+  sample: FeedSample,
+  indexedTip: bigint | null,
+  now: Date,
+  // "Stale" is per kind: the clock refreshes every tick (180 s), while a draw record is
+  // FINAL once stored — null means age alone never makes it stale (stale-forward still can).
+  staleAfterSeconds: number | null = CLOCK_STALE_SECONDS,
+) {
   const age =
     sample.fetchedAt !== null ? Math.floor((now.getTime() - sample.fetchedAt.getTime()) / 1000) : null;
   const staleForward =
@@ -76,7 +83,7 @@ function sampleEnvelope(sample: FeedSample, indexedTip: bigint | null, now: Date
     asHeight: bigToString(sample.asHeight),
     fetchedAt: sample.fetchedAt?.toISOString() ?? null,
     ageSeconds: age,
-    stale: age === null || age > CLOCK_STALE_SECONDS || staleForward,
+    stale: staleForward || (staleAfterSeconds !== null && (age === null || age > staleAfterSeconds)),
     staleForward,
     lastError: sample.lastError,
     payload: sample.payloadJson ?? null,
@@ -445,7 +452,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
       }
       const tip = await app.prisma.block.aggregate({ _max: { height: true } });
       return {
-        data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date()) },
+        data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date(), null) },
       };
     },
   );

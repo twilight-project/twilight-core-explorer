@@ -317,7 +317,7 @@ describe('fetcher hardening (M5/M6)', () => {
     assert.match(out.error, /response_too_large/);
   });
 
-  it('M5: a failed draw fetch after settlement is retried on the next run', async () => {
+  it('M5: a failed draw fetch after settlement is retried (once discovery advertises it)', async () => {
     const prisma = mockPrisma({ entitled: [61], finalized: [61] });
     let drawCalls = 0;
     let failDraw = true;
@@ -328,45 +328,72 @@ describe('fetcher hardening (M5/M6)', () => {
           ? { ok: false, status: 503, error: 'http 503' }
           : { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
       }
+      if (url.includes('well-known/twilight'))
+        return {
+          ok: true,
+          status: 200,
+          body: { draw_record: 'https://as/v1/selection/slots/3/epochs/{epoch}/candidates' },
+        };
       if (url.includes('/operator-status/epochs/497'))
         return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
       if (url.includes('/operator-status/epochs/'))
         return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 61 } };
       return { ok: true, status: 200, body: CLOCK };
     };
+    const t0 = new Date('2026-10-29T09:00:00Z');
     // Run 1: epoch stored (settled), draw 503s.
-    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
     assert.equal(drawCalls, 1);
     assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson, undefined);
-    // Run 2: the settled epoch is skipped, but the DRAW retries and stores.
+    // Run 2, past the backoff: the settled epoch is skipped but the DRAW retries and stores.
     failDraw = false;
-    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 3_600_000),
+    });
     assert.equal(drawCalls, 2);
     assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson.outcome, 'NO_CANDIDATES');
-    // Run 3: stored draw is final — no further fetch.
-    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    // Run 3: a stored draw payload is final — no further fetch.
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 7_200_000),
+    });
     assert.equal(drawCalls, 2);
   });
 });
 
-describe('privacy guard vs OAuth metadata (CR finding 4)', () => {
-  it('as_metadata with OIDC userinfo keys is STORED; a bech32 value still refuses', async () => {
+describe('privacy guard vs OAuth metadata (CR findings 4 / D / B)', () => {
+  const oidc = {
+    issuer: 'https://as',
+    userinfo_endpoint: 'https://as/oauth/userinfo',
+    userinfo_signing_alg_values_supported: ['ES256'],
+  };
+
+  it('D: only standard userinfo* keys are exempt on as_* kinds', async () => {
     const { findPrivacyViolation } = await import('../../dist/projections/operator-status-snapshot.js');
-    const oidc = {
-      issuer: 'https://as',
-      userinfo_endpoint: 'https://as/oauth/userinfo',
-      userinfo_signing_alg_values_supported: ['ES256'],
-    };
-    // key rule off (as_* kinds): names pass, values still scanned
-    assert.equal(findPrivacyViolation(oidc, '$', { keyRule: false }), null);
+    const allowKey = (k) => /^userinfo(_[a-z0-9_]+)?$/.test(k);
+    // standard OIDC keys pass
+    assert.equal(findPrivacyViolation(oidc, '$', { allowKey }), null);
+    // participant-ish keys are STILL refused on as_* kinds
+    for (const bad of [{ recipients: 1 }, { query_text: 'x' }, { participant_id: 'x' }, { user_id: 7 }]) {
+      assert.match(findPrivacyViolation(bad, '$', { allowKey }) ?? '', /forbidden key/, JSON.stringify(bad));
+    }
+    // and the bech32 value scan applies regardless
     assert.match(
-      findPrivacyViolation({ ...oidc, note: 'twilight1mw4n9ksh7ank3ewqu4vpg7f82ccp83xw03xmgl' }, '$', { keyRule: false }) ?? '',
+      findPrivacyViolation({ ...oidc, note: 'twilight1mw4n9ksh7ank3ewqu4vpg7f82ccp83xw03xmgl' }, '$', { allowKey }) ?? '',
       /bech32/,
     );
-    // the feed kinds keep the key rule
+    // the feed kinds keep the full key rule
     assert.match(findPrivacyViolation({ userinfo_endpoint: 'x' }) ?? '', /forbidden key/);
+  });
 
-    // end to end: the sampler stores an OIDC metadata document
+  it('B: a deeply nested payload is a violation, not a stack overflow', async () => {
+    const { findPrivacyViolation } = await import('../../dist/projections/operator-status-snapshot.js');
+    let deep = { leaf: true };
+    for (let i = 0; i < 5000; i++) deep = { n: deep };
+    const v = findPrivacyViolation(deep);
+    assert.match(v ?? '', /nested deeper than/);
+  });
+
+  it('an OIDC metadata document is stored end to end', async () => {
     const prisma = mockPrisma();
     const fetchJson = async (url) => {
       if (url.endsWith('/.well-known/oauth-authorization-server'))
@@ -382,5 +409,108 @@ describe('privacy guard vs OAuth metadata (CR finding 4)', () => {
       prisma._samples.get(sampleKey(3n, 'as_metadata', null)).payloadJson.userinfo_endpoint,
       'https://as/oauth/userinfo',
     );
+  });
+});
+
+describe('draw retries never starve the epoch backfill (round-2 blocker A)', () => {
+  const DISCOVERY = {
+    version: 'twilight-operator-status-v1',
+    draw_record: 'https://as/v1/selection/slots/3/epochs/{epoch}/candidates',
+  };
+
+  it('12 epochs with a 404 draw route: all 12 epoch samples stored after two runs', async () => {
+    const entitled = Array.from({ length: 12 }, (_, i) => 100 + i);
+    const prisma = mockPrisma({ entitled });
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) {
+        drawCalls++;
+        return { ok: false, status: 404, error: 'http 404' };
+      }
+      if (url.includes('well-known/twilight')) return { ok: true, status: 200, body: DISCOVERY };
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 1 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as',
+      now: new Date(t0.getTime() + 60_000),
+    });
+    const storedEpochs = entitled.filter(
+      (e) => prisma._samples.get(sampleKey(3n, 'epoch', BigInt(e)))?.payloadJson != null,
+    );
+    assert.equal(storedEpochs.length, 12, `only ${storedEpochs.length} of 12 epoch samples stored`);
+    // 404 is terminal: at most the draw budget (2) per run, and never retried after a 404.
+    assert.ok(drawCalls <= 4, `draw fetched ${drawCalls} times`);
+  });
+
+  it('a draw 503 is retried only after the backoff, and a 404 never again', async () => {
+    const prisma = mockPrisma({ entitled: [61], finalized: [61] });
+    let draw = { ok: false, status: 503, error: 'http 503' };
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) { drawCalls++; return draw; }
+      if (url.includes('well-known/twilight')) return { ok: true, status: 200, body: DISCOVERY };
+      if (url.includes('/operator-status/epochs/497'))
+        return { ok: true, status: 200, body: { state: 'OPEN', epoch: 497 } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'SETTLEMENT_RECONCILED', epoch: 61 } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    const t0 = new Date('2026-10-29T10:00:00Z');
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: t0 });
+    assert.equal(drawCalls, 1);
+    // one minute later: inside the backoff, no retry
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 60_000),
+    });
+    assert.equal(drawCalls, 1);
+    // an hour later: retried, and it succeeds
+    draw = { ok: true, status: 200, body: { outcome: 'NO_CANDIDATES' } };
+    await projectOperatorStatus({
+      prisma, fetchJson, slotId: 3n, baseUrl: 'https://as', now: new Date(t0.getTime() + 3_600_000),
+    });
+    assert.equal(drawCalls, 2);
+    assert.equal(prisma._samples.get(sampleKey(3n, 'draw', 61n)).payloadJson.outcome, 'NO_CANDIDATES');
+  });
+
+  it('no draw is fetched when discovery does not advertise one', async () => {
+    const prisma = mockPrisma({ entitled: [61] });
+    let drawCalls = 0;
+    const fetchJson = async (url) => {
+      if (url.includes('/candidates')) { drawCalls++; return { ok: true, status: 200, body: {} }; }
+      if (url.includes('well-known/twilight'))
+        return { ok: true, status: 200, body: { version: 'twilight-operator-status-v1' } };
+      if (url.includes('/operator-status/epochs/'))
+        return { ok: true, status: 200, body: { state: 'OPEN' } };
+      return { ok: true, status: 200, body: CLOCK };
+    };
+    await projectOperatorStatus({ prisma, fetchJson, slotId: 3n, baseUrl: 'https://as' });
+    assert.equal(drawCalls, 0);
+  });
+});
+
+describe('health fetcher hardening (round-2 nit)', () => {
+  it('refuses a redirect and caps the drained body', async () => {
+    const { makeFetchHealth } = await import('../../dist/projections/operator-status-snapshot.js');
+    const { createServer } = await import('node:http');
+    const srv = createServer((req, res) => {
+      if (req.url === '/hop') { res.writeHead(302, { location: 'http://169.254.169.254/' }); res.end(); return; }
+      res.writeHead(200); res.end('ok');
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const port = srv.address().port;
+    const fetchHealth = makeFetchHealth(5000);
+    const redirected = await fetchHealth(`http://127.0.0.1:${port}/hop`);
+    const healthy = await fetchHealth(`http://127.0.0.1:${port}/healthz`);
+    srv.close();
+    assert.equal(redirected.ok, false);
+    assert.match(redirected.error, /redirect refused/);
+    assert.equal(healthy.ok, true);
+    assert.equal(healthy.body.up, true);
   });
 });

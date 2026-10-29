@@ -19,6 +19,12 @@ export const OPERATOR_STATUS_PROJECTION = 'operator_status_snapshot_v1';
 const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
 const AUTH_SERVER_MAX_AGE_MS = 60 * 60 * 1000;
 const EPOCH_FETCH_BUDGET = 8;
+// Draw-only retries get their OWN small budget: they must never crowd out the epoch
+// backfill (an operator without a draw route would otherwise burn the whole epoch budget
+// every run and stall older epochs forever).
+const DRAW_FETCH_BUDGET = 2;
+// A draw that failed is retried at most this often; a 404 is terminal (no draw exists).
+const DRAW_RETRY_BACKOFF_MS = 30 * 60 * 1000;
 const SETTLED_STATE = 'SETTLEMENT_RECONCILED';
 
 export interface OperatorStatusSampleDelegate {
@@ -44,6 +50,10 @@ export interface StoredSample {
   asHeight: bigint | null;
   fetchedAt: Date | null;
   lastError: string | null;
+  /** Last response status (404 on a draw means the epoch has no draw record). */
+  lastHttpStatus?: number | null;
+  /** When the last attempt ran, successful or not — drives the draw retry backoff. */
+  lastAttemptAt?: Date | null;
 }
 
 export interface OperatorStatusPrisma {
@@ -169,31 +179,43 @@ const FORBIDDEN_KEY_RE =
 const ALLOWED_KEYS = new Set([
   'NO_VALID_PAYOUT_DESTINATION', // a COUNT bucket, not a destination
 ]);
+/**
+ * Standard OAuth 2.0 / OIDC discovery key names that collide with the forbidden-key
+ * patterns but name ENDPOINTS and capabilities, never participant data. Only these are
+ * exempt on the as_* kinds — every other forbidden key (recipient…, query_text, …) and the
+ * bech32 value scan still apply.
+ */
+const AS_METADATA_ALLOWED_KEY_RE = /^userinfo(_[a-z0-9_]+)?$/;
 const BECH32_RE = /twilight1[0-9a-z]{20,}/;
+/** Nesting deeper than this counts as a violation: no feed payload is legitimately so deep,
+ *  and recursing without a limit lets one body overflow the stack and kill the whole run. */
+const MAX_PAYLOAD_DEPTH = 32;
 
 export function findPrivacyViolation(
   value: unknown,
   path = '$',
-  opts: { keyRule?: boolean } = {},
+  opts: { allowKey?: (key: string) => boolean } = {},
+  depth = 0,
 ): string | null {
-  const keyRule = opts.keyRule !== false;
+  if (depth > MAX_PAYLOAD_DEPTH) return `${path}: nested deeper than ${MAX_PAYLOAD_DEPTH}`;
   if (typeof value === 'string') {
     if (BECH32_RE.test(value)) return `${path}: bech32 address in value`;
     return null;
   }
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i++) {
-      const v = findPrivacyViolation(value[i], `${path}[${i}]`, opts);
+      const v = findPrivacyViolation(value[i], `${path}[${i}]`, opts, depth + 1);
       if (v) return v;
     }
     return null;
   }
   if (typeof value === 'object' && value !== null) {
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      if (keyRule && !ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
+      const exempt = opts.allowKey?.(key) === true;
+      if (!exempt && !ALLOWED_KEYS.has(key) && FORBIDDEN_KEY_RE.test(key)) {
         return `${path}.${key}: forbidden key`;
       }
-      const v = findPrivacyViolation(child, `${path}.${key}`, opts);
+      const v = findPrivacyViolation(child, `${path}.${key}`, opts, depth + 1);
       if (v) return v;
     }
   }
@@ -260,9 +282,11 @@ async function recordFetch(
   // AS metadata/JWKS are standard OAuth/OIDC documents whose key NAMES legitimately match
   // the participant-data patterns (userinfo_endpoint, …): the key rule is skipped for the
   // as_* kinds, while the bech32 VALUE scan still applies to everything.
-  const violation = findPrivacyViolation(args.outcome.body, '$', {
-    keyRule: !args.kind.startsWith('as_'),
-  });
+  const violation = findPrivacyViolation(
+    args.outcome.body,
+    '$',
+    args.kind.startsWith('as_') ? { allowKey: (k) => AS_METADATA_ALLOWED_KEY_RE.test(k) } : {},
+  );
   if (violation !== null) {
     await prisma.operatorStatusSample.upsert({
       where: { sampleKey: key },
@@ -309,6 +333,8 @@ export interface OperatorStatusRunResult {
   authServer: 'stored' | 'refused' | 'failed' | 'fresh';
   epochsFetched: number;
   epochsFailed: number;
+  drawsFetched: number;
+  drawsFailed: number;
 }
 
 /**
@@ -350,12 +376,14 @@ export async function projectOperatorStatus(args: {
   baseUrl: string;
   now?: Date;
   epochBudget?: number;
+  drawBudget?: number;
 }): Promise<OperatorStatusRunResult> {
   const { prisma, fetchJson, slotId } = args;
   const fetchHealth = args.fetchHealth ?? fetchJson;
   const baseUrl = args.baseUrl.replace(/\/+$/, '');
   const now = args.now ?? new Date();
   const budget = args.epochBudget ?? EPOCH_FETCH_BUDGET;
+  const drawBudget = args.drawBudget ?? DRAW_FETCH_BUDGET;
 
   // Discovery: hourly (age-gated on last success).
   const discoveryKeyed = await prisma.operatorStatusSample.findUnique({
@@ -488,13 +516,20 @@ export async function projectOperatorStatus(args: {
   });
   const byEpoch = new Map(existing.map((s) => [s.epochNumber?.toString() ?? '-', s]));
 
-  // The draw record rides along with each epoch fetch (same first-sight / refresh-after-
-  // settle / immutable-after-settle cadence), using the discovery document's template.
+  // Epoch samples and draw records are fetched in the same pass but on SEPARATE budgets.
+  // The epoch cadence is unchanged (first sight, refresh after the chain settles, immutable
+  // once SETTLEMENT_RECONCILED). A draw record is fetched only when discovery advertises
+  // one, retried on its own merits while no payload is stored — with a backoff, and a 404
+  // treated as "this epoch has no draw" rather than retried forever.
   const discoveryBody = (
     await prisma.operatorStatusSample.findUnique({
       where: { sampleKey: sampleKey(slotId, 'discovery', null) },
     })
   )?.payloadJson;
+  const drawAdvertised =
+    typeof discoveryBody === 'object' &&
+    discoveryBody !== null &&
+    typeof (discoveryBody as Record<string, unknown>)['draw_record'] === 'string';
 
   const drawSamples = await prisma.operatorStatusSample.findMany({
     where: { slotId, kind: 'draw' },
@@ -503,24 +538,34 @@ export async function projectOperatorStatus(args: {
 
   let epochsFetched = 0;
   let epochsFailed = 0;
+  let drawsFetched = 0;
+  let drawsFailed = 0;
   for (const { epochNumber } of entitled) {
-    if (epochsFetched + epochsFailed >= budget) break;
+    const epochBudgetLeft = epochsFetched + epochsFailed < budget;
+    const drawBudgetLeft = drawsFetched + drawsFailed < drawBudget;
+    if (!epochBudgetLeft && !drawBudgetLeft) break;
+
     const stored = byEpoch.get(epochNumber.toString()) ?? null;
     const state = epochStateOf(stored);
     const hasPayload = stored?.payloadJson != null;
     const chainSettled = finalized.has(epochNumber.toString());
-
-    // The DRAW retries on its own merits: as long as no draw payload is stored for an
-    // epoch whose epoch-sample exists, keep trying — a single 503 on the run right after
-    // settlement must not silence /draw/{epoch} forever. A stored draw payload is final.
-    const drawStored = drawByEpoch.get(epochNumber.toString())?.payloadJson != null;
     const needEpoch = state !== SETTLED_STATE && (!hasPayload || chainSettled);
-    const needDraw = !drawStored && (hasPayload || needEpoch);
-    if (!needEpoch && !needDraw) continue;
 
-    let result: 'stored' | 'refused' | 'failed' | null = null;
-    if (needEpoch) {
-      result = await recordFetch(prisma, {
+    const drawRow = drawByEpoch.get(epochNumber.toString()) ?? null;
+    const drawStored = drawRow?.payloadJson != null;
+    const drawTerminal = drawRow?.lastHttpStatus === 404; // no draw for this epoch, ever
+    const lastDrawAttempt = drawRow?.lastAttemptAt?.getTime() ?? null;
+    const drawBackoffElapsed =
+      lastDrawAttempt === null || now.getTime() - lastDrawAttempt >= DRAW_RETRY_BACKOFF_MS;
+    const needDraw =
+      drawAdvertised &&
+      !drawStored &&
+      !drawTerminal &&
+      drawBackoffElapsed &&
+      (hasPayload || needEpoch);
+
+    if (needEpoch && epochBudgetLeft) {
+      const result = await recordFetch(prisma, {
         slotId,
         kind: 'epoch',
         epochNumber,
@@ -528,8 +573,10 @@ export async function projectOperatorStatus(args: {
         now,
         outcome: await fetchJson(`${baseUrl}/v1/operator-status/epochs/${epochNumber}`),
       });
+      if (result === 'stored') epochsFetched++;
+      else epochsFailed++;
     }
-    if (needDraw) {
+    if (needDraw && drawBudgetLeft) {
       const drawResult = await recordFetch(prisma, {
         slotId,
         kind: 'draw',
@@ -538,13 +585,21 @@ export async function projectOperatorStatus(args: {
         now,
         outcome: await fetchJson(drawUrlFrom(discoveryBody, baseUrl, slotId, epochNumber)),
       });
-      if (result === null) result = drawResult; // draw-only retries also consume budget
+      if (drawResult === 'stored') drawsFetched++;
+      else drawsFailed++;
     }
-    if (result === 'stored') epochsFetched++;
-    else epochsFailed++;
   }
 
-  return { slotId: slotId.toString(), clock, discovery, authServer, epochsFetched, epochsFailed };
+  return {
+    slotId: slotId.toString(),
+    clock,
+    discovery,
+    authServer,
+    epochsFetched,
+    epochsFailed,
+    drawsFetched,
+    drawsFailed,
+  };
 }
 
 /** Parse OPERATOR_STATUS_URLS: `3=https://rewards.nyks.dev,5=https://…`. */

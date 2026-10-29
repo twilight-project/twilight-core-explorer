@@ -584,7 +584,16 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
       return {
         data: {
           status: 'ok' as const,
-          ...sampleEnvelope(sample, tip._max.height ?? null, new Date()),
+          // A SETTLEMENT_RECONCILED epoch is immutable by contract: age never stales it.
+          ...sampleEnvelope(
+            sample,
+            tip._max.height ?? null,
+            new Date(),
+            (sample.payloadJson as Record<string, unknown> | null)?.['state'] ===
+              'SETTLEMENT_RECONCILED'
+              ? null
+              : CLOCK_STALE_SECONDS,
+          ),
           verification: {
             ...verification,
             chain: {

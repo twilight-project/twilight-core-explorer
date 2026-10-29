@@ -34,17 +34,26 @@ async function main(): Promise<void> {
   try {
     await withProjectionAdvisoryLock(prisma, async () => {
       for (const [slotId, baseUrl] of urls) {
-        const r = await projectOperatorStatus({
-          prisma: prisma as unknown as OperatorStatusPrisma,
-          fetchJson,
-          fetchHealth,
-          slotId,
-          baseUrl,
-        });
-        console.log(
-          `[operator-status] slot ${r.slotId}: clock=${r.clock} discovery=${r.discovery} ` +
-            `auth=${r.authServer} epochs fetched=${r.epochsFetched} failed=${r.epochsFailed}`,
-        );
+        // Per-slot isolation: one operator's bad payload or transport must never stop the
+        // slots after it from being sampled.
+        try {
+          const r = await projectOperatorStatus({
+            prisma: prisma as unknown as OperatorStatusPrisma,
+            fetchJson,
+            fetchHealth,
+            slotId,
+            baseUrl,
+          });
+          console.log(
+            `[operator-status] slot ${r.slotId}: clock=${r.clock} discovery=${r.discovery} ` +
+              `auth=${r.authServer} epochs fetched=${r.epochsFetched} failed=${r.epochsFailed} ` +
+              `draws fetched=${r.drawsFetched} failed=${r.drawsFailed}`,
+          );
+        } catch (err) {
+          console.error(
+            `[operator-status] slot ${slotId}: FAILED (${err instanceof Error ? err.message : String(err)}) — continuing with the next slot`,
+          );
+        }
       }
     });
   } finally {

@@ -90,7 +90,7 @@ export function StatusStrip() {
       : null;
 
   return (
-    <div className="flex h-8 items-center overflow-hidden whitespace-nowrap tw-strip border-b border-card-border px-5 font-mono text-xs">
+    <div className="flex h-8 items-center overflow-hidden whitespace-nowrap border-b border-card-border bg-background-secondary px-5 font-mono text-xs text-text-muted">
       <span className="flex min-w-0 items-center overflow-hidden text-ellipsis">
         <span className="text-primary">{chainId ?? '…'}</span>
         <Sep />
@@ -130,7 +130,7 @@ export function StatusStrip() {
           </>
         ) : null}
       </span>
-      <span className="tw-strip ml-auto flex shrink-0 items-center gap-2 pl-4">
+      <span className="ml-auto flex shrink-0 items-center gap-2 bg-background-secondary pl-4">
         {linkedSlotId !== null && ownSigning !== null ? (
           <>
             <span className={ownSigning ? 'text-accent-green' : 'text-accent-red'}>

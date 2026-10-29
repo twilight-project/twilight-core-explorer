@@ -51,8 +51,6 @@
      (blue/green/red/gold), so the icon tone reuses those and tracks each theme's palette. The
      coreslot category takes the gradient's lavender (constant across themes). */
   --accent-violet: 123 120 214;
-  /* twilight.org's brand pink (--pink on the site); constant across themes. */
-  --brand-pink: 237 85 202;
 }
 
 /* Light — twilight.org. Page #E7EAF3 · sheet #F3F4F9 · ink #111 · muted #5A5D66 · rule #C4C7D4 ·
@@ -299,30 +297,4 @@ html {
   .tw-band {
     animation: none;
   }
-}
-
-/* Status strip: solid twilight.org pink. Only ink reads on it (#111 ≈ 6:1; white would be ≈ 3:1),
-   so every child is re-inked: values full ink, labels 85% ink (≈ 5:1), separators faint. */
-.tw-strip {
-  background-color: rgb(var(--brand-pink));
-  color: rgb(17 17 17 / 0.85);
-}
-.tw-strip :is(.text-text, .text-primary, .text-text-secondary) {
-  color: rgb(17 17 17);
-}
-.tw-strip .text-border-light {
-  color: rgb(17 17 17 / 0.4);
-}
-.tw-strip .bg-primary {
-  background-color: rgb(17 17 17);
-}
-/* Status words on the pink strip: healthy reads in ink; a problem flips to an ink chip with pink
-   text (≈ 6:1) so it still stands out without a colour that fails on pink. */
-.tw-strip .text-accent-green {
-  color: rgb(17 17 17);
-}
-.tw-strip .text-accent-red {
-  color: rgb(var(--brand-pink));
-  background-color: rgb(17 17 17);
-  padding: 0 6px;
 }

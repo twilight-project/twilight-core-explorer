@@ -50,6 +50,19 @@ export class MockPrisma {
     this._failedMigrations = data.failedMigrations ?? 0;
 
     this.indexerCursor = { findFirst: async () => this._indexerCursor };
+    this._selectionPolicyChanges = data.selectionPolicyChanges ?? [];
+    this.coreSlotSelectionPolicyChange = {
+      findFirst: async (args) => {
+        const w = args?.where ?? {};
+        const rows = this._selectionPolicyChanges
+          .filter((r) => w.slotId === undefined || r.slotId === w.slotId)
+          .filter((r) => w.policyVersion === undefined || r.policyVersion === w.policyVersion)
+          .filter((r) => w.height?.lte === undefined || r.height <= w.height.lte)
+          .filter((r) => w.height?.lt === undefined || r.height < w.height.lt)
+          .sort((a, b) => (a.height > b.height ? -1 : 1));
+        return rows[0] ?? null;
+      },
+    };
 
     this.operatorStatusSample = {
       findUnique: async ({ where }) =>
@@ -60,6 +73,14 @@ export class MockPrisma {
 
     this.projectionCursor = {
       findMany: async () => [...this._projectionCursors],
+      findUnique: async ({ where }) => {
+        const k = where.projectionName_chainId;
+        return (
+          this._projectionCursors.find(
+            (c) => c.projectionName === k.projectionName && c.chainId === k.chainId,
+          ) ?? null
+        );
+      },
     };
 
     this.projectionFailure = {
@@ -112,6 +133,10 @@ export class MockPrisma {
         if (w.height?.in) rows = rows.filter((a) => w.height.in.some((h) => h === a.height));
         if (w.slotId !== undefined) rows = rows.filter((a) => a.slotId === w.slotId);
         if (w.height?.lt !== undefined) rows = rows.filter((a) => a.height < w.height.lt);
+        if (w.height?.gte !== undefined) rows = rows.filter((a) => a.height >= w.height.gte);
+        if (w.height?.lte !== undefined) rows = rows.filter((a) => a.height <= w.height.lte);
+        if (w.attributionStatus !== undefined)
+          rows = rows.filter((a) => a.attributionStatus === w.attributionStatus);
         if (args.orderBy?.height === 'desc') rows.sort((a, b) => descBig(a.height, b.height));
         return args.take ? rows.slice(0, args.take) : rows;
       },

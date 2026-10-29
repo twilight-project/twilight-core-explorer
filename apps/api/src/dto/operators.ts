@@ -215,11 +215,35 @@ export const OperatorAuthResponse = Type.Object(
 
 // The operator's published selection-draw record for one epoch (attested, verbatim).
 // Its `anchor.tx_hash` is a chain fact a reader can follow to the explorer's own tx page.
+// The explorer re-derives the whole draw (selectionv1) from its own indexed chain rows:
+// the anchor memo, block-id hashes and proposer attribution. 'verified' therefore means
+// the CHAIN confirms the draw; 'mismatch' means a published figure contradicts it;
+// 'unverifiable' means some input was unavailable (never a silent pass).
+export const DrawVerification = Type.Object(
+  {
+    result: Type.Union([
+      Type.Literal('verified'),
+      Type.Literal('mismatch'),
+      Type.Literal('unverifiable'),
+    ]),
+    checks: Type.Array(
+      Type.Object({
+        name: Type.String(),
+        ok: Nullable(Type.Boolean()),
+        detail: Type.String(),
+      }),
+    ),
+    /** Honest limits of a green verdict (e.g. the single-anchor rule is not yet checked). */
+    caveats: Type.Array(Type.String()),
+  },
+  { $id: 'DrawVerification' },
+);
+
 export const OperatorDrawResponse = Type.Object(
   {
     data: Type.Union([
       Type.Object({ status: Type.Literal('no_status'), reason: Type.String() }),
-      Type.Object({ status: Type.Literal('ok'), ...SampleEnvelope }),
+      Type.Object({ status: Type.Literal('ok'), ...SampleEnvelope, verification: DrawVerification }),
     ]),
   },
   { $id: 'OperatorDrawResponse' },

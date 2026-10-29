@@ -17,6 +17,13 @@ import { notFound } from '../lib/errors.js';
 import { parseEpochId, parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
 import {
+  MAX_WINDOW_BLOCKS,
+  toBoundedBig,
+  verifyDraw,
+  type DrawVerification,
+  type WindowBlock,
+} from '../lib/draw-verify.js';
+import {
   countPaidParticipants,
   getDrawSample,
   getEpochPayoutFacts,
@@ -38,6 +45,24 @@ import {
 // configured feed answers `{status:'no_status'}` with 200 — silence is a state, not an error.
 
 const CLOCK_STALE_SECONDS = 180;
+
+// Per-app-instance verdict cache (see the draw route): a module-level Map would be shared
+// by every server built in a process, including across tests.
+interface CachedVerdict {
+  verification: DrawVerification;
+  expiresAt: number;
+}
+const DRAW_VERDICT_TTL_SETTLED_MS = 5 * 60 * 1000;
+const DRAW_VERDICT_TTL_PENDING_MS = 30 * 1000;
+const DRAW_VERDICT_CACHES = new WeakMap<object, Map<string, CachedVerdict>>();
+function drawVerdictCache(app: object): Map<string, CachedVerdict> {
+  let cache = DRAW_VERDICT_CACHES.get(app);
+  if (!cache) {
+    cache = new Map<string, CachedVerdict>();
+    DRAW_VERDICT_CACHES.set(app, cache);
+  }
+  return cache;
+}
 // AS metadata/JWKS are sampled hourly; two missed rounds = stale.
 const AUTH_STALE_SECONDS = 2 * 60 * 60;
 
@@ -451,8 +476,139 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
         };
       }
       const tip = await app.prisma.block.aggregate({ _max: { height: true } });
+
+      // Independent re-derivation (selectionv1). The record is hostile input: every bound
+      // it names goes through toBoundedBig, the block query is capped by the COMMITTED
+      // window length, and attribution rows are required to be final — a missing or
+      // non-final row degrades the beacon check to null (never a guess). Verdicts are
+      // cached per stored sample, so a request never re-hashes an unchanged record (m5).
+      const record =
+        typeof sample.payloadJson === 'object' && sample.payloadJson !== null
+          ? (sample.payloadJson as Record<string, unknown>)
+          : {};
+      // Every verdict depends on index data that can still arrive or be replayed after the
+      // draw sample is stored (attribution rows, the anchor tx, policy rows), and a stored
+      // draw sample never changes — so no verdict is cached forever. Each entry expires:
+      // 'unverifiable' quickly (it is usually waiting on data), settled verdicts after a few
+      // minutes (bounds how long a verdict built on a lagging projection can stay stale),
+      // and the short pending TTL also bounds the CPU a malformed or incomplete record can
+      // cost per request. The cache lives on the app instance, not the module.
+      const cacheKey = `${slotId}:${epoch}:${sample.fetchedAt?.getTime() ?? 0}`;
+      const cached = drawVerdictCache(app).get(cacheKey);
+      let verification = cached && cached.expiresAt > Date.now() ? cached.verification : undefined;
+      if (!verification) {
+        const anchorRec =
+          typeof record['anchor'] === 'object' && record['anchor'] !== null
+            ? (record['anchor'] as Record<string, unknown>)
+            : {};
+        const beaconRec =
+          typeof record['beacon'] === 'object' && record['beacon'] !== null
+            ? (record['beacon'] as Record<string, unknown>)
+            : null;
+        const anchorHash =
+          typeof anchorRec['tx_hash'] === 'string' && /^[0-9a-fA-F]{64}$/.test(anchorRec['tx_hash'])
+            ? anchorRec['tx_hash'].toUpperCase()
+            : null;
+        const cursor = await app.prisma.indexerCursor.findFirst({ orderBy: { updatedAt: 'desc' } });
+        const anchorTx = anchorHash
+          ? await app.prisma.explorerTransaction.findUnique({
+              where: { hash: anchorHash },
+              select: { memo: true, height: true },
+            })
+          : null;
+        const start = toBoundedBig(beaconRec?.['start_height']);
+        const end = toBoundedBig(beaconRec?.['end_height']);
+        let windowBlocks: WindowBlock[] = [];
+        if (start !== null && end !== null && end >= start && end - start < MAX_WINDOW_BLOCKS) {
+          const [blocks, attributions] = await Promise.all([
+            app.prisma.block.findMany({
+              where: { height: { gte: start, lte: end } },
+              select: { height: true, hash: true },
+            }),
+            app.prisma.blockProposerAttribution.findMany({
+              where: { height: { gte: start, lte: end } },
+              select: { height: true, slotId: true, attributionStatus: true },
+            }),
+          ]);
+          // Only FINAL attributions count; anything else is missing data (M2).
+          const slotByHeight = new Map(
+            attributions
+              .filter((x) => x.attributionStatus === 'attributed' && x.slotId !== null)
+              .map((x) => [x.height, x.slotId as bigint]),
+          );
+          windowBlocks = blocks.map((b) => ({
+            height: b.height,
+            hash: b.hash,
+            proposerSlotId: slotByHeight.get(b.height) ?? null,
+          }));
+        }
+        // The policy row to compare against is the one in force AT THE ANCHOR, chosen by
+        // the chain-indexed anchor height ONLY. Never by the version the record names: as
+        // the reference verifier puts it, "asking for the versions by number would trust the
+        // record to say which rows to fetch, and a forged parameter set names whichever
+        // version makes it look right" (twilight-minis drawrecord.go). A policy tx at height H
+        // takes effect from H+1 (x/coreslot ValidFromHeight), so the row in force at anchor
+        // height A is the newest with height < A. No anchor in the index → no comparison.
+        const policyRow = anchorTx
+          ? await app.prisma.coreSlotSelectionPolicyChange.findFirst({
+              where: { slotId, height: { lt: anchorTx.height } },
+              orderBy: { height: 'desc' },
+              select: { policyVersion: true, selectionRateBps: true, maxSelectedParticipants: true },
+            })
+          : null;
+        // Policy rows come from the structural projection, which runs separately from tx
+        // ingestion: until it has processed the anchor height, a missing or older row says
+        // nothing, so the comparison waits (unverifiable) instead of accusing an honest
+        // record that names a policy the projection has not reached yet.
+        const structural =
+          anchorTx && cursor?.chainId
+            ? await app.prisma.projectionCursor.findUnique({
+                where: {
+                  projectionName_chainId: { projectionName: 'coreslot_structural_v1', chainId: cursor.chainId },
+                },
+                select: { lastProjectedHeight: true },
+              })
+            : null;
+        const policyProjectionBehind =
+          anchorTx !== null && (structural === null || structural.lastProjectedHeight < anchorTx.height);
+        verification = verifyDraw({
+          chainId: cursor?.chainId ?? '',
+          slotId,
+          epoch,
+          record,
+          anchor: anchorTx ? { memo: anchorTx.memo, height: anchorTx.height } : null,
+          blocks: windowBlocks,
+          chainPolicy: policyRow
+            ? {
+                policyVersion: policyRow.policyVersion,
+                selectionRateBps:
+                  policyRow.selectionRateBps === null ? null : BigInt(policyRow.selectionRateBps),
+                maxSelectedParticipants: policyRow.maxSelectedParticipants,
+              }
+            : null,
+          policyProjectionBehind,
+        });
+        const cache = drawVerdictCache(app);
+        cache.delete(cacheKey); // re-insert at the end so eviction stays oldest-first
+        cache.set(cacheKey, {
+          verification,
+          expiresAt:
+            Date.now() +
+            (verification.result === 'unverifiable' ? DRAW_VERDICT_TTL_PENDING_MS : DRAW_VERDICT_TTL_SETTLED_MS),
+        });
+        if (cache.size > 500) {
+          const oldest = cache.keys().next().value;
+          if (oldest !== undefined) cache.delete(oldest);
+        }
+      }
+
       return {
-        data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date(), null) },
+        data: {
+          status: 'ok' as const,
+          // A stored draw record is final: age never stales it (stale-forward still can).
+          ...sampleEnvelope(sample, tip._max.height ?? null, new Date(), null),
+          verification,
+        },
       };
     },
   );

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Landmark } from 'lucide-react';
 import { DetailShell } from '@/components/detail/DetailShell';
+import { OperatorDrawPanel } from '@/components/operators/OperatorDrawPanel';
 import { DataList } from '@/components/detail/DataList';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -225,6 +226,11 @@ export function SettlementDetail({ slotId, epoch }: { slotId: string; epoch: str
           );
         }}
       </QueryBoundary>
+      {/* The epoch's selection draw (who entered, who won, the proof) — same panel as the
+          operator pages, so every settled epoch's full story lives at one URL. */}
+      <div className="pt-6">
+        <OperatorDrawPanel slotId={slotId} epoch={epoch} />
+      </div>
     </DetailShell>
   );
 }

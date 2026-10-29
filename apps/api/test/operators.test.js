@@ -477,3 +477,176 @@ describe('settled feed epochs are final (round-2 C) + stable participant order',
     await app.close();
   });
 });
+
+// Round-2: the draw route's own behaviour — attribution finality (M2), the verdict cache
+// (MAJ-2) and the point-in-time policy lookup (MAJ-1).
+describe('draw route: attribution finality, cache and policy lookup', () => {
+  const drawSample = (payload) => ({
+    sampleKey: '3:draw:1657', slotId: 3n, kind: 'draw', epochNumber: 1657n,
+    baseUrl: 'https://as.example', payloadJson: payload,
+    sampledAt: null, asHeight: null, fetchedAt: new Date('2026-10-29T00:00:00Z'),
+    lastAttemptAt: new Date('2026-10-29T00:00:00Z'), lastHttpStatus: 200, lastError: null,
+  });
+  // A minimal two-candidate record; the window is deliberately NOT indexed here, so the
+  // beacon check can only be null (never a pass) — which is the point of these tests.
+  const RECORD = {
+    version: 1, chain_id: 'twilight-testnet-1', slot_id: 3, target_epoch: 1657,
+    parameters: {
+      selection_params_version: 1, selection_policy_version: 1, selection_rate_bps: 2500,
+      max_selected_participants: 10, max_selected_participants_per_selection: 64,
+      max_candidates_per_selection: 1024, beacon_start_offset_blocks: 48,
+      beacon_window_blocks: 24, chain_min_external_beacon_blocks: 12,
+      chain_min_distinct_external_proposers: 3, min_external_beacon_blocks: 12,
+      min_distinct_external_proposers: 3, exclude_target_slot_proposals: true,
+    },
+    anchor: { tx_hash: 'ab'.repeat(32), confirmed_height: 597022, committed_set_hash: '0'.repeat(63) + '1', committed_params_hash: '0'.repeat(63) + '2' },
+    candidates: ['11'.repeat(32), '22'.repeat(32)],
+    beacon: { start_height: 597070, end_height: 597093, hash: null, admissible: false, usable_blocks: 0, distinct_external_proposers: 0, excluded_target_blocks: 0, unattributable_blocks: 24 },
+    outcome: 'NO_VALID_BEACON', k: 1, winners: [],
+    candidate_set_hash: '0'.repeat(63) + '1', selected_draw_ids_hash: '0'.repeat(63) + '3',
+  };
+
+  it('M2: a non-final attribution row counts as missing, so the verdict is not green', async () => {
+    const app = await build({
+      indexerCursor: {
+        chainId: 'twilight-testnet-1', lastIndexedHeight: 700000n, latestChainHeight: 700000n,
+        status: 'idle', lastIndexedHash: 'abc', updatedAt: new Date(), error: null,
+      },
+      blocks: [block(200)],
+      // the window block exists and has an attribution row, but it is NOT final
+      attributions: [{ height: 597070n, proposerAddress: 'aa', rawProposerAddress: 'AA', slotId: 1n, operatorAddress: 'twilight1op', attributionStatus: 'ambiguous' }],
+      operatorStatusSamples: [drawSample(RECORD)],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data;
+    assert.equal(d.status, 'ok');
+    assert.notEqual(d.verification.result, 'verified');
+    await app.close();
+  });
+
+  const CURSOR = {
+    chainId: 'twilight-testnet-1', lastIndexedHeight: 700000n, latestChainHeight: 700000n,
+    status: 'idle', lastIndexedHash: 'abc', updatedAt: new Date(), error: null,
+  };
+  // The record's anchor tx, indexed at the record's confirmed height.
+  const ANCHOR_TX = { hash: 'AB'.repeat(32), height: 597022n, memo: null };
+  // The structural projection (policy rows) has processed past the anchor.
+  const STRUCTURAL = [{ projectionName: 'coreslot_structural_v1', chainId: 'twilight-testnet-1', lastProjectedHeight: 700000n, status: 'idle', updatedAt: new Date(), error: null }];
+  const policyCheck = (d) => d.verification.checks.find((c) => c.name === 'parameters_match_chain_policy');
+  const withPolicy = (over) => ({ ...RECORD, parameters: { ...RECORD.parameters, ...over } });
+  const pol = (v, h, rate, max = 10n) =>
+    ({ slotId: 3n, policyVersion: BigInt(v), selectionRateBps: rate, maxSelectedParticipants: max, height: BigInt(h) });
+
+  it('verdict cache: entries expire (pending after 30 s, settled after 5 min) and are per app', async () => {
+    const realNow = Date.now;
+    let t = realNow();
+    Date.now = () => t;
+    try {
+      // settled verdict: the published set hash is wrong → mismatch
+      const app = await build({ indexerCursor: CURSOR, blocks: [block(200)], operatorStatusSamples: [drawSample(RECORD)] });
+      let computes = 0;
+      const findTx = app.prisma.explorerTransaction.findUnique;
+      app.prisma.explorerTransaction.findUnique = async (a) => { computes++; return findTx(a); };
+      const get = async () => (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data.verification;
+      assert.equal((await get()).result, 'mismatch');
+      await get();
+      assert.equal(computes, 1, 'served from cache');
+      t += 60_000;
+      await get();
+      assert.equal(computes, 1, 'a settled verdict is still cached after a minute');
+      t += 5 * 60_000;
+      await get();
+      assert.equal(computes, 2, 'a settled verdict is recomputed after its TTL');
+      await app.close();
+
+      // pending verdict (no chain id indexed yet) → unverifiable, short TTL
+      const pending = await build({ blocks: [block(200)], operatorStatusSamples: [drawSample(RECORD)] });
+      let pendingComputes = 0;
+      const findTx2 = pending.prisma.explorerTransaction.findUnique;
+      pending.prisma.explorerTransaction.findUnique = async (a) => { pendingComputes++; return findTx2(a); };
+      const getP = async () => (await pending.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data.verification;
+      assert.equal((await getP()).result, 'unverifiable');
+      await getP();
+      assert.equal(pendingComputes, 1, 'bursts of requests do not recompute');
+      t += 31_000;
+      await getP();
+      assert.equal(pendingComputes, 2, 'an unverifiable verdict is recomputed after 30 s');
+      await pending.close();
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('MAJ-1: the policy row is the one in force at the anchor height (not the newest row)', async () => {
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
+      operatorStatusSamples: [drawSample(RECORD)],
+      selectionPolicyChanges: [pol(1, 500000, 2500), pol(2, 900000, 1000, 5n)],
+    });
+    const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
+    assert.equal(p.ok, true, JSON.stringify(p));
+    assert.match(p.detail, /chain policy in force at the anchor: v1, rate 2500 bps, max 10/);
+    await app.close();
+  });
+
+  it('NEW-B1: a record naming a superseded version is compared with the row actually in force', async () => {
+    // v2 (2500) was replaced by v3 (1000) before the anchor; the record still names v2
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
+      operatorStatusSamples: [drawSample(withPolicy({ selection_policy_version: 2, selection_rate_bps: 2500 }))],
+      selectionPolicyChanges: [pol(2, 500000, 2500), pol(3, 590000, 1000)],
+    });
+    const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
+    assert.equal(p.ok, false, JSON.stringify(p));
+    assert.match(p.detail, /in force at the anchor: v3, rate 1000 bps/);
+    await app.close();
+  });
+
+  it('NEW-B1: a record naming a version created after the anchor does not verify', async () => {
+    // v2 (1000) only exists from height 700000; the record (anchored at 597022) claims it
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
+      operatorStatusSamples: [drawSample(withPolicy({ selection_policy_version: 2, selection_rate_bps: 1000 }))],
+      selectionPolicyChanges: [pol(1, 500000, 2500), pol(2, 700000, 1000)],
+    });
+    const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
+    assert.equal(p.ok, false, JSON.stringify(p));
+    await app.close();
+  });
+
+  it('a policy tx AT the anchor height is not yet in force (effective from H+1)', async () => {
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: STRUCTURAL,
+      operatorStatusSamples: [drawSample(RECORD)],
+      selectionPolicyChanges: [pol(1, 500000, 2500), pol(2, 597022, 1000)],
+    });
+    const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
+    assert.equal(p.ok, true, JSON.stringify(p));
+    await app.close();
+  });
+
+  it('while the policy projection is behind the anchor, the comparison waits (no false accusation)', async () => {
+    // an honest record names v3, whose row the structural projection has not reached yet
+    const behind = [{ ...STRUCTURAL[0], lastProjectedHeight: 590000n }];
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)], txs: [ANCHOR_TX], projectionCursors: behind,
+      operatorStatusSamples: [drawSample(withPolicy({ selection_policy_version: 3 }))],
+      selectionPolicyChanges: [pol(2, 500000, 2500)],
+    });
+    const p = policyCheck((await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data);
+    assert.equal(p.ok, null, JSON.stringify(p));
+    assert.match(p.detail, /has not reached the anchor height/);
+    await app.close();
+  });
+
+  it('without the anchor tx in the index, no policy row is compared (never guessed)', async () => {
+    const app = await build({
+      indexerCursor: CURSOR, blocks: [block(200)],
+      operatorStatusSamples: [drawSample(RECORD)],
+      selectionPolicyChanges: [pol(1, 500000, 2500)],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data;
+    assert.equal(policyCheck(d), undefined);
+    assert.ok(d.verification.caveats.some((c) => /policy not indexed/.test(c)));
+    await app.close();
+  });
+});

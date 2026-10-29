@@ -730,6 +730,10 @@ export function useOperatorDraw(slotId: string, epoch: string) {
     enabled: enabledSlot(slotId) && epoch.length > 0,
     // A settled epoch's draw record is final — cache effectively forever.
     staleTime: Number.POSITIVE_INFINITY,
+    // …but "no draw record yet" is not final: the sampler stores the draw once the operator
+    // publishes it, so a mounted panel keeps polling until it appears, then stops.
+    refetchInterval: (query) =>
+      query.state.data?.data.status === 'no_status' ? STATUS_REFETCH_MS : false,
   });
 }
 

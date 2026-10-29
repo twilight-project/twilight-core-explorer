@@ -394,7 +394,8 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
                 <span className={latestPaid > 0 ? 'text-accent-green' : 'text-text-secondary'}>
                   +{formatNumber(latestPaid)}
                 </span>{' '}
-                {latestIsToday ? 'today' : latestDayShort}
+                {/* grouped by epoch-close day (like every row), not by the day the payout landed */}
+                {latestIsToday ? 'for epochs closed today' : `for epochs closed ${latestDayShort}`}
               </span>
             </div>
           </div>
@@ -525,7 +526,7 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
         <Tile
           title="Paid to miners"
           value={`${formatNumber(latestPaid)}`}
-          sub={latestIsToday ? 'TWLT today' : `TWLT on ${latestDayShort}`}
+          sub={latestIsToday ? 'TWLT · epochs closed today' : `TWLT · epochs closed ${latestDayShort}`}
         >
           <EChart option={paidTile} height={72} label="TWLT paid to miners per day, last 30 days" />
         </Tile>

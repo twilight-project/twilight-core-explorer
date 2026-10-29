@@ -48,11 +48,17 @@ const CLOCK_STALE_SECONDS = 180;
 
 // Per-app-instance verdict cache (see the draw route): a module-level Map would be shared
 // by every server built in a process, including across tests.
-const DRAW_VERDICT_CACHES = new WeakMap<object, Map<string, DrawVerification>>();
-function drawVerdictCache(app: object): Map<string, DrawVerification> {
+interface CachedVerdict {
+  verification: DrawVerification;
+  expiresAt: number;
+}
+const DRAW_VERDICT_TTL_SETTLED_MS = 5 * 60 * 1000;
+const DRAW_VERDICT_TTL_PENDING_MS = 30 * 1000;
+const DRAW_VERDICT_CACHES = new WeakMap<object, Map<string, CachedVerdict>>();
+function drawVerdictCache(app: object): Map<string, CachedVerdict> {
   let cache = DRAW_VERDICT_CACHES.get(app);
   if (!cache) {
-    cache = new Map<string, DrawVerification>();
+    cache = new Map<string, CachedVerdict>();
     DRAW_VERDICT_CACHES.set(app, cache);
   }
   return cache;
@@ -480,12 +486,16 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
         typeof sample.payloadJson === 'object' && sample.payloadJson !== null
           ? (sample.payloadJson as Record<string, unknown>)
           : {};
-      // Cache SETTLED verdicts only. 'unverifiable' depends on index data that arrives
-      // later (attribution rows, the anchor tx, policy rows), so caching it would freeze an
-      // early "cannot tell" until the process restarts. The cache lives on the app instance,
-      // not the module, so it cannot leak between servers (or between tests).
+      // Every verdict depends on index data that can still arrive or be replayed after the
+      // draw sample is stored (attribution rows, the anchor tx, policy rows), and a stored
+      // draw sample never changes — so no verdict is cached forever. Each entry expires:
+      // 'unverifiable' quickly (it is usually waiting on data), settled verdicts after a few
+      // minutes (bounds how long a verdict built on a lagging projection can stay stale),
+      // and the short pending TTL also bounds the CPU a malformed or incomplete record can
+      // cost per request. The cache lives on the app instance, not the module.
       const cacheKey = `${slotId}:${epoch}:${sample.fetchedAt?.getTime() ?? 0}`;
-      let verification = drawVerdictCache(app).get(cacheKey);
+      const cached = drawVerdictCache(app).get(cacheKey);
+      let verification = cached && cached.expiresAt > Date.now() ? cached.verification : undefined;
       if (!verification) {
         const anchorRec =
           typeof record['anchor'] === 'object' && record['anchor'] !== null
@@ -532,33 +542,20 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
             proposerSlotId: slotByHeight.get(b.height) ?? null,
           }));
         }
-        // The policy row to compare against is the one in force AT THE ANCHOR, not the
-        // slot's latest: comparing an old honest draw with today's policy would publish a
-        // false "contradicts the chain". Prefer the exact version the record names; fall
-        // back to the newest row effective at or before the anchor height.
-        const recordPolicyVersion = toBoundedBig(
-          (record['parameters'] as Record<string, unknown> | undefined)?.['selection_policy_version'],
-        );
-        const policySelect = {
-          policyVersion: true,
-          selectionRateBps: true,
-          maxSelectedParticipants: true,
-        } as const;
-        const policyRow =
-          (recordPolicyVersion !== null
-            ? await app.prisma.coreSlotSelectionPolicyChange.findFirst({
-                where: { slotId, policyVersion: recordPolicyVersion },
-                orderBy: { height: 'desc' },
-                select: policySelect,
-              })
-            : null) ??
-          (anchorTx
-            ? await app.prisma.coreSlotSelectionPolicyChange.findFirst({
-                where: { slotId, height: { lte: anchorTx.height } },
-                orderBy: { height: 'desc' },
-                select: policySelect,
-              })
-            : null);
+        // The policy row to compare against is the one in force AT THE ANCHOR, chosen by
+        // the chain-indexed anchor height ONLY. Never by the version the record names: as
+        // the reference verifier puts it, "asking for the versions by number would trust the
+        // record to say which rows to fetch, and a forged parameter set names whichever
+        // version makes it look right" (twilight-minis drawrecord.go). A policy tx at height H
+        // takes effect from H+1 (x/coreslot ValidFromHeight), so the row in force at anchor
+        // height A is the newest with height < A. No anchor in the index → no comparison.
+        const policyRow = anchorTx
+          ? await app.prisma.coreSlotSelectionPolicyChange.findFirst({
+              where: { slotId, height: { lt: anchorTx.height } },
+              orderBy: { height: 'desc' },
+              select: { policyVersion: true, selectionRateBps: true, maxSelectedParticipants: true },
+            })
+          : null;
         verification = verifyDraw({
           chainId: cursor?.chainId ?? '',
           slotId,
@@ -575,13 +572,17 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
               }
             : null,
         });
-        if (verification.result !== 'unverifiable') {
-          const cache = drawVerdictCache(app);
-          cache.set(cacheKey, verification);
-          if (cache.size > 500) {
-            const oldest = cache.keys().next().value;
-            if (oldest !== undefined) cache.delete(oldest);
-          }
+        const cache = drawVerdictCache(app);
+        cache.delete(cacheKey); // re-insert at the end so eviction stays oldest-first
+        cache.set(cacheKey, {
+          verification,
+          expiresAt:
+            Date.now() +
+            (verification.result === 'unverifiable' ? DRAW_VERDICT_TTL_PENDING_MS : DRAW_VERDICT_TTL_SETTLED_MS),
+        });
+        if (cache.size > 500) {
+          const oldest = cache.keys().next().value;
+          if (oldest !== undefined) cache.delete(oldest);
         }
       }
 

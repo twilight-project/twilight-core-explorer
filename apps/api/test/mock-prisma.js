@@ -58,6 +58,7 @@ export class MockPrisma {
           .filter((r) => w.slotId === undefined || r.slotId === w.slotId)
           .filter((r) => w.policyVersion === undefined || r.policyVersion === w.policyVersion)
           .filter((r) => w.height?.lte === undefined || r.height <= w.height.lte)
+          .filter((r) => w.height?.lt === undefined || r.height < w.height.lt)
           .sort((a, b) => (a.height > b.height ? -1 : 1));
         return rows[0] ?? null;
       },

@@ -129,13 +129,28 @@ export interface DrawParameters {
  * publish it), so an applied minimum ABOVE the chain's is malformed — it claims a
  * requirement the protocol never sanctioned.
  */
-export function parseParameters(raw: unknown): { params: DrawParameters; reason?: undefined } | { params: null; reason: string } {
+export function parseParameters(
+  raw: unknown,
+):
+  | { params: DrawParameters; reason?: undefined; explorerLimit?: undefined }
+  | { params: null; reason: string; explorerLimit?: boolean } {
   if (typeof raw !== 'object' || raw === null) return { params: null, reason: 'parameters absent' };
   const rec = raw as Record<string, unknown>;
   const values = {} as DrawParameters['values'];
   for (const name of PARAM_FIELD_ORDER) {
-    const v = toBoundedBig(rec[name]);
-    if (v === null) return { params: null, reason: `${name} missing or out of bounds` };
+    const field = rec[name];
+    const v = toBoundedBig(field);
+    if (v === null) {
+      // A well-formed unsigned integer the chain allows but this explorer cannot represent
+      // exactly (beyond MAX_UINT_DIGITS digits, or a JSON number past 2^53) is OUR limit,
+      // not the operator's error: report it as unverifiable, never as a mismatch.
+      const isLargeUint =
+        (typeof field === 'string' && /^\d+$/.test(field)) ||
+        (typeof field === 'number' && Number.isInteger(field) && field >= 0);
+      return isLargeUint
+        ? { params: null, reason: `${name} is beyond what this explorer can verify exactly`, explorerLimit: true }
+        : { params: null, reason: `${name} missing or not an unsigned integer` };
+    }
     values[name] = v;
   }
   if (typeof rec['exclude_target_slot_proposals'] !== 'boolean') {
@@ -162,7 +177,12 @@ export function parseParameters(raw: unknown): { params: DrawParameters; reason?
   }
   if (values.beacon_window_blocks === 0n) return { params: null, reason: 'beacon_window_blocks is 0: a window of no blocks carries no randomness' };
   if (values.beacon_window_blocks > MAX_WINDOW_BLOCKS) {
-    return { params: null, reason: `beacon_window_blocks above this explorer's ${MAX_WINDOW_BLOCKS}-block verification cap` };
+    // The chain sets no window ceiling; this cap only bounds OUR work → unverifiable.
+    return {
+      params: null,
+      reason: `beacon_window_blocks above this explorer's ${MAX_WINDOW_BLOCKS}-block verification cap`,
+      explorerLimit: true,
+    };
   }
   if (values.max_candidates_per_selection === 0n) return { params: null, reason: 'max_candidates_per_selection is 0' };
   if (values.chain_min_external_beacon_blocks === 0n || values.chain_min_distinct_external_proposers === 0n) {
@@ -361,8 +381,15 @@ export interface DrawVerification {
 function rec(v: unknown): Record<string, unknown> {
   return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
 }
+/**
+ * Compare our recomputed digest with a published one. `null` only when WE could not compute
+ * ours; a published digest that is missing or not a string is malformed (Go's checkShape
+ * refuses such a record), so it is `false` — which also lets the foundation short-circuit
+ * stop a malformed record before the expensive re-derivation.
+ */
 function hexEq(buf: Buffer | null, hexStr: unknown): boolean | null {
-  if (buf === null || typeof hexStr !== 'string') return null;
+  if (buf === null) return null;
+  if (typeof hexStr !== 'string') return false;
   return buf.toString('hex') === hexStr.toLowerCase();
 }
 
@@ -411,7 +438,8 @@ export function verifyDraw(input: {
   record: unknown;
   anchor: { memo: string | null; height: bigint } | null;
   blocks: WindowBlock[];
-  /** Latest indexed on-chain selection policy for the slot, when available (M4). */
+  /** The indexed on-chain selection policy in force at the anchor height, when available
+   *  (M4). The caller must choose it by anchor height, never by the record's version. */
   chainPolicy?: ChainPolicy | null;
 }): DrawVerification {
   const { chainId, slotId, epoch } = input;
@@ -459,7 +487,7 @@ export function verifyDraw(input: {
   const params = parsed.params;
   push(
     'parameters_valid',
-    params !== null,
+    params !== null ? true : parsed.explorerLimit ? null : false,
     params ? 'every rule of the reference DrawParameters/Thresholds validation holds' : parsed.reason,
   );
   const pHash = params ? paramsHashV1(params) : null;
@@ -481,8 +509,10 @@ export function verifyDraw(input: {
     if (!pol || (pol.selectionRateBps === null && pol.maxSelectedParticipants === null)) {
       caveats.push('on-chain selection policy not indexed for this slot — the committed parameters could not be compared with the chain');
     } else {
-      // MAJ-1: the row must be the one in force AT THE ANCHOR, not the slot's latest —
-      // otherwise every honest older draw turns into a public "contradicts the chain".
+      // MAJ-1: the row is the one in force AT THE ANCHOR, chosen by the chain-indexed
+      // anchor height (never by the version the record names — a forged parameter set
+      // would name whichever version makes it look right). The record's version, rate and
+      // max must all match that row.
       const versionOk =
         pol.policyVersion === null || pol.policyVersion === params.values.selection_policy_version;
       const rateOk = pol.selectionRateBps === null || pol.selectionRateBps === params.values.selection_rate_bps;
@@ -492,7 +522,20 @@ export function verifyDraw(input: {
       push(
         'parameters_match_chain_policy',
         versionOk && rateOk && maxOk,
-        `policy v${pol.policyVersion ?? '?'} in force at the anchor: rate ${params.values.selection_rate_bps} bps / max ${params.values.max_selected_participants}`,
+        `chain policy in force at the anchor: v${pol.policyVersion ?? '?'}, rate ${pol.selectionRateBps ?? '?'} bps, max ${pol.maxSelectedParticipants ?? '?'}` +
+          ` · record names v${params.values.selection_policy_version}, rate ${params.values.selection_rate_bps} bps, max ${params.values.max_selected_participants}`,
+      );
+    }
+    // Relaxed thresholds are legitimate but must be published (Go Relaxations()).
+    const v = params.values;
+    if (
+      v.min_external_beacon_blocks < v.chain_min_external_beacon_blocks ||
+      v.min_distinct_external_proposers < v.chain_min_distinct_external_proposers
+    ) {
+      caveats.push(
+        `beacon thresholds relaxed below the chain's: applied ${v.min_external_beacon_blocks} usable blocks / ` +
+          `${v.min_distinct_external_proposers} distinct proposers vs chain ${v.chain_min_external_beacon_blocks} / ` +
+          `${v.chain_min_distinct_external_proposers}`,
       );
     }
   }

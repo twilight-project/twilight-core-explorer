@@ -331,3 +331,62 @@ describe('record shape and policy comparison (round-2 minors + MAJ-1)', () => {
     assert.equal(v.checks.find((c) => c.name === 'candidates_canonical').ok, false);
   });
 });
+
+describe('round-3 fixes: explorer limits, malformed digests, relaxation, policy detail', () => {
+  const recordWith = (mutate) => {
+    const r = JSON.parse(JSON.stringify(RECORD));
+    mutate(r);
+    return { ...INPUT, record: r };
+  };
+  const check = (v, name) => v.checks.find((c) => c.name === name);
+
+  it("an explorer-side limit is unverifiable, never a mismatch (m1)", () => {
+    // the chain allows a window this explorer will not re-derive
+    const big = verifyDraw(recordWith((r) => { r.parameters.beacon_window_blocks = 4096; }));
+    assert.equal(check(big, 'parameters_valid').ok, null);
+    assert.equal(big.result, 'unverifiable');
+    // and a valid uint64 beyond what we can represent exactly
+    const huge = verifyDraw(recordWith((r) => { r.parameters.max_selected_participants = '10000000000000'; }));
+    assert.equal(check(huge, 'parameters_valid').ok, null);
+    assert.equal(huge.result, 'unverifiable');
+    // whereas a non-number is the operator's error
+    const junk = verifyDraw(recordWith((r) => { r.parameters.max_selected_participants = 'ten'; }));
+    assert.equal(check(junk, 'parameters_valid').ok, false);
+    assert.equal(junk.result, 'mismatch');
+  });
+
+  it('a missing or wrongly-typed published digest is a mismatch, decided before the re-derivation (NEW-M2)', () => {
+    for (const mutate of [
+      (r) => { r.candidate_set_hash = 1; },
+      (r) => { r.anchor.committed_set_hash = null; },
+      (r) => { r.anchor.committed_params_hash = undefined; },
+      (r) => { r.selected_draw_ids_hash = null; },
+    ]) {
+      const v = verifyDraw(recordWith(mutate));
+      assert.equal(v.result, 'mismatch', JSON.stringify(v.checks.filter((c) => c.ok !== true)));
+    }
+    // the set-hash case stops at the foundation check: no winners are re-derived
+    const early = verifyDraw(recordWith((r) => { r.candidate_set_hash = 1; }));
+    assert.equal(check(early, 'winners_redrawn'), undefined);
+  });
+
+  it('relaxed thresholds are published as a caveat (m3)', () => {
+    const v = verifyDraw(recordWith((r) => {
+      r.parameters.min_external_beacon_blocks = 6;
+    }));
+    assert.ok(v.caveats.some((c) => /relaxed below the chain's: applied 6 usable blocks/.test(c)), v.caveats.join(' | '));
+    // the real record applies the chain's own thresholds: no relaxation caveat
+    assert.ok(!verifyDraw(INPUT).caveats.some((c) => /relaxed/.test(c)));
+  });
+
+  it("the policy detail shows the chain row's values next to the record's (m2)", () => {
+    const v = verifyDraw({
+      ...INPUT,
+      chainPolicy: { policyVersion: 3n, selectionRateBps: 1000n, maxSelectedParticipants: 5n },
+    });
+    const p = check(v, 'parameters_match_chain_policy');
+    assert.equal(p.ok, false);
+    assert.match(p.detail, /chain policy in force at the anchor: v3, rate 1000 bps, max 5/);
+    assert.match(p.detail, /record names v1, rate 2500 bps, max 10/);
+  });
+});

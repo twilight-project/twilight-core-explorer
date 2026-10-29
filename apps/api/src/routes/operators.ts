@@ -44,11 +44,19 @@ import {
 // envelope that names their provenance ('attested'), age and staleness. A slot with no
 // configured feed answers `{status:'no_status'}` with 200 — silence is a state, not an error.
 
-// Verdicts are deterministic per stored sample; cache them so a GET never re-hashes an
-// unchanged record (bounded, insertion-order eviction).
-const drawVerdictCache = new Map<string, DrawVerification>();
-
 const CLOCK_STALE_SECONDS = 180;
+
+// Per-app-instance verdict cache (see the draw route): a module-level Map would be shared
+// by every server built in a process, including across tests.
+const DRAW_VERDICT_CACHES = new WeakMap<object, Map<string, DrawVerification>>();
+function drawVerdictCache(app: object): Map<string, DrawVerification> {
+  let cache = DRAW_VERDICT_CACHES.get(app);
+  if (!cache) {
+    cache = new Map<string, DrawVerification>();
+    DRAW_VERDICT_CACHES.set(app, cache);
+  }
+  return cache;
+}
 // AS metadata/JWKS are sampled hourly; two missed rounds = stale.
 const AUTH_STALE_SECONDS = 2 * 60 * 60;
 
@@ -472,8 +480,12 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
         typeof sample.payloadJson === 'object' && sample.payloadJson !== null
           ? (sample.payloadJson as Record<string, unknown>)
           : {};
+      // Cache SETTLED verdicts only. 'unverifiable' depends on index data that arrives
+      // later (attribution rows, the anchor tx, policy rows), so caching it would freeze an
+      // early "cannot tell" until the process restarts. The cache lives on the app instance,
+      // not the module, so it cannot leak between servers (or between tests).
       const cacheKey = `${slotId}:${epoch}:${sample.fetchedAt?.getTime() ?? 0}`;
-      let verification = drawVerdictCache.get(cacheKey);
+      let verification = drawVerdictCache(app).get(cacheKey);
       if (!verification) {
         const anchorRec =
           typeof record['anchor'] === 'object' && record['anchor'] !== null
@@ -520,11 +532,33 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
             proposerSlotId: slotByHeight.get(b.height) ?? null,
           }));
         }
-        const policyRow = await app.prisma.coreSlotSelectionPolicyChange.findFirst({
-          where: { slotId },
-          orderBy: { height: 'desc' },
-          select: { selectionRateBps: true, maxSelectedParticipants: true },
-        });
+        // The policy row to compare against is the one in force AT THE ANCHOR, not the
+        // slot's latest: comparing an old honest draw with today's policy would publish a
+        // false "contradicts the chain". Prefer the exact version the record names; fall
+        // back to the newest row effective at or before the anchor height.
+        const recordPolicyVersion = toBoundedBig(
+          (record['parameters'] as Record<string, unknown> | undefined)?.['selection_policy_version'],
+        );
+        const policySelect = {
+          policyVersion: true,
+          selectionRateBps: true,
+          maxSelectedParticipants: true,
+        } as const;
+        const policyRow =
+          (recordPolicyVersion !== null
+            ? await app.prisma.coreSlotSelectionPolicyChange.findFirst({
+                where: { slotId, policyVersion: recordPolicyVersion },
+                orderBy: { height: 'desc' },
+                select: policySelect,
+              })
+            : null) ??
+          (anchorTx
+            ? await app.prisma.coreSlotSelectionPolicyChange.findFirst({
+                where: { slotId, height: { lte: anchorTx.height } },
+                orderBy: { height: 'desc' },
+                select: policySelect,
+              })
+            : null);
         verification = verifyDraw({
           chainId: cursor?.chainId ?? '',
           slotId,
@@ -534,16 +568,20 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
           blocks: windowBlocks,
           chainPolicy: policyRow
             ? {
+                policyVersion: policyRow.policyVersion,
                 selectionRateBps:
                   policyRow.selectionRateBps === null ? null : BigInt(policyRow.selectionRateBps),
                 maxSelectedParticipants: policyRow.maxSelectedParticipants,
               }
             : null,
         });
-        drawVerdictCache.set(cacheKey, verification);
-        if (drawVerdictCache.size > 500) {
-          const oldest = drawVerdictCache.keys().next().value;
-          if (oldest !== undefined) drawVerdictCache.delete(oldest);
+        if (verification.result !== 'unverifiable') {
+          const cache = drawVerdictCache(app);
+          cache.set(cacheKey, verification);
+          if (cache.size > 500) {
+            const oldest = cache.keys().next().value;
+            if (oldest !== undefined) cache.delete(oldest);
+          }
         }
       }
 

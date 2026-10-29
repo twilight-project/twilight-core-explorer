@@ -146,10 +146,10 @@ describe('draw verification — outcome re-derivation and forgeries', () => {
   });
 
   it('M4: parameters that contradict the indexed chain policy are a mismatch', () => {
-    const v = verifyDraw({ ...forge({}), chainPolicy: { selectionRateBps: 1000n, maxSelectedParticipants: 10n } });
+    const v = verifyDraw({ ...forge({}), chainPolicy: { policyVersion: 1n, selectionRateBps: 1000n, maxSelectedParticipants: 10n } });
     assert.equal(check(v, 'parameters_match_chain_policy').ok, false);
     assert.equal(v.result, 'mismatch');
-    const ok = verifyDraw({ ...forge({}), chainPolicy: { selectionRateBps: 2500n, maxSelectedParticipants: 10n } });
+    const ok = verifyDraw({ ...forge({}), chainPolicy: { policyVersion: 1n, selectionRateBps: 2500n, maxSelectedParticipants: 10n } });
     assert.equal(check(ok, 'parameters_match_chain_policy').ok, true);
     assert.equal(ok.result, 'verified');
   });
@@ -189,5 +189,145 @@ describe('draw verification — outcome re-derivation and forgeries', () => {
       blocks: [],
     });
     assert.equal(v.result, 'verified', JSON.stringify(v.checks));
+  });
+});
+
+// Round-2 blockers/majors: the full parameter validation port, the point-in-time policy
+// comparison and the record-shape rules.
+describe('parameter validation port (round-2 BLK-1)', () => {
+  const base = JSON.parse(JSON.stringify(RECORD));
+  const withParams = (over) => ({
+    ...INPUT,
+    record: { ...base, parameters: { ...base.parameters, ...over } },
+  });
+  const paramsCheck = (v) => v.checks.find((c) => c.name === 'parameters_valid');
+
+  it('the real record passes every rule', () => {
+    assert.equal(paramsCheck(verifyDraw(INPUT)).ok, true);
+  });
+
+  const cases = [
+    ['zero selection_params_version', { selection_params_version: 0 }],
+    ['zero selection_policy_version', { selection_policy_version: 0 }],
+    ['zero beacon_start_offset_blocks (seed already visible at commit)', { beacon_start_offset_blocks: 0 }],
+    ['zero beacon_window_blocks', { beacon_window_blocks: 0 }],
+    ['zero max_candidates_per_selection', { max_candidates_per_selection: 0 }],
+    ['zero chain_min_external_beacon_blocks', { chain_min_external_beacon_blocks: 0 }],
+    ['zero chain_min_distinct_external_proposers', { chain_min_distinct_external_proposers: 0 }],
+    ['applied min_external ABOVE the chain minimum', { min_external_beacon_blocks: 13 }],
+    ['applied min_distinct ABOVE the chain minimum', { min_distinct_external_proposers: 4 }],
+    ['zero applied min_external', { min_external_beacon_blocks: 0 }],
+    ['zero applied min_distinct', { min_distinct_external_proposers: 0 }],
+    ['min_distinct greater than min_external', { min_distinct_external_proposers: 12, min_external_beacon_blocks: 11, chain_min_external_beacon_blocks: 11, chain_min_distinct_external_proposers: 12 }],
+    ['min_external longer than the window', { beacon_window_blocks: 10 }],
+    ['selection_rate_bps above 5000', { selection_rate_bps: 5001 }],
+    ['selection_rate_bps zero', { selection_rate_bps: 0 }],
+  ];
+  for (const [name, over] of cases) {
+    it(`refuses ${name}`, () => {
+      const v = verifyDraw(withParams(over));
+      assert.equal(paramsCheck(v).ok, false, name);
+      assert.equal(v.result, 'mismatch', name);
+    });
+  }
+
+  it('refuses exclude_target_slot_proposals: false', () => {
+    const v = verifyDraw(withParams({ exclude_target_slot_proposals: false }));
+    assert.equal(paramsCheck(v).ok, false);
+  });
+});
+
+describe('record shape and policy comparison (round-2 minors + MAJ-1)', () => {
+  const check = (v, name) => v.checks.find((c) => c.name === name);
+  const forge = (over) => ({ ...INPUT, record: { ...JSON.parse(JSON.stringify(RECORD)), ...over } });
+
+  it('a record for another chain, slot, epoch or version is refused', () => {
+    for (const over of [
+      { chain_id: 'twilight-mainnet-1' },
+      { slot_id: 4 },
+      { target_epoch: 1658 },
+      { version: 2 },
+    ]) {
+      const v = verifyDraw(forge(over));
+      assert.equal(check(v, 'record_shape').ok, false, JSON.stringify(over));
+      assert.equal(v.result, 'mismatch');
+    }
+  });
+
+  it('a non-string winner entry is refused instead of silently dropped', () => {
+    const v = verifyDraw(forge({ winners: [RECORD.winners[0], 42] }));
+    assert.equal(check(v, 'record_shape').ok, false);
+  });
+
+  it('fewer than two candidates must not carry a beacon section', () => {
+    // Build an OTHERWISE valid single-candidate record (own set hash, own anchor memo,
+    // empty-winner digest for its k=1 winner) and then attach the illegal beacon section.
+    const only = RECORD.candidates[0];
+    const setHash = candidateSetHashV1('twilight-testnet-1', 3n, 1657n, [
+      Buffer.from(only, 'hex'),
+    ]).toString('hex');
+    const memo = `{"v":1,"slot":3,"epoch":1657,"set":"${setHash}","params":"${RECORD.anchor.committed_params_hash}"}`;
+    const record = {
+      ...JSON.parse(JSON.stringify(RECORD)),
+      candidates: [only],
+      winners: [only],
+      k: 1,
+      outcome: 'SUCCESS',
+      candidate_set_hash: setHash,
+      selected_draw_ids_hash: selectedDrawIdsHashV1('twilight-testnet-1', 3n, 1657n, [
+        Buffer.from(only, 'hex'),
+      ]).toString('hex'),
+      anchor: { ...RECORD.anchor, committed_set_hash: setHash },
+    };
+    const anchor = { memo, height: BigInt(RECORD.anchor.confirmed_height) };
+    // Without a beacon section it verifies...
+    const clean = verifyDraw({ ...INPUT, record: { ...record, beacon: null }, anchor, blocks: [] });
+    assert.equal(clean.result, 'verified', JSON.stringify(clean.checks));
+    // ...and with one it is refused.
+    const withBeacon = verifyDraw({ ...INPUT, record, anchor, blocks: BLOCKS });
+    assert.equal(check(withBeacon, 'beacon_shape').ok, false);
+    assert.equal(withBeacon.result, 'mismatch');
+  });
+
+  it('MAJ-1: the policy version the record names is what gets compared', () => {
+    // An older draw (policy v1) judged against the row in force then: verified.
+    const atAnchor = verifyDraw({
+      ...INPUT,
+      chainPolicy: { policyVersion: 1n, selectionRateBps: 2500n, maxSelectedParticipants: 10n },
+    });
+    assert.equal(check(atAnchor, 'parameters_match_chain_policy').ok, true);
+    assert.equal(atAnchor.result, 'verified');
+    // The same draw judged against a LATER policy row would be a false accusation; the
+    // version mismatch is what catches the wrong row being supplied.
+    const laterRow = verifyDraw({
+      ...INPUT,
+      chainPolicy: { policyVersion: 2n, selectionRateBps: 2500n, maxSelectedParticipants: 10n },
+    });
+    assert.equal(check(laterRow, 'parameters_match_chain_policy').ok, false);
+  });
+
+  it('a green verdict always carries its caveats', () => {
+    const v = verifyDraw({
+      ...INPUT,
+      chainPolicy: { policyVersion: 1n, selectionRateBps: 2500n, maxSelectedParticipants: 10n },
+    });
+    assert.equal(v.result, 'verified');
+    assert.ok(v.caveats.some((c) => /single-anchor/i.test(c)));
+    assert.ok(v.caveats.some((c) => /not compared with the chain/i.test(c)));
+  });
+
+  it('the candidate cap from the parameters is enforced', () => {
+    const many = Array.from({ length: 5 }, (_, i) =>
+      (i + 1).toString(16).padStart(64, '0'),
+    );
+    const v = verifyDraw({
+      ...INPUT,
+      record: {
+        ...JSON.parse(JSON.stringify(RECORD)),
+        candidates: many,
+        parameters: { ...RECORD.parameters, max_candidates_per_selection: 4 },
+      },
+    });
+    assert.equal(v.checks.find((c) => c.name === 'candidates_canonical').ok, false);
   });
 });

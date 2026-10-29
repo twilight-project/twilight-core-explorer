@@ -117,27 +117,86 @@ export interface DrawParameters {
 }
 
 /**
- * Parse + validate the record's parameters (ports Parameters.Validate's bounds): every
- * numeric field bounded, selection_rate_bps in (0, 5000], a positive window within our cap,
- * exclude_target_slot_proposals must be true (the driver refuses false).
+ * Parse + validate the record's parameters. This is a port of the Go
+ * DrawParameters.Validate (internal/allocation/draw_parameters.go) plus
+ * Thresholds.Validate (internal/selectionv1/beacon.go) — parameters that could not have
+ * produced a checkable draw are refused outright, because an operator who may invent them
+ * freely can otherwise describe a draw whose randomness was predictable at commit time and
+ * still collect a plain "verified".
+ *
+ * Note the DIRECTION of the relaxation rule, which is easy to get backwards: an applied
+ * threshold may only go DOWNWARD from the chain's (a deployment may weaken a rule and
+ * publish it), so an applied minimum ABOVE the chain's is malformed — it claims a
+ * requirement the protocol never sanctioned.
  */
-export function parseParameters(raw: unknown): DrawParameters | null {
-  if (typeof raw !== 'object' || raw === null) return null;
+export function parseParameters(raw: unknown): { params: DrawParameters; reason?: undefined } | { params: null; reason: string } {
+  if (typeof raw !== 'object' || raw === null) return { params: null, reason: 'parameters absent' };
   const rec = raw as Record<string, unknown>;
   const values = {} as DrawParameters['values'];
   for (const name of PARAM_FIELD_ORDER) {
     const v = toBoundedBig(rec[name]);
-    if (v === null) return null;
+    if (v === null) return { params: null, reason: `${name} missing or out of bounds` };
     values[name] = v;
   }
-  if (typeof rec['exclude_target_slot_proposals'] !== 'boolean') return null;
-  if (values.selection_rate_bps <= 0n || values.selection_rate_bps > 5000n) return null;
-  if (values.beacon_window_blocks <= 0n || values.beacon_window_blocks > MAX_WINDOW_BLOCKS) return null;
-  if (values.max_selected_participants <= 0n) return null;
-  if (values.max_selected_participants_per_selection <= 0n) return null;
-  if (values.max_candidates_per_selection <= 0n) return null;
-  if (!rec['exclude_target_slot_proposals']) return null;
-  return { values, excludeTargetSlotProposals: true };
+  if (typeof rec['exclude_target_slot_proposals'] !== 'boolean') {
+    return { params: null, reason: 'exclude_target_slot_proposals is not a boolean' };
+  }
+  // Bounds (Go: Bounds().Validate()).
+  if (values.selection_rate_bps <= 0n || values.selection_rate_bps > 5000n) {
+    return { params: null, reason: 'selection_rate_bps outside (0, 5000]' };
+  }
+  if (values.max_selected_participants === 0n) return { params: null, reason: 'max_selected_participants is 0' };
+  if (values.max_selected_participants_per_selection === 0n) {
+    return { params: null, reason: 'max_selected_participants_per_selection is 0' };
+  }
+  // DrawParameters.Validate.
+  if (values.selection_params_version === 0n) {
+    return { params: null, reason: 'no selection_params_version: a verifier has no chain row to read' };
+  }
+  if (values.selection_policy_version === 0n) return { params: null, reason: 'no selection_policy_version' };
+  if (values.beacon_start_offset_blocks === 0n) {
+    return {
+      params: null,
+      reason: 'beacon_start_offset_blocks is 0: the window would open at the anchor height, so the commitment would be made with seed material already visible',
+    };
+  }
+  if (values.beacon_window_blocks === 0n) return { params: null, reason: 'beacon_window_blocks is 0: a window of no blocks carries no randomness' };
+  if (values.beacon_window_blocks > MAX_WINDOW_BLOCKS) {
+    return { params: null, reason: `beacon_window_blocks above this explorer's ${MAX_WINDOW_BLOCKS}-block verification cap` };
+  }
+  if (values.max_candidates_per_selection === 0n) return { params: null, reason: 'max_candidates_per_selection is 0' };
+  if (values.chain_min_external_beacon_blocks === 0n || values.chain_min_distinct_external_proposers === 0n) {
+    return { params: null, reason: "the chain's own thresholds are not recorded, so a relaxation cannot be judged" };
+  }
+  if (values.min_external_beacon_blocks > values.chain_min_external_beacon_blocks) {
+    return {
+      params: null,
+      reason: `applied min_external_beacon_blocks ${values.min_external_beacon_blocks} exceeds the chain's ${values.chain_min_external_beacon_blocks}: a threshold may be weakened, never claimed stronger than the protocol sanctioned`,
+    };
+  }
+  if (values.min_distinct_external_proposers > values.chain_min_distinct_external_proposers) {
+    return {
+      params: null,
+      reason: `applied min_distinct_external_proposers ${values.min_distinct_external_proposers} exceeds the chain's ${values.chain_min_distinct_external_proposers}`,
+    };
+  }
+  // Thresholds.Validate over the declared window.
+  if (values.min_external_beacon_blocks === 0n) return { params: null, reason: 'min_external_beacon_blocks is 0' };
+  if (values.min_distinct_external_proposers === 0n) return { params: null, reason: 'min_distinct_external_proposers is 0' };
+  if (values.min_distinct_external_proposers > values.min_external_beacon_blocks) {
+    return {
+      params: null,
+      reason: 'min_distinct_external_proposers exceeds min_external_beacon_blocks: a set of blocks cannot hold more distinct proposers than blocks',
+    };
+  }
+  if (values.min_external_beacon_blocks > values.beacon_window_blocks) {
+    return { params: null, reason: 'min_external_beacon_blocks exceeds the window length, so the threshold can never be met' };
+  }
+  // The driver refuses to run with the target-slot exclusion off.
+  if (!rec['exclude_target_slot_proposals']) {
+    return { params: null, reason: 'exclude_target_slot_proposals is false; the draw driver refuses that configuration' };
+  }
+  return { params: { values, excludeTargetSlotProposals: true } };
 }
 
 export function paramsHashV1(params: DrawParameters): Buffer {
@@ -335,6 +394,8 @@ export function decodeAnchorMemo(memo: string | null): {
 }
 
 export interface ChainPolicy {
+  /** The policy version of the row, so the record's claimed version can be checked. */
+  policyVersion: bigint | null;
   selectionRateBps: bigint | null;
   maxSelectedParticipants: bigint | null;
 }
@@ -376,11 +437,30 @@ export function verifyDraw(input: {
 
   // 1. Parameters: bounded, internally valid (Parameters.Validate), hash matches the
   //    anchored commitment.
-  const params = parseParameters(r['parameters']);
+  // The record's own shape first (Go checkShape): a record that does not describe THIS
+  // chain/slot/epoch, or names an unknown version, is not evidence about this draw at all.
+  const shapeProblems: string[] = [];
+  if (toBoundedBig(r['version']) !== 1n) shapeProblems.push('version is not 1');
+  if (r['chain_id'] !== chainId) shapeProblems.push(`chain_id is not ${chainId}`);
+  if (toBoundedBig(r['slot_id']) !== slotId) shapeProblems.push(`slot_id is not ${slotId}`);
+  if (toBoundedBig(r['target_epoch']) !== epoch) shapeProblems.push(`target_epoch is not ${epoch}`);
+  if (Array.isArray(r['winners']) && (r['winners'] as unknown[]).some((w) => typeof w !== 'string')) {
+    shapeProblems.push('winners contains a non-string entry');
+  }
+  push(
+    'record_shape',
+    shapeProblems.length === 0,
+    shapeProblems.length === 0
+      ? `version 1 record for ${chainId}, slot ${slotId}, epoch ${epoch}`
+      : shapeProblems.join('; '),
+  );
+
+  const parsed = parseParameters(r['parameters']);
+  const params = parsed.params;
   push(
     'parameters_valid',
     params !== null,
-    params ? 'all fields bounded and within the contract limits' : 'parameters missing, out of bounds, or exclude_target_slot_proposals is not true',
+    params ? 'every rule of the reference DrawParameters/Thresholds validation holds' : parsed.reason,
   );
   const pHash = params ? paramsHashV1(params) : null;
   push(
@@ -388,6 +468,35 @@ export function verifyDraw(input: {
     pHash ? hexEq(pHash, anchorRec['committed_params_hash']) : null,
     'recomputed from the published parameters vs anchor.committed_params_hash',
   );
+
+  // 2. M4 (partial): the K-driving parameters must match the slot's indexed on-chain
+  //    selection policy, when one is indexed.
+  if (params) {
+    const pol = input.chainPolicy;
+    // Only the two K-driving fields the chain indexes are compared; the reference verifier
+    // compares eleven, so say so even on a green verdict.
+    caveats.push(
+      'window, offset, thresholds and caps are not compared with the chain (only the selection rate and max-selected are)',
+    );
+    if (!pol || (pol.selectionRateBps === null && pol.maxSelectedParticipants === null)) {
+      caveats.push('on-chain selection policy not indexed for this slot — the committed parameters could not be compared with the chain');
+    } else {
+      // MAJ-1: the row must be the one in force AT THE ANCHOR, not the slot's latest —
+      // otherwise every honest older draw turns into a public "contradicts the chain".
+      const versionOk =
+        pol.policyVersion === null || pol.policyVersion === params.values.selection_policy_version;
+      const rateOk = pol.selectionRateBps === null || pol.selectionRateBps === params.values.selection_rate_bps;
+      const maxOk =
+        pol.maxSelectedParticipants === null ||
+        pol.maxSelectedParticipants === params.values.max_selected_participants;
+      push(
+        'parameters_match_chain_policy',
+        versionOk && rateOk && maxOk,
+        `policy v${pol.policyVersion ?? '?'} in force at the anchor: rate ${params.values.selection_rate_bps} bps / max ${params.values.max_selected_participants}`,
+      );
+    }
+  }
+
 
   // 2. Candidate set: canonical form (sorted, unique, lowercase, non-zero, capped) and the
   //    recomputed hash must match BOTH the published hash and the anchored commitment.
@@ -455,6 +564,13 @@ export function verifyDraw(input: {
     );
   }
 
+  // A record whose candidate set or anchor commitment already failed cannot be rescued by
+  // re-deriving winners, and re-hashing a large set costs real CPU — stop here (minor).
+  const foundationBroken = checks.some(
+    (c) => c.ok === false && ['record_shape', 'candidate_set_hash', 'anchor_commitment_on_chain', 'parameters_hash', 'parameters_valid'].includes(c.name),
+  );
+  if (foundationBroken) return finish();
+
   // 5. Expected outcome, re-derived for EVERY case (candidate count + OUR beacon assessment
   //    under the committed thresholds). The published outcome/counts/hash must match it.
   const c = candidates ? BigInt(candidates.length) : null;
@@ -463,6 +579,9 @@ export function verifyDraw(input: {
   let expectedAdmissible: boolean | null = null;
 
   if (params && c !== null) {
+    if (c < 2n && beaconRec !== null) {
+      push('beacon_shape', false, `${c} candidate(s) must not carry a beacon section`);
+    }
     if (c === 0n) expectedOutcome = 'NO_CANDIDATES';
     else if (c === 1n) expectedOutcome = 'SUCCESS';
     else if (windowOk && start !== null && end !== null && setHash) {
@@ -571,25 +690,6 @@ export function verifyDraw(input: {
         r['selected_draw_ids_hash'],
       );
       push('selected_draw_ids_hash', selOk, 'digest over the expected winners (empty digest for no winners)');
-    }
-  }
-
-  // 7. M4 (partial): the K-driving parameters must match the slot's indexed on-chain
-  //    selection policy, when one is indexed.
-  if (params) {
-    const pol = input.chainPolicy;
-    if (!pol || (pol.selectionRateBps === null && pol.maxSelectedParticipants === null)) {
-      caveats.push('on-chain selection policy not indexed for this slot — the committed parameters could not be compared with the chain');
-    } else {
-      const rateOk = pol.selectionRateBps === null || pol.selectionRateBps === params.values.selection_rate_bps;
-      const maxOk =
-        pol.maxSelectedParticipants === null ||
-        pol.maxSelectedParticipants === params.values.max_selected_participants;
-      push(
-        'parameters_match_chain_policy',
-        rateOk && maxOk,
-        `record rate ${params.values.selection_rate_bps} bps / max ${params.values.max_selected_participants} vs chain policy`,
-      );
     }
   }
 

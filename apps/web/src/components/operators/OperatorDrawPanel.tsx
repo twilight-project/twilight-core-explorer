@@ -78,6 +78,9 @@ export function OperatorDrawPanel({ slotId, epoch }: { slotId: string; epoch: st
       meta={
         <>
           epoch {epoch} ·{' '}
+          {verifyKind === 'verified' && d.verification.caveats.length > 0 ? (
+            <span className="text-text-muted">re-derived from chain data, with limits · </span>
+          ) : null}
           <SourceChip
             kind={verifyKind}
             title={

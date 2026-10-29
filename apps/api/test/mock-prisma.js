@@ -53,8 +53,11 @@ export class MockPrisma {
     this._selectionPolicyChanges = data.selectionPolicyChanges ?? [];
     this.coreSlotSelectionPolicyChange = {
       findFirst: async (args) => {
+        const w = args?.where ?? {};
         const rows = this._selectionPolicyChanges
-          .filter((r) => args?.where?.slotId === undefined || r.slotId === args.where.slotId)
+          .filter((r) => w.slotId === undefined || r.slotId === w.slotId)
+          .filter((r) => w.policyVersion === undefined || r.policyVersion === w.policyVersion)
+          .filter((r) => w.height?.lte === undefined || r.height <= w.height.lte)
           .sort((a, b) => (a.height > b.height ? -1 : 1));
         return rows[0] ?? null;
       },
@@ -121,6 +124,10 @@ export class MockPrisma {
         if (w.height?.in) rows = rows.filter((a) => w.height.in.some((h) => h === a.height));
         if (w.slotId !== undefined) rows = rows.filter((a) => a.slotId === w.slotId);
         if (w.height?.lt !== undefined) rows = rows.filter((a) => a.height < w.height.lt);
+        if (w.height?.gte !== undefined) rows = rows.filter((a) => a.height >= w.height.gte);
+        if (w.height?.lte !== undefined) rows = rows.filter((a) => a.height <= w.height.lte);
+        if (w.attributionStatus !== undefined)
+          rows = rows.filter((a) => a.attributionStatus === w.attributionStatus);
         if (args.orderBy?.height === 'desc') rows.sort((a, b) => descBig(a.height, b.height));
         return args.take ? rows.slice(0, args.take) : rows;
       },

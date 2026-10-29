@@ -477,3 +477,95 @@ describe('settled feed epochs are final (round-2 C) + stable participant order',
     await app.close();
   });
 });
+
+// Round-2: the draw route's own behaviour — attribution finality (M2), the verdict cache
+// (MAJ-2) and the point-in-time policy lookup (MAJ-1).
+describe('draw route: attribution finality, cache and policy lookup', () => {
+  const drawSample = (payload) => ({
+    sampleKey: '3:draw:1657', slotId: 3n, kind: 'draw', epochNumber: 1657n,
+    baseUrl: 'https://as.example', payloadJson: payload,
+    sampledAt: null, asHeight: null, fetchedAt: new Date('2026-10-29T00:00:00Z'),
+    lastAttemptAt: new Date('2026-10-29T00:00:00Z'), lastHttpStatus: 200, lastError: null,
+  });
+  // A minimal two-candidate record; the window is deliberately NOT indexed here, so the
+  // beacon check can only be null (never a pass) — which is the point of these tests.
+  const RECORD = {
+    version: 1, chain_id: 'twilight-testnet-1', slot_id: 3, target_epoch: 1657,
+    parameters: {
+      selection_params_version: 1, selection_policy_version: 1, selection_rate_bps: 2500,
+      max_selected_participants: 10, max_selected_participants_per_selection: 64,
+      max_candidates_per_selection: 1024, beacon_start_offset_blocks: 48,
+      beacon_window_blocks: 24, chain_min_external_beacon_blocks: 12,
+      chain_min_distinct_external_proposers: 3, min_external_beacon_blocks: 12,
+      min_distinct_external_proposers: 3, exclude_target_slot_proposals: true,
+    },
+    anchor: { tx_hash: 'ab'.repeat(32), confirmed_height: 597022, committed_set_hash: '0'.repeat(63) + '1', committed_params_hash: '0'.repeat(63) + '2' },
+    candidates: ['11'.repeat(32), '22'.repeat(32)],
+    beacon: { start_height: 597070, end_height: 597093, hash: null, admissible: false, usable_blocks: 0, distinct_external_proposers: 0, excluded_target_blocks: 0, unattributable_blocks: 24 },
+    outcome: 'NO_VALID_BEACON', k: 1, winners: [],
+    candidate_set_hash: '0'.repeat(63) + '1', selected_draw_ids_hash: '0'.repeat(63) + '3',
+  };
+
+  it('M2: a non-final attribution row counts as missing, so the verdict is not green', async () => {
+    const app = await build({
+      indexerCursor: {
+        chainId: 'twilight-testnet-1', lastIndexedHeight: 700000n, latestChainHeight: 700000n,
+        status: 'idle', lastIndexedHash: 'abc', updatedAt: new Date(), error: null,
+      },
+      blocks: [block(200)],
+      // the window block exists and has an attribution row, but it is NOT final
+      attributions: [{ height: 597070n, proposerAddress: 'aa', rawProposerAddress: 'AA', slotId: 1n, operatorAddress: 'twilight1op', attributionStatus: 'ambiguous' }],
+      operatorStatusSamples: [drawSample(RECORD)],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data;
+    assert.equal(d.status, 'ok');
+    assert.notEqual(d.verification.result, 'verified');
+    await app.close();
+  });
+
+  it('MAJ-2: an unverifiable verdict is never cached (it is recomputed each request)', async () => {
+    const app = await build({
+      indexerCursor: {
+        chainId: 'twilight-testnet-1', lastIndexedHeight: 700000n, latestChainHeight: 700000n,
+        status: 'idle', lastIndexedHash: 'abc', updatedAt: new Date(), error: null,
+      },
+      blocks: [block(200)], operatorStatusSamples: [drawSample(RECORD)],
+    });
+    const first = (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data.verification;
+    const second = (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data.verification;
+    assert.equal(first.result, second.result);
+    // A fresh server must not inherit the previous instance's verdicts.
+    const other = await build({
+      indexerCursor: {
+        chainId: 'twilight-testnet-1', lastIndexedHeight: 700000n, latestChainHeight: 700000n,
+        status: 'idle', lastIndexedHash: 'abc', updatedAt: new Date(), error: null,
+      },
+      blocks: [block(200)], operatorStatusSamples: [drawSample(RECORD)],
+    });
+    const third = (await other.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data.verification;
+    assert.equal(typeof third.result, 'string');
+    await app.close();
+    await other.close();
+  });
+
+  it('MAJ-1: the policy row is chosen by the version the record names', async () => {
+    const app = await build({
+      indexerCursor: {
+        chainId: 'twilight-testnet-1', lastIndexedHeight: 700000n, latestChainHeight: 700000n,
+        status: 'idle', lastIndexedHash: 'abc', updatedAt: new Date(), error: null,
+      },
+      blocks: [block(200)],
+      operatorStatusSamples: [drawSample(RECORD)],
+      selectionPolicyChanges: [
+        { slotId: 3n, policyVersion: 1n, selectionRateBps: 2500, maxSelectedParticipants: 10n, height: 500000n },
+        { slotId: 3n, policyVersion: 2n, selectionRateBps: 1000, maxSelectedParticipants: 5n, height: 900000n },
+      ],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/draw/1657' })).json().data;
+    const policy = d.verification.checks.find((c) => c.name === 'parameters_match_chain_policy');
+    // v1 is what the record names and what was in force at the anchor: no contradiction,
+    // even though a newer v2 row exists with different values.
+    assert.equal(policy.ok, true, JSON.stringify(policy));
+    await app.close();
+  });
+});

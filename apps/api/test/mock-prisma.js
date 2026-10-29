@@ -658,7 +658,11 @@ export class MockPrisma {
           (x) => x.slotId === ent.slotId && x.epochNumber === ent.epochNumber,
         );
         const cutoff = values.find((v) => v instanceof Date) ?? new Date(0);
-        const in30 = epochRow?.blockTime ? epochRow.blockTime >= cutoff : false;
+        // Mirrors the SQL's coalesce(re."blockTime", b."time"): the projector never writes
+        // blockTime today, so close time falls back to the Block at the close height.
+        const closeBlock = epochRow ? this._blocks.find((b) => b.height === epochRow.height) : null;
+        const closeTime = epochRow?.blockTime ?? closeBlock?.time ?? null;
+        const in30 = closeTime ? closeTime >= cutoff : false;
         const g = groups.get(ent.slotId) ?? {
           slotId: ent.slotId, owedAll: 0n, settledAll: 0n, owed30: 0n, settled30: 0n,
           lats: [], paid30: 0n, paidAll: 0n, kept30: 0n, keptAll: 0n,
@@ -718,6 +722,40 @@ export class MockPrisma {
         (t.messageTypesJson ?? []).some((u) => !SETTLE.includes(u)));
       if (sqlText.includes('count(*)::bigint AS count')) return [{ count: BigInt(rows.length) }];
       return rows.map((t) => ({ hash: t.hash, height: t.height, typeUrls: t.messageTypesJson }));
+    }
+
+    // Paid participants per slot (operators/participants): discriminated by epochsPaid alias.
+    if (sqlText.includes('"epochsPaid"')) {
+      const slotId = values.find((v) => typeof v === 'bigint');
+      const byAddr = new Map();
+      for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
+        const e = byAddr.get(x.recipient) ?? { epochs: new Set(), total: 0n, heights: [] };
+        e.epochs.add(x.epochNumber); e.total += BigInt(x.amount); e.heights.push(x.height);
+        byAddr.set(x.recipient, e);
+      }
+      return [...byAddr.entries()]
+        .sort((a, b) => (a[1].total === b[1].total ? (a[0] < b[0] ? -1 : 1) : a[1].total > b[1].total ? -1 : 1))
+        .map(([recipient, e]) => ({
+          recipient,
+          epochsPaid: BigInt(e.epochs.size),
+          totalReceived: e.total.toString(),
+          firstEpoch: [...e.epochs].sort((x, y) => (x < y ? -1 : 1))[0],
+          lastEpoch: [...e.epochs].sort((x, y) => (x > y ? -1 : 1))[0],
+          lastHeight: e.heights.sort((x, y) => (x > y ? -1 : 1))[0],
+        }));
+    }
+
+    // Distinct paid participants (all + 30d window): discriminated by the "recent" alias.
+    if (sqlText.includes('AS "recent"')) {
+      const slotId = values.find((v) => typeof v === 'bigint');
+      const cutoff = values.find((v) => v instanceof Date);
+      const all = new Set(); const recent = new Set();
+      for (const x of this._payouts.filter((x) => x.slotId === slotId)) {
+        all.add(x.recipient);
+        const blk = this._blocks.find((b) => b.height === x.height);
+        if (blk?.time && cutoff && blk.time >= cutoff) recent.add(x.recipient);
+      }
+      return [{ all: BigInt(all.size), recent: BigInt(recent.size) }];
     }
 
     // Feed-epoch chain facts (phase 15 §6.5).

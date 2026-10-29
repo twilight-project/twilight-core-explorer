@@ -198,3 +198,282 @@ describe('§6.5 checks each break independently (chain wins)', () => {
     assert.equal(v.result, 'unverifiable');
   });
 });
+
+describe('operator auth server', () => {
+  const asSample = (slotId, kind, payload, over = {}) => ({
+    sampleKey: `${slotId}:${kind}:-`,
+    slotId: BigInt(slotId),
+    kind,
+    epochNumber: null,
+    baseUrl: 'https://as.example',
+    payloadJson: payload,
+    sampledAt: null,
+    asHeight: null,
+    fetchedAt: new Date(),
+    lastAttemptAt: new Date(),
+    lastHttpStatus: 200,
+    lastError: null,
+    ...over,
+  });
+  const METADATA = {
+    issuer: 'https://as.example',
+    token_endpoint: 'https://as.example/oauth/token',
+    dpop_signing_alg_values_supported: ['ES256'],
+    grant_types_supported: ['urn:ietf:params:oauth:grant-type:device_code'],
+  };
+  const JWKS = { keys: [{ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: 'receipt-1' }] };
+
+  it('serves metadata + jwks attested, reachable, fresh', async () => {
+    const app = await build({
+      operatorStatusSamples: [asSample(3, 'as_metadata', METADATA), asSample(3, 'as_jwks', JWKS)],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/auth' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.provenance, 'attested');
+    assert.equal(d.reachable, true);
+    assert.equal(d.stale, false);
+    assert.equal(d.metadata.payload.issuer, 'https://as.example');
+    assert.equal(d.jwks.payload.keys[0].kid, 'receipt-1');
+    await app.close();
+  });
+
+  it('silence is a state — no_status with 200 for a slot with no AS samples', async () => {
+    const app = await build({});
+    const res = await app.inject({ url: '/api/v1/operators/1/auth' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.json().data.status, 'no_status');
+    await app.close();
+  });
+
+  it('an outage reads unreachable + stale but still serves the last good metadata', async () => {
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const app = await build({
+      operatorStatusSamples: [
+        asSample(3, 'as_metadata', METADATA, { fetchedAt: old, lastError: 'http 503' }),
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/auth' });
+    const d = res.json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.reachable, false);
+    assert.equal(d.stale, true);
+    assert.equal(d.metadata.payload.issuer, 'https://as.example'); // last good survives
+    assert.equal(d.metadata.lastError, 'http 503');
+    assert.equal(d.jwks, null);
+    await app.close();
+  });
+});
+
+describe('operator draw record', () => {
+  const drawSample = (slotId, epochNumber, payload) => ({
+    sampleKey: `${slotId}:draw:${epochNumber}`,
+    slotId: BigInt(slotId), kind: 'draw', epochNumber: BigInt(epochNumber),
+    baseUrl: 'https://as.example', payloadJson: payload,
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null,
+  });
+
+  it('serves the stored draw record attested', async () => {
+    const app = await build({
+      blocks: [block(200)],
+      operatorStatusSamples: [drawSample(3, 61, { outcome: 'NO_CANDIDATES', k: 0, anchor: { tx_hash: 'AB' } })],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/draw/61' });
+    const d = res.json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.provenance, 'attested');
+    assert.equal(d.payload.outcome, 'NO_CANDIDATES');
+    await app.close();
+  });
+
+  it('no record = no_status with 200', async () => {
+    const app = await build({});
+    const res = await app.inject({ url: '/api/v1/operators/3/draw/61' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.json().data.status, 'no_status');
+    await app.close();
+  });
+});
+
+describe('operator auth health', () => {
+  const healthSample = (over = {}) => ({
+    sampleKey: '3:as_health:-', slotId: 3n, kind: 'as_health', epochNumber: null,
+    baseUrl: 'https://as.example', payloadJson: { up: true, httpStatus: 200 },
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null, ...over,
+  });
+  const meta = {
+    sampleKey: '3:as_metadata:-', slotId: 3n, kind: 'as_metadata', epochNumber: null,
+    baseUrl: 'https://as.example', payloadJson: { issuer: 'https://as.example' },
+    sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+    lastHttpStatus: 200, lastError: null,
+  };
+
+  it('reports up with check age', async () => {
+    const app = await build({ operatorStatusSamples: [meta, healthSample()] });
+    const d = (await app.inject({ url: '/api/v1/operators/3/auth' })).json().data;
+    assert.equal(d.health.up, true);
+    assert.ok(d.health.ageSeconds >= 0);
+    await app.close();
+  });
+
+  it('reports down with how-long-since-last-ok during an outage', async () => {
+    const lastOk = new Date(Date.now() - 10 * 60 * 1000);
+    const app = await build({
+      operatorStatusSamples: [meta, healthSample({ lastError: 'http 503', fetchedAt: lastOk })],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/auth' })).json().data;
+    assert.equal(d.health.up, false);
+    assert.ok(d.health.lastUpAgeSeconds >= 599);
+    assert.equal(d.health.lastError, 'http 503');
+    await app.close();
+  });
+});
+
+describe('operator participants', () => {
+  it('lists distinct paid addresses with totals + the attested enrolled count', async () => {
+    const epochSampleOpen = {
+      sampleKey: '3:epoch:70', slotId: 3n, kind: 'epoch', epochNumber: 70n,
+      baseUrl: 'https://as.example',
+      payloadJson: { state: 'OPEN', epoch: 70, counts: { enrolled: 3 } },
+      sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+      lastHttpStatus: 200, lastError: null,
+    };
+    const app = await build({
+      blocks: [block(200)],
+      payouts: [
+        payout(1, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1aaa', 150, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+        payout(3, 'twilight1bbb', 150, { slotId: 3n, epochNumber: 62n, amount: '100' }),
+      ],
+      operatorStatusSamples: [epochSampleOpen],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/participants' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.paidAll, 2);
+    assert.equal(d.provenance, 'chain');
+    assert.equal(d.enrolled.enrolled, 3);
+    assert.equal(d.enrolled.epochNumber, '70');
+    assert.equal(d.enrolled.provenance, 'attested');
+    const a = d.participants.find((x) => x.recipient === 'twilight1aaa');
+    assert.equal(a.epochsPaid, 2);
+    assert.equal(a.totalReceived, '200');
+    await app.close();
+  });
+
+  it('empty slot: zero counts, empty list, null enrolled', async () => {
+    const app = await build({});
+    const d = (await app.inject({ url: '/api/v1/operators/9/participants' })).json().data;
+    assert.equal(d.paidAll, 0);
+    assert.deepEqual(d.participants, []);
+    assert.equal(d.enrolled, null);
+    await app.close();
+  });
+});
+
+describe('param validation on operator routes (m3)', () => {
+  const BAD_SLOT = ['abc', '-1', '9'.repeat(40), '1.5'];
+  it('malformed or oversized slot ids answer 400 invalid_slot_id', async () => {
+    const app = await build({});
+    for (const bad of BAD_SLOT) {
+      for (const path of [`/api/v1/operators/${bad}/participants`, `/api/v1/operators/${bad}/auth`, `/api/v1/operators/${bad}/draw/1`]) {
+        const res = await app.inject({ url: path });
+        assert.equal(res.statusCode, 400, path);
+        assert.equal(res.json().error.code, 'invalid_slot_id', path);
+      }
+    }
+    await app.close();
+  });
+
+  it('malformed or oversized epochs answer 400 invalid_epoch', async () => {
+    const app = await build({});
+    for (const bad of BAD_SLOT) {
+      for (const path of [`/api/v1/operators/3/draw/${bad}`, `/api/v1/operators/3/status/epochs/${bad}`]) {
+        const res = await app.inject({ url: path });
+        assert.equal(res.statusCode, 400, path);
+        assert.equal(res.json().error.code, 'invalid_epoch', path);
+      }
+    }
+    await app.close();
+  });
+});
+
+describe('30-day window close time (n1 regression)', () => {
+  it('epochs with NULL RewardEpochProjection.blockTime still count via Block.time', async () => {
+    const now = new Date();
+    const app = await build({
+      coreSlots: [coreSlot(3, { settlementAddress: null })],
+      blocks: [{ ...block(100), time: new Date(now.getTime() - 60_000) }],
+      epochs: [{ ...epoch(61), height: 100n, blockTime: null }],
+      entitlements: [entitlement(1, 3, 61)],
+      finalizations: [settlementFinalization(3, 61, 120)],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/profile' });
+    assert.equal(res.statusCode, 200, res.body.slice(0, 200));
+    const d = res.json().data;
+    assert.equal(d.verdict.owed30, 1); // close_time coalesced from the Block row
+    assert.equal(d.verdict.owedAll, 1);
+    await app.close();
+  });
+});
+
+describe('draw staleness is final, not clock-based (CR finding 2)', () => {
+  it('an hours-old stored draw record is NOT stale (stale-forward still applies)', async () => {
+    const old = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const app = await build({
+      blocks: [block(200)],
+      operatorStatusSamples: [{
+        sampleKey: '3:draw:61', slotId: 3n, kind: 'draw', epochNumber: 61n,
+        baseUrl: 'https://as.example', payloadJson: { outcome: 'NO_CANDIDATES', candidates: [] },
+        sampledAt: null, asHeight: null, fetchedAt: old, lastAttemptAt: old,
+        lastHttpStatus: 200, lastError: null,
+      }],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/draw/61' })).json().data;
+    assert.equal(d.status, 'ok');
+    assert.equal(d.stale, false);
+    await app.close();
+  });
+});
+
+describe('settled feed epochs are final (round-2 C) + stable participant order', () => {
+  const epochSample = (epochNumber, payload, fetchedAt) => ({
+    sampleKey: `3:epoch:${epochNumber}`, slotId: 3n, kind: 'epoch', epochNumber: BigInt(epochNumber),
+    baseUrl: 'https://as.example', payloadJson: payload,
+    sampledAt: null, asHeight: null, fetchedAt, lastAttemptAt: fetchedAt,
+    lastHttpStatus: 200, lastError: null,
+  });
+
+  it('a settled epoch sample is not stale however old; an OPEN one still is', async () => {
+    const old = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const app = await build({
+      blocks: [block(200)],
+      operatorStatusSamples: [
+        epochSample(61, { state: 'SETTLEMENT_RECONCILED', counts: { enrolled: 0, eligible: 0, admitted: 0, not_eligible: {}, excluded: {} } }, old),
+        epochSample(62, { state: 'OPEN' }, old),
+      ],
+    });
+    const settled = (await app.inject({ url: '/api/v1/operators/3/status/epochs/61' })).json().data;
+    const open = (await app.inject({ url: '/api/v1/operators/3/status/epochs/62' })).json().data;
+    assert.equal(settled.stale, false);
+    assert.equal(open.stale, true);
+    await app.close();
+  });
+
+  it('participants with equal totals come back in a stable address order', async () => {
+    const app = await build({
+      blocks: [block(200)],
+      payouts: [
+        payout(1, 'twilight1ccc', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(3, 'twilight1bbb', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+      ],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/participants' })).json().data;
+    assert.deepEqual(d.participants.map((p) => p.recipient), ['twilight1aaa', 'twilight1bbb', 'twilight1ccc']);
+    await app.close();
+  });
+});

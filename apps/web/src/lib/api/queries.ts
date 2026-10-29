@@ -563,6 +563,24 @@ export function useSettlementStatus(filter?: { slotId?: string | undefined }) {
   });
 }
 
+// Single-shot series variants for charts: ONE page at the API's max limit (the infinite
+// hooks above only ever hold 25 rows unless someone clicks "load more").
+export function useSettlementStatusSeries(slotId: string) {
+  return useQuery({
+    queryKey: ['mining', 'settlement-status-series', slotId],
+    queryFn: () => apiGet('/api/v1/mining/settlements/status', { limit: 100, slotId }),
+    enabled: slotId.length > 0,
+  });
+}
+
+export function useSlotSettlementsSeries(slotId: string) {
+  return useQuery({
+    queryKey: ['mining', 'settlements-series', slotId],
+    queryFn: () => apiGet('/api/v1/mining/settlements', { limit: 100, slotId }),
+    enabled: slotId.length > 0,
+  });
+}
+
 export function useSettlement(slotId: string, epoch: string) {
   return useQuery({
     queryKey: ['mining', 'settlement', slotId, epoch],
@@ -668,6 +686,9 @@ export type OperatorProfileResponse = JsonOf<'/api/v1/operators/{slotId}/profile
 export type OperatorClockResponse = JsonOf<'/api/v1/operators/{slotId}/status/clock'>;
 export type OperatorFeedEpochResponse =
   JsonOf<'/api/v1/operators/{slotId}/status/epochs/{epoch}'>;
+export type OperatorAuthResponse = JsonOf<'/api/v1/operators/{slotId}/auth'>;
+export type OperatorDrawResponse = JsonOf<'/api/v1/operators/{slotId}/draw/{epoch}'>;
+export type OperatorParticipantsResponse = JsonOf<'/api/v1/operators/{slotId}/participants'>;
 
 export function useOperators() {
   return useQuery({
@@ -682,6 +703,38 @@ export function useOperatorProfile(slotId: string) {
     queryKey: ['operators', slotId, 'profile'],
     queryFn: () => apiGetPath('/api/v1/operators/{slotId}/profile', { slotId }),
     enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorAuth(slotId: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'auth'],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/auth', { slotId }),
+    enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorParticipants(slotId: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'participants'],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/participants', { slotId }),
+    refetchInterval: STATUS_REFETCH_MS,
+    enabled: enabledSlot(slotId),
+  });
+}
+
+export function useOperatorDraw(slotId: string, epoch: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'draw', epoch],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/draw/{epoch}', { slotId, epoch }),
+    enabled: enabledSlot(slotId) && epoch.length > 0,
+    // A settled epoch's draw record is final — cache effectively forever.
+    staleTime: Number.POSITIVE_INFINITY,
+    // …but anything short of the record is not final: "no draw record yet" (the sampler stores
+    // it once the operator publishes it) or a failed request (which leaves no data and would
+    // otherwise blank the panel for good). Keep polling until the record is there, then stop.
+    refetchInterval: (query) =>
+      query.state.data?.data.status === 'ok' ? false : STATUS_REFETCH_MS,
   });
 }
 

@@ -20,7 +20,17 @@ import { formatAmount } from '@/lib/format/amount';
 
 const GRID = 'grid-cols-[44px_64px_64px_44px_52px_minmax(0,1fr)]';
 
-export function OperatorTrackRecord({ slotId }: { slotId: string }) {
+export function OperatorTrackRecord({
+  slotId,
+  rows = 8,
+  footerHref,
+}: {
+  slotId: string;
+  /** Rows shown; the verification fanout stays capped regardless. */
+  rows?: number;
+  /** Footer link target; defaults to the operator Data page. */
+  footerHref?: string;
+}) {
   const status = useSettlementStatus({ slotId });
   const activity = useSlotSettlements(slotId);
 
@@ -77,7 +87,7 @@ export function OperatorTrackRecord({ slotId }: { slotId: string }) {
         <span>latency</span>
         <span>operator said</span>
       </div>
-      {owed.slice(0, 8).map((r) => {
+      {owed.slice(0, rows).map((r) => {
         const act = activityByEpoch.get(r.epochNumber);
         const f = feedByEpoch.get(r.epochNumber);
         const feedOk = f && 'payload' in f ? f : null;
@@ -161,7 +171,7 @@ export function OperatorTrackRecord({ slotId }: { slotId: string }) {
           disagreed.
         </span>
         <Link
-          href={`/economy?tab=settlements&slotId=${encodeURIComponent(slotId)}`}
+          href={footerHref ?? `/operators/${encodeURIComponent(slotId)}/data`}
           className="shrink-0 text-[13px] text-primary hover:text-primary-light"
         >
           All {owed.length} epochs →

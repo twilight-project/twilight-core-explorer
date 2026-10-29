@@ -1,9 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import {
+  OperatorAuthResponse,
   OperatorClockResponse,
+  OperatorDrawResponse,
   OperatorEpochParams,
   OperatorFeedEpochResponse,
+  OperatorParticipantsResponse,
   OperatorProfileResponse,
   OperatorSlotParams,
   OperatorsListResponse,
@@ -11,13 +14,17 @@ import {
 } from '../dto/operators.js';
 import { ErrorResponse } from '../dto/common.js';
 import { notFound } from '../lib/errors.js';
-import { parseSlotId } from '../lib/slot-id.js';
+import { parseEpochId, parseSlotId } from '../lib/slot-id.js';
 import { bigToString } from '../lib/serialize.js';
 import {
+  countPaidParticipants,
+  getDrawSample,
   getEpochPayoutFacts,
   getFeedEpochSample,
   getFeedHealth,
   getFeedSample,
+  getNewestEpochSample,
+  getPaidParticipants,
   getOperatorVerdicts,
   getRecipientsTrend,
   getSettlementAccountViolations,
@@ -31,6 +38,8 @@ import {
 // configured feed answers `{status:'no_status'}` with 200 — silence is a state, not an error.
 
 const CLOCK_STALE_SECONDS = 180;
+// AS metadata/JWKS are sampled hourly; two missed rounds = stale.
+const AUTH_STALE_SECONDS = 2 * 60 * 60;
 
 function toVerdict(row: OperatorVerdictRow | undefined): OperatorVerdictT | null {
   if (!row) return null;
@@ -53,7 +62,14 @@ function toVerdict(row: OperatorVerdictRow | undefined): OperatorVerdictT | null
   };
 }
 
-function sampleEnvelope(sample: FeedSample, indexedTip: bigint | null, now: Date) {
+function sampleEnvelope(
+  sample: FeedSample,
+  indexedTip: bigint | null,
+  now: Date,
+  // "Stale" is per kind: the clock refreshes every tick (180 s), while a draw record is
+  // FINAL once stored — null means age alone never makes it stale (stale-forward still can).
+  staleAfterSeconds: number | null = CLOCK_STALE_SECONDS,
+) {
   const age =
     sample.fetchedAt !== null ? Math.floor((now.getTime() - sample.fetchedAt.getTime()) / 1000) : null;
   const staleForward =
@@ -67,7 +83,7 @@ function sampleEnvelope(sample: FeedSample, indexedTip: bigint | null, now: Date
     asHeight: bigToString(sample.asHeight),
     fetchedAt: sample.fetchedAt?.toISOString() ?? null,
     ageSeconds: age,
-    stale: age === null || age > CLOCK_STALE_SECONDS || staleForward,
+    stale: staleForward || (staleAfterSeconds !== null && (age === null || age > staleAfterSeconds)),
     staleForward,
     lastError: sample.lastError,
     payload: sample.payloadJson ?? null,
@@ -293,6 +309,155 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   app.get(
+    '/operators/:slotId/auth',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: "The operator's authentication server: RFC 8414 metadata + JWKS (attested)",
+        params: OperatorSlotParams,
+        response: { 200: OperatorAuthResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const [metadata, jwks, health] = await Promise.all([
+        getFeedSample(app.prisma, slotId, 'as_metadata'),
+        getFeedSample(app.prisma, slotId, 'as_jwks'),
+        getFeedSample(app.prisma, slotId, 'as_health'),
+      ]);
+      if (!metadata || (metadata.payloadJson == null && metadata.fetchedAt == null)) {
+        return {
+          data: {
+            status: 'no_status' as const,
+            reason: 'this operator publishes no authentication service',
+          },
+        };
+      }
+      const now = new Date();
+      const authSample = (s: FeedSample) => ({
+        payload: s.payloadJson ?? null,
+        fetchedAt: s.fetchedAt?.toISOString() ?? null,
+        ageSeconds: s.fetchedAt
+          ? Math.floor((now.getTime() - s.fetchedAt.getTime()) / 1000)
+          : null,
+        lastError: s.lastError,
+      });
+      const meta = authSample(metadata);
+      return {
+        data: {
+          status: 'ok' as const,
+          source: 'operator' as const,
+          provenance: 'attested' as const,
+          baseUrl: metadata.baseUrl,
+          baseUrlProvenance: 'configured' as const,
+          reachable: metadata.lastError === null,
+          stale: meta.ageSeconds === null || meta.ageSeconds > AUTH_STALE_SECONDS,
+          metadata: meta,
+          jwks: jwks ? authSample(jwks) : null,
+          health: health
+            ? {
+                // up = the newest probe attempt succeeded (lastError cleared on success).
+                up: health.lastError === null,
+                checkedAt: health.lastAttemptAt.toISOString(),
+                ageSeconds: Math.floor((now.getTime() - health.lastAttemptAt.getTime()) / 1000),
+                lastUpAgeSeconds: health.fetchedAt
+                  ? Math.floor((now.getTime() - health.fetchedAt.getTime()) / 1000)
+                  : null,
+                lastError: health.lastError,
+              }
+            : null,
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/operators/:slotId/participants',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: 'Paid participants by address (chain) + the live enrolled count (attested)',
+        params: OperatorSlotParams,
+        response: { 200: OperatorParticipantsResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const now = new Date();
+      const [counts, rows, newest] = await Promise.all([
+        countPaidParticipants(app.prisma, slotId),
+        getPaidParticipants(app.prisma, slotId),
+        getNewestEpochSample(app.prisma, slotId),
+      ]);
+      const newestBody =
+        newest && typeof newest.payloadJson === 'object' && newest.payloadJson !== null
+          ? (newest.payloadJson as Record<string, unknown>)
+          : null;
+      const newestCounts =
+        newestBody && typeof newestBody['counts'] === 'object' && newestBody['counts'] !== null
+          ? (newestBody['counts'] as Record<string, unknown>)
+          : null;
+      const enrolledRaw = newestCounts?.['enrolled'];
+      return {
+        data: {
+          paidAll: Number(counts.all),
+          paid30: Number(counts.recent),
+          denom: 'utwlt',
+          provenance: 'chain' as const,
+          enrolled:
+            newest && newest.epochNumber !== null && typeof enrolledRaw === 'number'
+              ? {
+                  epochNumber: newest.epochNumber.toString(),
+                  enrolled: enrolledRaw,
+                  fetchedAt: newest.fetchedAt?.toISOString() ?? null,
+                  ageSeconds: newest.fetchedAt
+                    ? Math.floor((now.getTime() - newest.fetchedAt.getTime()) / 1000)
+                    : null,
+                  provenance: 'attested' as const,
+                }
+              : null,
+          participants: rows.map((r) => ({
+            recipient: r.recipient,
+            epochsPaid: Number(r.epochsPaid),
+            totalReceived: r.totalReceived,
+            firstEpoch: r.firstEpoch.toString(),
+            lastEpoch: r.lastEpoch.toString(),
+          })),
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/operators/:slotId/draw/:epoch',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: "The operator's published selection-draw record for an epoch (attested)",
+        params: OperatorEpochParams,
+        response: { 200: OperatorDrawResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const epoch = parseEpochId(request.params.epoch);
+      const sample = await getDrawSample(app.prisma, slotId, epoch);
+      if (!sample || sample.payloadJson == null) {
+        return {
+          data: { status: 'no_status' as const, reason: 'no draw record for this epoch' },
+        };
+      }
+      const tip = await app.prisma.block.aggregate({ _max: { height: true } });
+      return {
+        data: { status: 'ok' as const, ...sampleEnvelope(sample, tip._max.height ?? null, new Date(), null) },
+      };
+    },
+  );
+
+  app.get(
     '/operators/:slotId/status/epochs/:epoch',
     {
       schema: {
@@ -305,7 +470,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const slotId = parseSlotId(request.params.slotId);
-      const epoch = parseSlotId(request.params.epoch);
+      const epoch = parseEpochId(request.params.epoch);
       const sample = await getFeedEpochSample(app.prisma, slotId, epoch);
       if (!sample || sample.payloadJson == null) {
         return { data: { status: 'no_status' as const, reason: 'no operator status for this epoch' } };
@@ -318,7 +483,16 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
       return {
         data: {
           status: 'ok' as const,
-          ...sampleEnvelope(sample, tip._max.height ?? null, new Date()),
+          // A SETTLEMENT_RECONCILED epoch is immutable by contract: age never stales it.
+          ...sampleEnvelope(
+            sample,
+            tip._max.height ?? null,
+            new Date(),
+            (sample.payloadJson as Record<string, unknown> | null)?.['state'] ===
+              'SETTLEMENT_RECONCILED'
+              ? null
+              : CLOCK_STALE_SECONDS,
+          ),
           verification: {
             ...verification,
             chain: {

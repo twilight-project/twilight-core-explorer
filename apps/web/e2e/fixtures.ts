@@ -108,6 +108,66 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
     },
   },
   '/operators/1/status/clock': { data: { status: 'no_status', reason: 'this operator publishes no status' } },
+  '/operators/3/auth': {
+    data: {
+      status: 'ok', source: 'operator', provenance: 'attested',
+      baseUrl: 'https://as.example', baseUrlProvenance: 'configured',
+      reachable: true, stale: false,
+      metadata: {
+        payload: {
+          issuer: 'https://as.example',
+          authorization_endpoint: 'https://as.example/oauth/authorize',
+          device_authorization_endpoint: 'https://as.example/oauth/device_authorization',
+          token_endpoint: 'https://as.example/oauth/token',
+          revocation_endpoint: 'https://as.example/oauth/revoke',
+          jwks_uri: 'https://as.example/oauth/jwks.json',
+          grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
+          dpop_signing_alg_values_supported: ['ES256'],
+          code_challenge_methods_supported: ['S256'],
+        },
+        fetchedAt: new Date().toISOString(), ageSeconds: 60, lastError: null,
+      },
+      jwks: {
+        payload: { keys: [{ kty: 'OKP', crv: 'Ed25519', alg: 'EdDSA', use: 'sig', kid: 'receipt-b13c5258e190' }] },
+        fetchedAt: new Date().toISOString(), ageSeconds: 60, lastError: null,
+      },
+      health: {
+        up: true, checkedAt: new Date().toISOString(), ageSeconds: 30,
+        lastUpAgeSeconds: 30, lastError: null,
+      },
+    },
+  },
+  // Slot 1 has no curated entry and no feed: the auth page must still render its silence
+  // state, so its profile is mocked with a minimal identity (unmocked paths fall back to an
+  // empty LIST shape, which is not a profile object).
+  '/operators/1/profile': {
+    data: {
+      identity: {
+        slotId: '1', status: 'SLOT_STATUS_ACTIVE', operatorAddress: 'twilight1op1',
+        payoutAddress: null, settlementAddress: null, consensusAddress: null,
+        consensusPower: '10', rewardWeight: '1', createdHeight: '1', metadata: null,
+        provenance: 'chain',
+      },
+      verdict: null, recipientsTrend: [], settlementAccountCheck: null, discovery: null,
+      rules: { distributionMethod: null, latestParams: null, provenance: 'chain' },
+    },
+  },
+  '/operators/1/auth': {
+    data: { status: 'no_status', reason: 'this operator publishes no authentication service' },
+  },
+  '/operators/3/participants': {
+    data: {
+      paidAll: 2, paid30: 1, denom: 'utwlt', provenance: 'chain',
+      enrolled: {
+        epochNumber: '70', enrolled: 3, fetchedAt: new Date().toISOString(),
+        ageSeconds: 30, provenance: 'attested',
+      },
+      participants: [
+        { recipient: 'twilight1aaa', epochsPaid: 2, totalReceived: '200', firstEpoch: '61', lastEpoch: '62' },
+        { recipient: 'twilight1bbb', epochsPaid: 1, totalReceived: '100', firstEpoch: '62', lastEpoch: '62' },
+      ],
+    },
+  },
   // Status view: shape includes the per-slot latency summaries alongside the page.
   '/mining/settlements/status': { data: [], slots: [], page: { limit: 25, nextCursor: null } },
   // Settlement detail is object-shaped; the smoke tier only needs it to render, so give it a

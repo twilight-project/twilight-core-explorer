@@ -169,6 +169,97 @@ export const OperatorFeedEpochResponse = Type.Object(
   { $id: 'OperatorFeedEpochResponse' },
 );
 
+// ---- authentication server (the operator's OAuth AS beside the status feed) ---------------
+// RFC 8414 metadata + JWKS, served verbatim from hourly samples. Attested: the operator's own
+// publication about its own service — the chain knows nothing about it.
+
+const AuthSample = Type.Object({
+  payload: Type.Any(),
+  fetchedAt: Nullable(Type.String()),
+  ageSeconds: Nullable(Type.Integer()),
+  lastError: Nullable(Type.String()),
+});
+
+export const OperatorAuthResponse = Type.Object(
+  {
+    data: Type.Union([
+      Type.Object({ status: Type.Literal('no_status'), reason: Type.String() }),
+      Type.Object({
+        status: Type.Literal('ok'),
+        source: Type.Literal('operator'),
+        provenance: Type.Literal('attested'),
+        baseUrl: Type.String(),
+        baseUrlProvenance: Type.Literal('configured'),
+        /** True when the last metadata fetch attempt succeeded. */
+        reachable: Type.Boolean(),
+        /** True when the newest good sample is older than two sampling intervals. */
+        stale: Type.Boolean(),
+        metadata: AuthSample,
+        jwks: Nullable(AuthSample),
+        /** Live /healthz probe, sampled every tick (~60s). Null until first probed. */
+        health: Nullable(
+          Type.Object({
+            up: Type.Boolean(),
+            checkedAt: Nullable(Type.String()),
+            ageSeconds: Nullable(Type.Integer()),
+            /** Age of the last SUCCESSFUL probe — how long the server has been unreachable. */
+            lastUpAgeSeconds: Nullable(Type.Integer()),
+            lastError: Nullable(Type.String()),
+          }),
+        ),
+      }),
+    ]),
+  },
+  { $id: 'OperatorAuthResponse' },
+);
+
+// The operator's published selection-draw record for one epoch (attested, verbatim).
+// Its `anchor.tx_hash` is a chain fact a reader can follow to the explorer's own tx page.
+export const OperatorDrawResponse = Type.Object(
+  {
+    data: Type.Union([
+      Type.Object({ status: Type.Literal('no_status'), reason: Type.String() }),
+      Type.Object({ status: Type.Literal('ok'), ...SampleEnvelope }),
+    ]),
+  },
+  { $id: 'OperatorDrawResponse' },
+);
+
+// Participants for one slot. Addresses come ONLY from chain payouts (everyone the slot has
+// actually paid); enrolled participants stay pseudonymous counts per ADR-MINIS-0020.
+export const OperatorParticipantsResponse = Type.Object(
+  {
+    data: Type.Object({
+      /** Distinct addresses ever paid by this slot (chain). */
+      paidAll: Type.Integer(),
+      /** Distinct addresses paid in the last 30 days (chain). */
+      paid30: Type.Integer(),
+      denom: Type.String(),
+      provenance: Type.Literal('chain'),
+      /** The operator's live enrolled count for its newest reported epoch (attested). */
+      enrolled: Nullable(
+        Type.Object({
+          epochNumber: HeightString,
+          enrolled: Type.Integer(),
+          fetchedAt: Nullable(Type.String()),
+          ageSeconds: Nullable(Type.Integer()),
+          provenance: Type.Literal('attested'),
+        }),
+      ),
+      participants: Type.Array(
+        Type.Object({
+          recipient: Type.String(),
+          epochsPaid: Type.Integer(),
+          totalReceived: Type.String(),
+          firstEpoch: HeightString,
+          lastEpoch: HeightString,
+        }),
+      ),
+    }),
+  },
+  { $id: 'OperatorParticipantsResponse' },
+);
+
 export const OperatorSlotParams = Type.Object({ slotId: Type.String() });
 export const OperatorEpochParams = Type.Object({ slotId: Type.String(), epoch: Type.String() });
 

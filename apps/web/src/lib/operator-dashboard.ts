@@ -8,6 +8,7 @@ import type { OperatorHistoryResponse } from '@/lib/api/queries';
 export type HistoryDay = OperatorHistoryResponse['data']['days'][number];
 
 export type MetricId =
+  | 'distinctMiners'
   | 'paid'
   | 'entitlement'
   | 'kept'
@@ -26,11 +27,23 @@ export interface MetricDef {
   /** What one day's value means, for the chart caption and tooltip. */
   caption: string;
   value: (d: HistoryDay) => number | null;
+  /** Plot the running total of `value` instead of each day's value (drawn as a step line). */
+  cumulative?: boolean;
 }
 
 const twlt = (raw: string) => utwltToTwlt(raw) ?? 0;
 
 export const METRICS: MetricDef[] = [
+  {
+    id: 'distinctMiners',
+    label: 'Distinct miners',
+    unit: 'miners',
+    form: 'area',
+    provenance: 'chain',
+    caption: 'Distinct addresses ever paid by this slot, as of each day',
+    value: (d) => d.newMiners,
+    cumulative: true,
+  },
   {
     id: 'paid',
     label: 'Paid to miners',
@@ -110,15 +123,11 @@ function round(v: number, digits: number): number {
 /** [day, value] pairs, oldest first; null values stay null so the chart shows a gap. */
 export function seriesFor(days: HistoryDay[], id: MetricId): Array<[string, number | null]> {
   const m = metric(id);
-  return days.map((d) => [d.day, m.value(d)]);
-}
-
-/** Running count of distinct miners ever paid, from each day's first-time miners. */
-export function cumulativeMiners(days: HistoryDay[]): Array<[string, number]> {
+  if (!m.cumulative) return days.map((d) => [d.day, m.value(d)]);
   let total = 0;
   return days.map((d) => {
-    total += d.newMiners;
-    return [d.day, total];
+    total += m.value(d) ?? 0;
+    return [d.day, round(total, 6)];
   });
 }
 

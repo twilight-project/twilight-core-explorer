@@ -581,6 +581,95 @@ export class MockPrisma {
     values = values.filter((v) => !(v && typeof v === 'object' && Array.isArray(v.strings)));
     if (sqlText.includes('_prisma_migrations')) return [{ failed: this._failedMigrations }];
 
+    // getOperatorHistoryDays: owed epochs bucketed by the UTC day of their close (blockTime, else
+    // the Block at the close height), with the same paid / kept / latency / feed definitions.
+    if (sqlText.includes('AS "feedEpochs"')) {
+      const slotId = values[0];
+      const dayOf = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      const groups = new Map();
+      for (const ent of this._entitlements) {
+        if (ent.slotId !== slotId || BigInt(ent.entitlementAmount) <= 0n) continue;
+        const ep = this._epochs.find((e) => e.epochNumber === ent.epochNumber);
+        const t = ep?.blockTime ?? this._blocks.find((b) => b.height === ep?.height)?.time;
+        if (!t) continue;
+        const day = dayOf(t);
+        const fin = this._finalizations
+          .filter((f) => f.slotId === slotId && f.epochNumber === ent.epochNumber)
+          .sort((a, b) => (a.height > b.height ? -1 : 1))[0];
+        const pays = this._payouts.filter((x) => x.slotId === slotId && x.epochNumber === ent.epochNumber);
+        const sample = this._operatorStatusSamples.find(
+          (x) => x.slotId === slotId && x.kind === 'epoch' && x.epochNumber === ent.epochNumber,
+        );
+        const counts = sample?.payloadJson?.counts ?? {};
+        const g = groups.get(day.getTime()) ?? {
+          day, epochsList: [], settled: 0n, ent: 0n, paid: 0n, kept: 0n, payouts: 0n, lats: [],
+          enrolled: [], admitted: [],
+        };
+        g.epochsList.push(ent.epochNumber);
+        g.ent += BigInt(ent.entitlementAmount);
+        if (fin) {
+          g.settled += 1n;
+          g.kept += BigInt(fin.releasedRemainder ?? '0');
+          if (ep) g.lats.push(Number((fin.finalizedHeight ?? fin.height) - ep.height));
+        }
+        g.paid += pays.reduce((a, x) => a + BigInt(x.amount), 0n);
+        g.payouts += BigInt(pays.length);
+        if (typeof counts.enrolled === 'number') g.enrolled.push(counts.enrolled);
+        if (typeof counts.admitted === 'number') g.admitted.push(counts.admitted);
+        groups.set(day.getTime(), g);
+      }
+      return [...groups.values()]
+        .sort((a, b) => a.day - b.day)
+        .map((g) => {
+          const lats = [...g.lats].sort((a, b) => a - b);
+          const mid = lats.length ? lats[Math.floor((lats.length - 1) / 2)] : null;
+          return {
+            day: g.day,
+            firstEpoch: g.epochsList.reduce((m, e) => (e < m ? e : m)),
+            lastEpoch: g.epochsList.reduce((m, e) => (e > m ? e : m)),
+            epochs: BigInt(g.epochsList.length),
+            settledEpochs: g.settled,
+            entitlement: g.ent.toString(),
+            paid: g.paid.toString(),
+            kept: g.kept.toString(),
+            payouts: g.payouts,
+            medianLatencyBlocks: mid === null ? null : BigInt(mid),
+            feedEpochs: BigInt(g.enrolled.length),
+            avgEnrolled: g.enrolled.length ? g.enrolled.reduce((a, b) => a + b, 0) / g.enrolled.length : null,
+            maxEnrolled: g.enrolled.length ? Math.max(...g.enrolled) : null,
+            admitted: g.admitted.length ? BigInt(g.admitted.reduce((a, b) => a + b, 0)) : null,
+          };
+        });
+    }
+
+    // getOperatorMinersDays: distinct recipients per settlement day and first-time ones.
+    if (sqlText.includes('AS "newMiners"')) {
+      const slotId = values[0];
+      const dayOf = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      const seen = new Map(); // `${recipient}|${dayMs}`
+      for (const x of this._payouts) {
+        if (x.slotId !== slotId) continue;
+        const b = this._blocks.find((bl) => bl.height === x.height);
+        if (!b) continue;
+        const day = dayOf(b.time);
+        seen.set(`${x.recipient}|${day.getTime()}`, { recipient: x.recipient, day });
+      }
+      const first = new Map();
+      for (const r of seen.values()) {
+        const cur = first.get(r.recipient);
+        if (!cur || r.day < cur) first.set(r.recipient, r.day);
+      }
+      const byDay = new Map();
+      for (const r of seen.values()) {
+        const g = byDay.get(r.day.getTime()) ?? { day: r.day, activeMiners: 0n, newMiners: 0n };
+        g.activeMiners += 1n;
+        if (first.get(r.recipient).getTime() === r.day.getTime()) g.newMiners += 1n;
+        byDay.set(r.day.getTime(), g);
+      }
+      return [...byDay.values()].sort((a, b) => a.day - b.day);
+    }
+
+
     // The typeGroup filter drops to raw SQL (no Prisma relation between ExplorerTransaction
     // and Message). Emulate it so the filter is actually exercised, not stubbed.
     if (sqlText.includes('WITH pairs AS')) {

@@ -373,3 +373,75 @@ describe('operator participants', () => {
     await app.close();
   });
 });
+
+describe('operator history', () => {
+  it('buckets owed epochs by close day with paid, kept, miners and the attested enrolled count', async () => {
+    const day1 = new Date('2026-06-26T05:00:00.000Z');
+    const day2 = new Date('2026-06-27T05:00:00.000Z');
+    const app = await build({
+      blocks: [block(100, { time: day1 }), block(160, { time: day1 }), block(250, { time: day2 })],
+      epochs: [
+        epoch(61, { height: 100n, blockTime: day1 }),
+        epoch(62, { height: 150n, blockTime: day1 }),
+        epoch(63, { height: 240n, blockTime: day2 }),
+      ],
+      entitlements: [
+        entitlement(1, 3n, 61, { entitlementAmount: '300' }),
+        entitlement(2, 3n, 62, { entitlementAmount: '300' }),
+        entitlement(3, 3n, 63, { entitlementAmount: '300' }),
+      ],
+      finalizations: [
+        settlementFinalization(3n, 61, 105, { releasedRemainder: '100' }),
+        settlementFinalization(3n, 62, 160, { releasedRemainder: '0' }),
+      ],
+      payouts: [
+        payout(1, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '200' }),
+        payout(2, 'twilight1aaa', 160, { slotId: 3n, epochNumber: 62n, amount: '150' }),
+        payout(3, 'twilight1bbb', 160, { slotId: 3n, epochNumber: 62n, amount: '150' }),
+        payout(4, 'twilight1bbb', 250, { slotId: 3n, epochNumber: 63n, amount: '300' }),
+      ],
+      operatorStatusSamples: [
+        {
+          sampleKey: '3:epoch:62', slotId: 3n, kind: 'epoch', epochNumber: 62n,
+          baseUrl: 'https://as.example',
+          payloadJson: { state: 'SETTLEMENT_RECONCILED', counts: { enrolled: 4, admitted: 2 } },
+          sampledAt: null, asHeight: null, fetchedAt: new Date(), lastAttemptAt: new Date(),
+          lastHttpStatus: 200, lastError: null,
+        },
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/history' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.equal(d.provenance, 'chain');
+    assert.equal(d.days.length, 2);
+    const [a, b] = d.days;
+    assert.equal(a.day, '2026-06-26');
+    assert.equal(a.epochs, 2);
+    assert.equal(a.settledEpochs, 2);
+    assert.equal(a.entitlement, '600');
+    assert.equal(a.paid, '500');
+    assert.equal(a.kept, '100');
+    assert.equal(a.payouts, 3);
+    assert.equal(a.activeMiners, 2);
+    assert.equal(a.newMiners, 2);
+    assert.equal(a.feed.epochs, 1);
+    assert.equal(a.feed.avgEnrolled, 4);
+    assert.equal(a.feed.admitted, 2);
+    assert.equal(a.feed.provenance, 'attested');
+    assert.equal(b.day, '2026-06-27');
+    assert.equal(b.settledEpochs, 0);
+    assert.equal(b.medianLatencyBlocks, null);
+    assert.equal(b.activeMiners, 1);
+    assert.equal(b.newMiners, 0);
+    assert.equal(b.feed.avgEnrolled, null);
+    await app.close();
+  });
+
+  it('empty slot: no days', async () => {
+    const app = await build({});
+    const d = (await app.inject({ url: '/api/v1/operators/9/history' })).json().data;
+    assert.deepEqual(d.days, []);
+    await app.close();
+  });
+});

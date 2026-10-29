@@ -129,7 +129,7 @@ function HeaderInner() {
         <div
           role="group"
           aria-label="Mode"
-          className="flex shrink-0 gap-0.5 rounded-full border border-card-border bg-card p-[3px]"
+          className="flex shrink-0 gap-0.5 rounded-full border border-text/80 p-[3px]"
         >
           {(
             [
@@ -143,9 +143,9 @@ function HeaderInner() {
               onClick={() => choose(m.id)}
               aria-current={mode === m.id ? 'true' : undefined}
               className={clsx(
-                'whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors',
+                'whitespace-nowrap rounded-full px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[.06em] transition-colors',
                 mode === m.id
-                  ? 'bg-background-tertiary text-text shadow-[inset_0_0_0_1px_rgb(var(--border-light))]'
+                  ? 'bg-text text-background'
                   : 'text-text-muted hover:text-text',
               )}
             >
@@ -167,9 +167,10 @@ function HeaderInner() {
                 href={entry.href}
                 aria-current={active ? 'page' : undefined}
                 className={clsx(
-                  'whitespace-nowrap border-b-2 px-2.5 py-1.5 text-[14px] font-medium transition-colors',
+                  // twilight.org nav: small uppercase mono, ink when active.
+                  'whitespace-nowrap border-b px-2.5 py-1.5 font-mono text-[12px] uppercase tracking-[.06em] transition-colors',
                   active
-                    ? 'border-primary text-text'
+                    ? 'border-text text-text'
                     : 'border-transparent text-text-secondary hover:text-text',
                 )}
               >

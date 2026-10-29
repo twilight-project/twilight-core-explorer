@@ -3472,6 +3472,7 @@ export interface paths {
                             data: {
                                 paidAll: number;
                                 paid30: number;
+                                paid7: number;
                                 denom: string;
                                 /** @enum {string} */
                                 provenance: "chain";
@@ -3493,6 +3494,93 @@ export interface paths {
                                     /** @description Decimal height/id as string */
                                     lastEpoch: string;
                                 }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Default Response */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: {
+                                    [key: string]: unknown;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{slotId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daily history: owed, paid and kept per day, miners paid (chain) + enrolled (attested) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    slotId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Decimal height/id as string */
+                                slotId: string;
+                                denom: string;
+                                days: {
+                                    day: string;
+                                    /** @description Decimal height/id as string */
+                                    firstEpoch: string;
+                                    /** @description Decimal height/id as string */
+                                    lastEpoch: string;
+                                    epochs: number;
+                                    settledEpochs: number;
+                                    entitlement: string;
+                                    paid: string;
+                                    kept: string;
+                                    payouts: number;
+                                    activeMiners: number;
+                                    newMiners: number;
+                                    medianLatencyBlocks: string | null;
+                                    feed: {
+                                        epochs: number;
+                                        avgEnrolled: number | null;
+                                        maxEnrolled: number | null;
+                                        admitted: number | null;
+                                        /** @enum {string} */
+                                        provenance: "attested";
+                                    };
+                                }[];
+                                /** @enum {string} */
+                                provenance: "chain";
                             };
                         };
                     };

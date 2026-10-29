@@ -9,13 +9,16 @@
 // keeps them in the build; omitting a tone falls back to the card's neutral white-alpha/muted chrome.
 export type IconTone = 'infra' | 'coreslot' | 'liveness' | 'risk' | 'rewards' | 'warn';
 
-// Reference chips are a neutral raised square (the category hue lives only in the glyph), so the
-// surface is the theme's tertiary ground for every tone and the text class carries the legend.
+// The glyph is a BandGlyph (twilight.org band art): no chip surface, the text class sets
+// currentColor, which is the top colour of every band — so the tone IS the legend.
 export const ICON_TONE: Record<IconTone, string> = {
-  infra: 'bg-background-tertiary text-accent-blue',
-  coreslot: 'bg-background-tertiary text-accent-violet',
-  liveness: 'bg-background-tertiary text-accent-green',
-  risk: 'bg-background-tertiary text-accent-red',
-  rewards: 'bg-background-tertiary text-accent-gold',
-  warn: 'bg-background-tertiary text-accent-yellow',
+  infra: 'text-accent-blue',
+  coreslot: 'text-accent-violet',
+  liveness: 'text-accent-green',
+  risk: 'text-accent-red',
+  rewards: 'text-accent-gold',
+  warn: 'text-accent-yellow',
 };
+
+/** Tone class for a glyph with no category: the theme's lavender. */
+export const ICON_TONE_NEUTRAL = 'text-primary-light';

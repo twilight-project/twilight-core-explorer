@@ -6,6 +6,7 @@ import {
   OperatorDrawResponse,
   OperatorEpochParams,
   OperatorFeedEpochResponse,
+  OperatorHistoryResponse,
   OperatorParticipantsResponse,
   OperatorProfileResponse,
   OperatorSlotParams,
@@ -31,6 +32,8 @@ import {
   getFeedHealth,
   getFeedSample,
   getNewestEpochSample,
+  getOperatorHistoryDays,
+  getOperatorMinersDays,
   getPaidParticipants,
   getOperatorVerdicts,
   getRecipientsTrend,
@@ -429,6 +432,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
         data: {
           paidAll: Number(counts.all),
           paid30: Number(counts.recent),
+          paid7: Number(counts.recent7),
           denom: 'utwlt',
           provenance: 'chain' as const,
           enrolled:
@@ -450,6 +454,59 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
             firstEpoch: r.firstEpoch.toString(),
             lastEpoch: r.lastEpoch.toString(),
           })),
+        },
+      };
+    },
+  );
+
+  app.get(
+    '/operators/:slotId/history',
+    {
+      schema: {
+        tags: ['operators'],
+        summary: 'Daily history: owed, paid and kept per day, miners paid (chain) + enrolled (attested)',
+        params: OperatorSlotParams,
+        response: { 200: OperatorHistoryResponse, 400: ErrorResponse },
+      },
+      config: { cacheControl: 'revalidate' },
+    },
+    async (request) => {
+      const slotId = parseSlotId(request.params.slotId);
+      const [days, miners] = await Promise.all([
+        getOperatorHistoryDays(app.prisma, slotId),
+        getOperatorMinersDays(app.prisma, slotId),
+      ]);
+      const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+      const minersByDay = new Map(miners.map((m) => [dayKey(m.day), m]));
+      return {
+        data: {
+          slotId: slotId.toString(),
+          denom: 'utwlt',
+          days: days.map((d) => {
+            const m = minersByDay.get(dayKey(d.day));
+            return {
+              day: dayKey(d.day),
+              firstEpoch: d.firstEpoch.toString(),
+              lastEpoch: d.lastEpoch.toString(),
+              epochs: Number(d.epochs),
+              settledEpochs: Number(d.settledEpochs),
+              entitlement: d.entitlement,
+              paid: d.paid,
+              kept: d.kept,
+              payouts: Number(d.payouts),
+              activeMiners: m ? Number(m.activeMiners) : 0,
+              newMiners: m ? Number(m.newMiners) : 0,
+              medianLatencyBlocks: bigToString(d.medianLatencyBlocks),
+              feed: {
+                epochs: Number(d.feedEpochs),
+                avgEnrolled: d.avgEnrolled,
+                maxEnrolled: d.maxEnrolled,
+                admitted: d.admitted === null ? null : Number(d.admitted),
+                provenance: 'attested' as const,
+              },
+            };
+          }),
+          provenance: 'chain' as const,
         },
       };
     },

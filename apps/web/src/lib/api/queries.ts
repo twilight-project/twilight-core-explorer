@@ -689,6 +689,7 @@ export type OperatorFeedEpochResponse =
 export type OperatorAuthResponse = JsonOf<'/api/v1/operators/{slotId}/auth'>;
 export type OperatorDrawResponse = JsonOf<'/api/v1/operators/{slotId}/draw/{epoch}'>;
 export type OperatorParticipantsResponse = JsonOf<'/api/v1/operators/{slotId}/participants'>;
+export type OperatorHistoryResponse = JsonOf<'/api/v1/operators/{slotId}/history'>;
 
 export function useOperators() {
   return useQuery({
@@ -718,6 +719,16 @@ export function useOperatorParticipants(slotId: string) {
   return useQuery({
     queryKey: ['operators', slotId, 'participants'],
     queryFn: () => apiGetPath('/api/v1/operators/{slotId}/participants', { slotId }),
+    refetchInterval: STATUS_REFETCH_MS,
+    enabled: enabledSlot(slotId),
+  });
+}
+
+/** Daily owed / paid / kept / miners history for the operator dashboard (one request). */
+export function useOperatorHistory(slotId: string) {
+  return useQuery({
+    queryKey: ['operators', slotId, 'history'],
+    queryFn: () => apiGetPath('/api/v1/operators/{slotId}/history', { slotId }),
     refetchInterval: STATUS_REFETCH_MS,
     enabled: enabledSlot(slotId),
   });

@@ -14,7 +14,7 @@ export function LedgerMarker({
 }) {
   return (
     <div className="mb-2.5 flex items-baseline justify-between font-mono text-xs">
-      <span className="uppercase tracking-[.08em] text-primary">⸸ {children}</span>
+      <span className="uppercase tracking-[.08em] text-text-muted">/ {children}</span>
       {action ?? null}
     </div>
   );

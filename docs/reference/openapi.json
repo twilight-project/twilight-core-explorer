@@ -9179,6 +9179,7 @@
                       "required": [
                         "paidAll",
                         "paid30",
+                        "paid7",
                         "denom",
                         "provenance",
                         "enrolled",
@@ -9189,6 +9190,9 @@
                           "type": "integer"
                         },
                         "paid30": {
+                          "type": "integer"
+                        },
+                        "paid7": {
                           "type": "integer"
                         },
                         "denom": {
@@ -9286,6 +9290,223 @@
                               }
                             }
                           }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operators/{slotId}/history": {
+      "get": {
+        "summary": "Daily history: owed, paid and kept per day, miners paid (chain) + enrolled (attested)",
+        "tags": [
+          "operators"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slotId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "slotId",
+                        "denom",
+                        "days",
+                        "provenance"
+                      ],
+                      "properties": {
+                        "slotId": {
+                          "pattern": "^\\d+$",
+                          "description": "Decimal height/id as string",
+                          "type": "string"
+                        },
+                        "denom": {
+                          "type": "string"
+                        },
+                        "days": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "day",
+                              "firstEpoch",
+                              "lastEpoch",
+                              "epochs",
+                              "settledEpochs",
+                              "entitlement",
+                              "paid",
+                              "kept",
+                              "payouts",
+                              "activeMiners",
+                              "newMiners",
+                              "medianLatencyBlocks",
+                              "feed"
+                            ],
+                            "properties": {
+                              "day": {
+                                "type": "string"
+                              },
+                              "firstEpoch": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "lastEpoch": {
+                                "pattern": "^\\d+$",
+                                "description": "Decimal height/id as string",
+                                "type": "string"
+                              },
+                              "epochs": {
+                                "type": "integer"
+                              },
+                              "settledEpochs": {
+                                "type": "integer"
+                              },
+                              "entitlement": {
+                                "type": "string"
+                              },
+                              "paid": {
+                                "type": "string"
+                              },
+                              "kept": {
+                                "type": "string"
+                              },
+                              "payouts": {
+                                "type": "integer"
+                              },
+                              "activeMiners": {
+                                "type": "integer"
+                              },
+                              "newMiners": {
+                                "type": "integer"
+                              },
+                              "medianLatencyBlocks": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d+$",
+                                    "description": "Decimal height/id as string",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "feed": {
+                                "type": "object",
+                                "required": [
+                                  "epochs",
+                                  "avgEnrolled",
+                                  "maxEnrolled",
+                                  "admitted",
+                                  "provenance"
+                                ],
+                                "properties": {
+                                  "epochs": {
+                                    "type": "integer"
+                                  },
+                                  "avgEnrolled": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "maxEnrolled": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "admitted": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "provenance": {
+                                    "type": "string",
+                                    "enum": [
+                                      "attested"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "provenance": {
+                          "type": "string",
+                          "enum": [
+                            "chain"
+                          ]
                         }
                       }
                     }

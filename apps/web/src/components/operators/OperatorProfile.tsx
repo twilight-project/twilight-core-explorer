@@ -1,39 +1,38 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { SourceChip } from '@/components/provenance/SourceChip';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState, LoadingState } from '@/components/states/States';
 import { CoreSlotHealthSection } from '@/components/coreslots/sections/CoreSlotHealthSection';
 import { OperatorTrackRecord } from './OperatorTrackRecord';
 import { OperatorDrawPanel } from './OperatorDrawPanel';
 import { OperatorParticipantsPanel } from './OperatorParticipantsPanel';
-import { OperatorTrendsPanel } from './OperatorTrendsPanel';
 import { OperatorNav, operatorDisplayName } from './OperatorShell';
-import { Panel, MetricTriple } from './Panel';
 import {
   useFeedEpochFanout,
   useOperatorProfile,
   useSettlementStatus,
   type OperatorProfileResponse,
 } from '@/lib/api/queries';
-import { formatAmount } from '@/lib/format/amount';
 import { formatSlotStatus } from '@/lib/format/slot';
 
-// Operator Overview: the verdict and the freshest evidence only — the four metrics, signing
-// health, and the recent track record. Everything explanatory (who runs it, how to join,
+// The dashboard carries ECharts (~195 kB gzipped): load it on demand, client-only, so the rest of
+// the overview (verdict, health, draw, track record) doesn't wait for or pay for the chart code.
+const OperatorDashboard = dynamic(
+  () => import('./OperatorDashboard').then((m) => m.OperatorDashboard),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[440px] rounded-2xl" />,
+  },
+);
+
+// Operator Overview: the verdict, then the DefiLlama-style dashboard (headline, key metrics,
+// history chart, tiles), signing health and the recent track record. Everything explanatory (who runs it, how to join,
 // rules, identity) lives on the Details tab; the full per-epoch ledger on the Data tab.
 
 type Profile = OperatorProfileResponse['data'];
-
-function keptRatioPercent(kept: string, entitlement: string): number | null {
-  try {
-    const e = BigInt(entitlement);
-    if (e === 0n) return 0;
-    return Number((BigInt(kept) * 1000n) / e) / 10;
-  } catch {
-    return null;
-  }
-}
 
 function verdictSentence(v: NonNullable<Profile['verdict']>, mismatches: number): string {
   if (mismatches > 0) {
@@ -65,14 +64,6 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
   const feedResults = (feed.data ?? []).flatMap((f) => (f.data && 'verification' in f.data ? [f.data] : []));
   const mismatches = feedResults.filter((f) => f.verification.result === 'mismatch').length;
 
-  const worstLatency = statusRows.reduce<bigint | null>((acc, r) => {
-    if (r.latencyBlocks === null) return acc;
-    const l = BigInt(r.latencyBlocks);
-    return acc === null || l > acc ? l : acc;
-  }, null);
-  const keptPct = v ? keptRatioPercent(v.kept30, v.entitlement30) : null;
-  const paid30 = v ? formatAmount(v.paid30, v.denom) : null;
-
   return (
     <div className="flex flex-col gap-7">
       <Link href="/slots?tab=operators" className="font-mono text-xs text-text-muted hover:text-text">
@@ -101,59 +92,10 @@ export function OperatorProfile({ slotId }: { slotId: string }) {
         <OperatorNav slotId={slotId} active="overview" />
       </div>
 
-      {/* Do they pay? */}
-      <Panel
-        title="Do they pay?"
-        meta={
-          v ? (
-            <>
-              last 30 days · {v.settled30} epochs · <span className="text-primary">chain</span>
-            </>
-          ) : (
-            <span className="text-primary">chain</span>
-          )
-        }
-      >
-        {v ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricTriple
-              label="Epochs settled"
-              value={`${v.settledAll} / ${v.owedAll}`}
-              tone={v.settledAll === v.owedAll ? 'mint' : 'text'}
-              note={
-                v.settledAll === v.owedAll
-                  ? 'Every epoch with an entitlement has a settlement on chain. All time.'
-                  : `${v.owedAll - v.settledAll} open.`
-              }
-            />
-            <MetricTriple
-              label="Paid out (30d)"
-              value={paid30 ? paid30.display : '—'}
-              unit={paid30?.symbol}
-              note={`To ${v.recipients30} distinct participants across ${v.settled30} epochs.`}
-            />
-            <MetricTriple
-              label="Kept as remainder"
-              value={keptPct !== null ? keptPct.toFixed(1) : '—'}
-              unit="%"
-              tone={keptPct !== null && keptPct > 10 ? 'orange' : 'text'}
-              note="Integer-division residue sent to the operator payout address. Equal split leaves ≤ admitted−1 units."
-            />
-            <MetricTriple
-              label="Settlement latency"
-              value={v.medianLatencyBlocks !== null ? `+${v.medianLatencyBlocks}` : '—'}
-              unit="blocks"
-              note={`Median blocks between epoch close and settlement tx.${worstLatency !== null ? ` Worst: +${worstLatency}.` : ''}`}
-            />
-          </div>
-        ) : (
-          <p className="text-sm text-text-muted">No reward epochs owed yet — nothing to judge.</p>
-        )}
-      </Panel>
+      <OperatorDashboard slotId={slotId} />
 
       <CoreSlotHealthSection slotId={slotId} />
       <OperatorParticipantsPanel slotId={slotId} />
-      <OperatorTrendsPanel slotId={slotId} />
       {settledEpochs[0] !== undefined ? (
         <OperatorDrawPanel slotId={slotId} epoch={settledEpochs[0]} />
       ) : null}

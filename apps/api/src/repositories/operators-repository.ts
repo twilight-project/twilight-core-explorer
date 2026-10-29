@@ -5,6 +5,7 @@
 import type { PrismaClient } from '@twilight-explorer/db';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 // §6.1–§6.3 in one statement per window set: owed epochs (entitlement > 0), settled (a
 // finalization exists), latency percentiles over settled epochs, paid vs kept vs entitlement.
@@ -256,16 +257,19 @@ export async function getPaidParticipants(
 export async function countPaidParticipants(
   prisma: PrismaClient,
   slotId: bigint,
-): Promise<{ all: bigint; recent: bigint }> {
-  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
-  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint }[]>`
+): Promise<{ all: bigint; recent: bigint; recent7: bigint }> {
+  const now = Date.now();
+  const cutoff = new Date(now - THIRTY_DAYS_MS);
+  const cutoff7 = new Date(now - SEVEN_DAYS_MS);
+  const [row] = await prisma.$queryRaw<{ all: bigint; recent: bigint; recent7: bigint }[]>`
     SELECT count(DISTINCT p."recipient")::bigint AS "all",
-           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent"
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff})::bigint AS "recent",
+           count(DISTINCT p."recipient") FILTER (WHERE b."time" >= ${cutoff7})::bigint AS "recent7"
     FROM "MiningSettlementPayout" p
     LEFT JOIN "Block" b ON b."height" = p."height"
     WHERE p."slotId" = ${slotId}
   `;
-  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n };
+  return { all: row?.all ?? 0n, recent: row?.recent ?? 0n, recent7: row?.recent7 ?? 0n };
 }
 
 /** Newest feed epoch sample for a slot (any state) — carries the live enrolled count. */
@@ -279,4 +283,132 @@ export async function getNewestEpochSample(
     take: 1,
   });
   return rows[0] ?? null;
+}
+
+// Daily history for the operator dashboard: every owed epoch bucketed by the UTC day of its close
+// block, with the §6.1–§6.4 definitions above (kept = released remainder, paid = payout lines,
+// latency = finalization height − close height). Feed columns are the operator's attested
+// per-epoch counts, averaged over the epochs that have a stored sample — never chain fact.
+export interface OperatorHistoryDayRow {
+  day: Date;
+  firstEpoch: bigint;
+  lastEpoch: bigint;
+  epochs: bigint;
+  settledEpochs: bigint;
+  entitlement: string;
+  paid: string;
+  kept: string;
+  payouts: bigint;
+  medianLatencyBlocks: bigint | null;
+  feedEpochs: bigint;
+  avgEnrolled: number | null;
+  maxEnrolled: number | null;
+  admitted: bigint | null;
+}
+
+export async function getOperatorHistoryDays(
+  prisma: PrismaClient,
+  slotId: bigint,
+): Promise<OperatorHistoryDayRow[]> {
+  return prisma.$queryRaw<OperatorHistoryDayRow[]>`
+    WITH fin AS (
+      SELECT DISTINCT ON ("epochNumber")
+             "epochNumber", coalesce("finalizedHeight", "height") AS fin_height,
+             coalesce("releasedRemainder", '0') AS remainder
+      FROM "MiningSettlementFinalization"
+      WHERE "slotId" = ${slotId}
+      ORDER BY "epochNumber", "height" DESC
+    ),
+    pay AS (
+      SELECT "epochNumber", count(*) AS payouts, coalesce(sum("amount"::numeric), 0) AS paid
+      FROM "MiningSettlementPayout"
+      WHERE "slotId" = ${slotId}
+      GROUP BY 1
+    ),
+    -- Attested counts come from the operator's own feed, stored as published: only a plain
+    -- non-negative integer (up to 9 digits) is cast. Anything else (4.5, 3e9, a huge number) is
+    -- "no value" instead of an ::int error that would fail the whole query — and with it the
+    -- chain figures on the same row.
+    feed AS (
+      SELECT "epochNumber",
+             CASE WHEN jsonb_typeof("payloadJson"->'counts'->'enrolled') = 'number'
+                       AND ("payloadJson"->'counts'->>'enrolled') ~ '^[0-9]{1,9}$'
+                  THEN ("payloadJson"->'counts'->>'enrolled')::int END AS enrolled,
+             CASE WHEN jsonb_typeof("payloadJson"->'counts'->'admitted') = 'number'
+                       AND ("payloadJson"->'counts'->>'admitted') ~ '^[0-9]{1,9}$'
+                  THEN ("payloadJson"->'counts'->>'admitted')::int END AS admitted
+      FROM "OperatorStatusSample"
+      WHERE "slotId" = ${slotId} AND "kind" = 'epoch' AND "epochNumber" IS NOT NULL
+    ),
+    joined AS (
+      SELECT ent."epochNumber",
+             date_trunc('day', coalesce(re."blockTime", b."time")) AS day,
+             ent."entitlementAmount"::numeric AS entitlement,
+             (f."epochNumber" IS NOT NULL) AS settled,
+             (CASE WHEN f."epochNumber" IS NOT NULL AND re."height" IS NOT NULL
+                   THEN f.fin_height - re."height" END) AS lat,
+             coalesce(f.remainder::numeric, 0) AS kept,
+             coalesce(p.paid, 0) AS paid,
+             coalesce(p.payouts, 0) AS payouts,
+             fd.enrolled, fd.admitted
+      FROM "SlotEntitlementProjection" ent
+      LEFT JOIN "RewardEpochProjection" re ON re."epochNumber" = ent."epochNumber"
+      LEFT JOIN "Block" b ON b."height" = re."height"
+      LEFT JOIN fin f ON f."epochNumber" = ent."epochNumber"
+      LEFT JOIN pay p ON p."epochNumber" = ent."epochNumber"
+      LEFT JOIN feed fd ON fd."epochNumber" = ent."epochNumber"
+      WHERE ent."slotId" = ${slotId} AND ent."entitlementAmount"::numeric > 0
+    )
+    SELECT day,
+           min("epochNumber")::bigint AS "firstEpoch",
+           max("epochNumber")::bigint AS "lastEpoch",
+           count(*)::bigint AS epochs,
+           count(*) FILTER (WHERE settled)::bigint AS "settledEpochs",
+           sum(entitlement)::text AS entitlement,
+           sum(paid)::text AS paid,
+           sum(kept)::text AS kept,
+           sum(payouts)::bigint AS payouts,
+           round(percentile_cont(0.5) WITHIN GROUP (ORDER BY lat) FILTER (WHERE lat IS NOT NULL))::bigint
+             AS "medianLatencyBlocks",
+           count(enrolled)::bigint AS "feedEpochs",
+           avg(enrolled)::float8 AS "avgEnrolled",
+           max(enrolled) AS "maxEnrolled",
+           sum(admitted)::bigint AS admitted
+    FROM joined
+    WHERE day IS NOT NULL
+    GROUP BY day
+    ORDER BY day ASC
+  `;
+}
+
+// Miners per day from the payout lines: distinct recipients and how many of them were paid by
+// this slot for the first time (the growth curve). A payout is bucketed by the CLOSE day of the
+// epoch it settles — the same day key getOperatorHistoryDays uses for that epoch's `paid` — so
+// every miner day is also a history day and no payout falls outside the series.
+export interface OperatorMinersDayRow {
+  day: Date;
+  activeMiners: bigint;
+  newMiners: bigint;
+}
+
+export async function getOperatorMinersDays(
+  prisma: PrismaClient,
+  slotId: bigint,
+): Promise<OperatorMinersDayRow[]> {
+  return prisma.$queryRaw<OperatorMinersDayRow[]>`
+    WITH p AS (
+      SELECT DISTINCT p."recipient", date_trunc('day', coalesce(re."blockTime", b."time")) AS day
+      FROM "MiningSettlementPayout" p
+      JOIN "RewardEpochProjection" re ON re."epochNumber" = p."epochNumber"
+      LEFT JOIN "Block" b ON b."height" = re."height"
+      WHERE p."slotId" = ${slotId} AND coalesce(re."blockTime", b."time") IS NOT NULL
+    ),
+    firsts AS (SELECT "recipient", min(day) AS day FROM p GROUP BY 1)
+    SELECT p.day,
+           count(*)::bigint AS "activeMiners",
+           count(*) FILTER (WHERE f.day = p.day)::bigint AS "newMiners"
+    FROM p JOIN firsts f ON f."recipient" = p."recipient"
+    GROUP BY p.day
+    ORDER BY p.day ASC
+  `;
 }

@@ -33,6 +33,6 @@ describe('KpiCard icon slot', () => {
   it('keeps the neutral chip when `iconTone` is omitted', () => {
     const { container } = render(<KpiCard icon={Server} label="Latest height" value="1" />);
     const chip = container.querySelector('svg')?.parentElement;
-    expect(chip?.className).toContain('text-text-muted');
+    expect(chip?.className).toContain('text-primary-light');
   });
 });

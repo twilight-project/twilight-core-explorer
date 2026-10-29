@@ -50,7 +50,7 @@ function tokenRgb(css: string, theme: string, name: string): number[] {
 // against BOTH, so a retune cannot quietly break one ground while the other still passes.
 const THEMES = ['dark', 'light'];
 
-// 14a: NEITHER theme repoints the display face any more — the :root Instrument serif is the
+// 14a: NEITHER theme repoints the display face any more — the :root display face is the
 // product's identity in both modes, so the toggle changes ground, never voice.
 const BRAND_THEMES = ['dark', 'light'];
 
@@ -63,7 +63,8 @@ describe('theme token contrast (WCAG 1.4.3)', () => {
   // the Badge `info` tone; the three status accents back the Badge success/warning/danger tones,
   // deltas, and inline status copy. All must clear AA against --background AND --card (audit 13b
   // measured legacy --primary ≈3.3:1 and legacy --accent-red ≈4.4:1 before the retune).
-  const TEXT_ON_SURFACE_TOKENS = ['primary', 'accent-green', 'accent-yellow', 'accent-red'];
+  // --primary-light is hover link text; --accent-orange is the *attested* provenance chip text.
+  const TEXT_ON_SURFACE_TOKENS = ['primary', 'primary-light', 'accent-green', 'accent-yellow', 'accent-red', 'accent-orange'];
   const SURFACES = ['background', 'card'];
 
   for (const theme of THEMES) {
@@ -128,7 +129,7 @@ describe('warning tint equals the theme accent (no yellow) in every theme', () =
 });
 
 // Typography (14a): the display face is theme-INVARIANT. Both themes inherit the :root
-// Instrument serif — a theme block that repoints --font-serif would change the product's
+// brand display face — a theme block that repoints --font-serif would change the product's
 // identity with the toggle, which the participant-surface handoff forbids.
 describe('themes share the :root display face', () => {
   const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8');

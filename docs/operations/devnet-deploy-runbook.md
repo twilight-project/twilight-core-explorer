@@ -190,8 +190,10 @@ When you later put the API behind a CDN/proxy, that's the trigger for the §5 it
 
 ## 12. Production topology — Cloudflare → Caddy origin (the current deployment)
 
-The live explorer is **`https://explorer.nyks.dev`**, served from ONE box running `docker-compose.devnet.yml`
-(the §10 AWS split is the later shape, not the current one):
+The canonical address is **`https://explorer.twilight.org`** (`explorer.nyks.dev` was the temporary
+address), served from ONE box running `docker-compose.devnet.yml` (the §10 AWS split is the later shape, not
+the current one). During a domain cut-over Caddy can serve both:
+`EXPLORER_DOMAIN="explorer.twilight.org, explorer.nyks.dev"`.
 
 ```
 browser ──TLS──▶ Cloudflare  (proxied DNS record: edge TLS, cache, DDoS)
@@ -205,12 +207,14 @@ browser ──TLS──▶ Cloudflare  (proxied DNS record: edge TLS, cache, DDo
 
 Deployment-specific values live in the box's `.env.devnet` (never committed):
 ```
-EXPLORER_DOMAIN=explorer.nyks.dev        # Caddy site address (caddy/Caddyfile has no hard-coded host)
+EXPLORER_DOMAIN=explorer.twilight.org    # Caddy site address (caddy/Caddyfile has no hard-coded host)
 ORIGIN_TLS=internal                      # or "/certs/origin.pem /certs/origin.key" — see below
 NEXT_PUBLIC_API_BASE_URL=                # EMPTY = same-origin: the browser calls relative /api/v1/*
-CORS_ORIGINS=https://explorer.nyks.dev
+NEXT_PUBLIC_SITE_URL=https://explorer.twilight.org   # canonical origin for share cards/sitemap (build time)
+CORS_ORIGINS=https://explorer.twilight.org
 ```
-Moving to another hostname is a DNS record + these two values; nothing in the repo changes.
+Moving to another hostname is a DNS record + these values (and a rebuild for `NEXT_PUBLIC_SITE_URL`);
+nothing in the repo changes.
 
 **Cloudflare settings (dashboard → the zone):**
 
@@ -251,20 +255,29 @@ ignores a numeric `trustProxy`.
 
 ## 13. Releases and deploys (tag-based)
 
-Production only ever runs a **tagged commit from `main`**. `v*` release tags are immutable (repo tag
-ruleset); `explorer-phase-*` stay as phase-milestone markers.
+A **release** and a **deployment** are separate milestones. A release fixes a version of the code (a
+`v*` tag on `main`, with its changelog and notes); a deployment runs a chosen release on a box, later,
+and possibly more than once (or never). Production only ever runs a **tagged commit from `main`**. `v*`
+release tags are immutable (repo tag ruleset); `explorer-phase-*` stay as phase-milestone markers.
+Versions follow semver against the public API (`/api/v1/*`): breaking change → major, additive → minor,
+fixes → patch.
 
-1. **Cut the release** — on an up-to-date `main` with CI green:
+1. **Cut the release**:
+   - Branch `release/X.Y.Z` from an up-to-date `main`: move `[Unreleased]` in `CHANGELOG.md` to
+     `[X.Y.Z] — <date>`, write the release notes in `docs/releases/vX.Y.Z.md`, update docs as needed.
+   - Open a PR, let CI pass, merge it into `main`.
+   - Tag the merge commit and publish the release:
    ```sh
-   git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0
-   gh release create v0.1.0 --generate-notes     # or notes from CHANGELOG.md
+   git fetch origin && git checkout --detach origin/main
+   git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z
+   gh release create vX.Y.Z --title "vX.Y.Z" --notes-file docs/releases/vX.Y.Z.md
    ```
 2. **Deploy it on the box** (shell env overrides `--env-file`, so the stamp always matches the checkout).
    Run it as one block: the subshell stops at the first failing step without closing your SSH session.
    ```sh
    (
      set -eu
-     TAG=v0.1.0
+     TAG=v1.0.0
      git fetch --tags origin          # also refreshes origin/main for the ancestry check below
      # Only v* release tags on main deploy (a branch name, phase marker or typo stops here, not mid-build).
      case "$TAG" in v*) ;; *) echo "not a release tag: $TAG" >&2; exit 1 ;; esac
@@ -295,9 +308,9 @@ ruleset); `explorer-phase-*` stay as phase-milestone markers.
    HTML-bypass cache rule from §12 is in place.
 4. **Verify from outside:**
    ```sh
-   curl -s https://explorer.nyks.dev/api/v1/status | jq .data.build          # version = the tag, gitSha = the commit
-   curl -s -o /dev/null -w '%{http_code}\n' https://explorer.nyks.dev/_next/image   # 404 — optimizer disabled
-   curl -s -o /dev/null -w '%{http_code}\n' https://explorer.nyks.dev/docs          # 200 — Scalar reference
+   curl -s https://explorer.twilight.org/api/v1/status | jq .data.build          # version = the tag, gitSha = the commit
+   curl -s -o /dev/null -w '%{http_code}\n' https://explorer.twilight.org/_next/image   # 404 — optimizer disabled
+   curl -s -o /dev/null -w '%{http_code}\n' https://explorer.twilight.org/docs          # 200 — Scalar reference
    ```
    plus the §8 health checks.
 

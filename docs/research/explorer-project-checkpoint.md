@@ -43,6 +43,13 @@ deferred acceptance item is the primary **devnet** soak (Issue #41 — localnet 
 phase is 14 (deployment & operations)**, then Phase 15 (operator education & onboarding) — see
 `phase-13-explorer-hardening-plan.md` for the 13/14/15 split. See §6 for the phase breakdown.
 
+**Release (2026-10-29): v1.0.0.** Everything above, plus the redesign, mining settlements (devnet-2),
+the operator pages and independent draw verification (#92/#93), the security baseline (Node 24, Next 16,
+React 19; #90/#94) and the ops work (#83 tag-based deploys, #99 per-client rate limiting + log rotation),
+is released as **v1.0.0**: the public `/api/v1` contract is stable from here (semver). See `CHANGELOG.md`
+and `docs/releases/v1.0.0.md`. The canonical domain is `explorer.twilight.org`. Next: v1.1.0 (operator
+dashboard + twilight.org theme, #96/#97) is the first release deployed via runbook §13.
+
 This document summarizes what has already been decided and built, what is still only
 designed, and the recommended sequence from here. It is intended to keep implementation
 aligned for the remaining deployment & operations (Phase 14) work.

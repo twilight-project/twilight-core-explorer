@@ -51,16 +51,16 @@ export const metadata: Metadata = {
     'Cosmos SDK',
   ],
   category: 'technology',
+  // No `title` here on purpose: Next falls back to the resolved page title, so /blocks and
+  // friends share with their own titles instead of all showing the site name.
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
-    title: SITE_NAME,
     description: SITE_DESCRIPTION,
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: SITE_NAME,
     description: SITE_DESCRIPTION,
   },
   robots: { index: true, follow: true },

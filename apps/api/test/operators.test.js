@@ -438,3 +438,42 @@ describe('draw staleness is final, not clock-based (CR finding 2)', () => {
     await app.close();
   });
 });
+
+describe('settled feed epochs are final (round-2 C) + stable participant order', () => {
+  const epochSample = (epochNumber, payload, fetchedAt) => ({
+    sampleKey: `3:epoch:${epochNumber}`, slotId: 3n, kind: 'epoch', epochNumber: BigInt(epochNumber),
+    baseUrl: 'https://as.example', payloadJson: payload,
+    sampledAt: null, asHeight: null, fetchedAt, lastAttemptAt: fetchedAt,
+    lastHttpStatus: 200, lastError: null,
+  });
+
+  it('a settled epoch sample is not stale however old; an OPEN one still is', async () => {
+    const old = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const app = await build({
+      blocks: [block(200)],
+      operatorStatusSamples: [
+        epochSample(61, { state: 'SETTLEMENT_RECONCILED', counts: { enrolled: 0, eligible: 0, admitted: 0, not_eligible: {}, excluded: {} } }, old),
+        epochSample(62, { state: 'OPEN' }, old),
+      ],
+    });
+    const settled = (await app.inject({ url: '/api/v1/operators/3/status/epochs/61' })).json().data;
+    const open = (await app.inject({ url: '/api/v1/operators/3/status/epochs/62' })).json().data;
+    assert.equal(settled.stale, false);
+    assert.equal(open.stale, true);
+    await app.close();
+  });
+
+  it('participants with equal totals come back in a stable address order', async () => {
+    const app = await build({
+      blocks: [block(200)],
+      payouts: [
+        payout(1, 'twilight1ccc', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(2, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+        payout(3, 'twilight1bbb', 100, { slotId: 3n, epochNumber: 61n, amount: '100' }),
+      ],
+    });
+    const d = (await app.inject({ url: '/api/v1/operators/3/participants' })).json().data;
+    assert.deepEqual(d.participants.map((p) => p.recipient), ['twilight1aaa', 'twilight1bbb', 'twilight1ccc']);
+    await app.close();
+  });
+});

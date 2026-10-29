@@ -190,7 +190,7 @@ services:
       - web
       - api
     environment:
-      # The public hostname (runbook §12), e.g. explorer.nyks.dev; `localhost` for a local run.
+      # The public hostname (runbook §12), e.g. explorer.twilight.org; `localhost` for a local run.
       EXPLORER_DOMAIN: ${EXPLORER_DOMAIN:-localhost}
       # `internal` (self-signed, CF "Full") or "/certs/origin.pem /certs/origin.key" (CF "Full (strict)").
       ORIGIN_TLS: ${ORIGIN_TLS:-internal}

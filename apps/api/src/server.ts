@@ -2,7 +2,7 @@
 // drive it via app.inject() with an injected mock Prisma — no DB and no open socket required.
 
 import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import { TypeBoxTypeProvider, TypeBoxValidatorCompiler } from '@fastify/type-provider-typebox';
 import type { PrismaClient } from '@twilight-explorer/db';
 import type { ApiConfig } from './config.js';
@@ -37,7 +37,13 @@ export interface BuildServerOptions {
 }
 
 export async function buildServer(opts: BuildServerOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? false })
+  // trustProxy decides what request.ip is — and request.ip is the rate-limit key (N2). Typed as
+  // FastifyServerOptions so the union-typed value keeps the plain-HTTP constructor overload.
+  const serverOptions: FastifyServerOptions = {
+    logger: opts.logger ?? false,
+    trustProxy: opts.config.trustProxy,
+  };
+  const app = Fastify(serverOptions)
     .setValidatorCompiler(TypeBoxValidatorCompiler)
     .withTypeProvider<TypeBoxTypeProvider>();
 

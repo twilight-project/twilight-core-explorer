@@ -9712,7 +9712,8 @@
                               "type": "object",
                               "required": [
                                 "result",
-                                "checks"
+                                "checks",
+                                "caveats"
                               ],
                               "properties": {
                                 "result": {
@@ -9764,6 +9765,12 @@
                                         "type": "string"
                                       }
                                     }
+                                  }
+                                },
+                                "caveats": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
                                   }
                                 }
                               },

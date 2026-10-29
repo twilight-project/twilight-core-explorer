@@ -7,8 +7,7 @@ import { ErrorState, LoadingState } from '@/components/states/States';
 import { Panel } from './Panel';
 import { useOperatorAuth, useOperatorProfile } from '@/lib/api/queries';
 import { asRecord, feedNumber, feedString } from '@/lib/operator-feed';
-import { curatedOperator } from '@/lib/operator-directory';
-import { OperatorNav } from './OperatorShell';
+import { OperatorNav, operatorDisplayName } from './OperatorShell';
 
 // Authentication page (phase 15 follow-on): the operator's OAuth authorization server,
 // explained for a prospective participant. Everything shown is the operator's own publication
@@ -79,7 +78,6 @@ function ageCaption(ageSeconds: number | null | undefined): string {
 export function OperatorAuth({ slotId }: { slotId: string }) {
   const auth = useOperatorAuth(slotId);
   const profile = useOperatorProfile(slotId);
-  const curated = curatedOperator(slotId);
 
   if (auth.isPending) {
     return (
@@ -100,7 +98,7 @@ export function OperatorAuth({ slotId }: { slotId: string }) {
   }
 
   const d = auth.data.data;
-  const name = curated?.name ?? `CoreSlot ${slotId} operator`;
+  const name = operatorDisplayName(slotId, profile.data?.data?.identity?.metadata ?? null);
 
   if (d.status === 'no_status') {
     return (
@@ -147,7 +145,7 @@ export function OperatorAuth({ slotId }: { slotId: string }) {
       : [];
 
   const discovery = asRecord(
-    profile.data?.data.discovery?.payload ?? null,
+    profile.data?.data?.discovery?.payload ?? null,
   );
   const participantReads = Array.isArray(discovery['participant_reads'])
     ? (discovery['participant_reads'] as unknown[]).filter(

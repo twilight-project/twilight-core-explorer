@@ -23,7 +23,18 @@
     # so nothing else is captured.
     @api path /api/v1/* /openapi.json /health/*
     handle @api {
-        reverse_proxy api:8080
+        # The API rate-limits per client and trusts this private hop (API_TRUST_PROXY). Send it
+        # ONE address: Cloudflare's CF-Connecting-IP (Cloudflare overwrites any client-supplied
+        # value, and the origin only accepts Cloudflare's ranges), or the direct peer when a
+        # request did not come through Cloudflare. A client's own X-Forwarded-For is replaced,
+        # never passed on, so it cannot pick its own rate-limit bucket.
+        map {http.request.header.CF-Connecting-IP} {api_client_ip} {
+            ""      {remote_host}
+            default {http.request.header.CF-Connecting-IP}
+        }
+        reverse_proxy api:8080 {
+            header_up X-Forwarded-For {api_client_ip}
+        }
     }
 
     # Everything else -> the Next.js web app.

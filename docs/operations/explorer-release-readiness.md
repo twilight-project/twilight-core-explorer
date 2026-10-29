@@ -112,6 +112,9 @@ a later tightening pass.**
 **Deploy/ops → Phase 14 (13c + plan §8):**
 - Rate-limit **proxy keying** — keys on `request.ip`; behind a proxy without `trustProxy` all traffic
   collapses to one bucket. Set `trustProxy` + an XFF-aware `keyGenerator`, or limit at the edge.
+  *(Correction note, 2026-10-29: DONE (N2) — Caddy forwards one client address (`CF-Connecting-IP`) and
+  the API trusts it only from private peers via `API_TRUST_PROXY` (compose default
+  `loopback,uniquelocal`); see runbook §12.)*
 - Rate-limit **shared store (Redis)** — currently in-process (single instance); behind the plugin.
 - **Fail-closed env resolution** — require explicit `API_ENV=production` at the deploy boundary so the
   security posture can't be silently disabled by a typo (today: warned at boot, not enforced).

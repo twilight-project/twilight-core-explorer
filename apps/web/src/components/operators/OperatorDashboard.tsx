@@ -15,7 +15,6 @@ import {
 import { utwltToTwlt } from '@/components/charts/shape';
 import {
   METRICS,
-  cumulativeMiners,
   formatCompact,
   formatDay,
   formatNumber,
@@ -158,6 +157,7 @@ function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
       : {
           type: 'line',
           data,
+          ...(m.cumulative ? { step: 'end' } : {}),
           showSymbol: false,
           symbolSize: 8,
           connectNulls: false,
@@ -261,13 +261,14 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
   const profile = useOperatorProfile(slotId);
   const participants = useOperatorParticipants(slotId);
   const t = useChartTheme();
-  const [metricId, setMetricId] = useState<MetricId>('paid');
+  const [metricId, setMetricId] = useState<MetricId>('distinctMiners');
   const [showTable, setShowTable] = useState(false);
   const chartRef = useRef<ECharts | null>(null);
 
   const days = useMemo(() => history.data?.data.days ?? [], [history.data]);
   const m = metric(metricId);
   const main = useMemo(() => mainOption(t, days, m), [t, days, m]);
+  const mainSeries = useMemo(() => seriesFor(days, m.id), [days, m.id]);
 
   const recent = useMemo(() => lastDays(days, 30), [days]);
   const recentLabels = recent.map((d) => formatDay(d.day, true));
@@ -287,18 +288,14 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t, recent],
   );
-  const cumulative = useMemo(() => cumulativeMiners(days), [days]);
-  const cumulativeTile = useMemo(
-    () =>
-      sparkOption(
-        t,
-        cumulative.map(([d]) => formatDay(d, true)),
-        cumulative.map(([, v]) => v),
-        'area',
-        (v) => `${v} miners`,
-      ),
-    [t, cumulative],
-  );
+  const paidTotalTile = useMemo(() => {
+    let run = 0;
+    const values = days.map((d) => {
+      run += utwltToTwlt(d.paid) ?? 0;
+      return Math.round(run * 100) / 100;
+    });
+    return sparkOption(t, days.map((d) => formatDay(d.day, true)), values, 'area', (v) => `${formatNumber(v)} TWLT`);
+  }, [t, days]);
   const enrolledTile = useMemo(
     () =>
       sparkOption(
@@ -487,8 +484,8 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...days].reverse().map((d) => {
-                    const val = m.value(d);
+                  {[...days].reverse().map((d, i) => {
+                    const val = mainSeries[days.length - 1 - i]?.[1] ?? null;
                     return (
                       <tr key={d.day} className="border-t border-card-border">
                         <td className="px-3 py-1.5">{formatDay(d.day, true)}</td>
@@ -519,8 +516,8 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
 
       {/* Larger cards */}
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <Tile tall title="Distinct miners" value={`${cumulative[cumulative.length - 1]?.[1] ?? 0}`} sub="all time">
-          <EChart option={cumulativeTile} height={180} label="Distinct miners ever paid, cumulative" />
+        <Tile tall title="Total paid to miners" value={formatNumber(all.paid)} sub="TWLT all time">
+          <EChart option={paidTotalTile} height={180} label="TWLT paid to miners, cumulative" />
         </Tile>
         <Tile
           tall

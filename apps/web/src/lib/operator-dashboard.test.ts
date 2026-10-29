@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cumulativeMiners,
   historyCsv,
   lastDays,
   payoutSharePct,
@@ -54,7 +53,7 @@ describe('operator dashboard data', () => {
   });
 
   it('accumulates distinct miners from first-time miners', () => {
-    expect(cumulativeMiners(DAYS)).toEqual([
+    expect(seriesFor(DAYS, 'distinctMiners')).toEqual([
       ['2026-10-07', 2],
       ['2026-10-08', 2],
       ['2026-10-09', 3],

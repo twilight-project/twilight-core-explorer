@@ -100,7 +100,7 @@ export function OperatorAuth({ slotId }: { slotId: string }) {
   }
 
   const d = auth.data.data;
-  const name = operatorDisplayName(slotId, profile.data?.data.identity.metadata ?? null);
+  const name = operatorDisplayName(slotId, profile.data?.data?.identity?.metadata ?? null);
 
   if (d.status === 'no_status') {
     return (
@@ -147,7 +147,7 @@ export function OperatorAuth({ slotId }: { slotId: string }) {
       : [];
 
   const discovery = asRecord(
-    profile.data?.data.discovery?.payload ?? null,
+    profile.data?.data?.discovery?.payload ?? null,
   );
   const participantReads = Array.isArray(discovery['participant_reads'])
     ? (discovery['participant_reads'] as unknown[]).filter(

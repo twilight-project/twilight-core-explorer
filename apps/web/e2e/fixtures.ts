@@ -137,6 +137,21 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
       },
     },
   },
+  // Slot 1 has no curated entry and no feed: the auth page must still render its silence
+  // state, so its profile is mocked with a minimal identity (unmocked paths fall back to an
+  // empty LIST shape, which is not a profile object).
+  '/operators/1/profile': {
+    data: {
+      identity: {
+        slotId: '1', status: 'SLOT_STATUS_ACTIVE', operatorAddress: 'twilight1op1',
+        payoutAddress: null, settlementAddress: null, consensusAddress: null,
+        consensusPower: '10', rewardWeight: '1', createdHeight: '1', metadata: null,
+        provenance: 'chain',
+      },
+      verdict: null, recipientsTrend: [], settlementAccountCheck: null, discovery: null,
+      rules: { distributionMethod: null, latestParams: null, provenance: 'chain' },
+    },
+  },
   '/operators/1/auth': {
     data: { status: 'no_status', reason: 'this operator publishes no authentication service' },
   },

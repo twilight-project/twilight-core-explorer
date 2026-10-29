@@ -83,8 +83,14 @@ function formatValue(m: MetricDef, v: number): string {
 // ---------- the big chart ----------
 
 function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
-  const data = seriesFor(days, m.id).map(([, v]) => v);
-  const log = m.id === 'latency'; // one settlement stall is 400× the median — log keeps both legible
+  const raw = seriesFor(days, m.id).map(([, v]) => v);
+  // Latency is log-scaled (one settlement stall is 400× the median — log keeps both legible). The
+  // axis starts at the power of ten at or below the smallest positive value, so fast settlements
+  // are never clipped; a log axis cannot show 0, so non-positive points are left out.
+  const positives = raw.filter((v): v is number => typeof v === 'number' && v > 0);
+  const log = m.id === 'latency' && positives.length > 0;
+  const logMin = log ? 10 ** Math.floor(Math.log10(Math.min(...positives))) : undefined;
+  const data = log ? raw.map((v) => (typeof v === 'number' && v > 0 ? v : null)) : raw;
   const base = {
     animationDuration: 300,
     grid: { left: 8, right: 16, top: 16, bottom: 64, containLabel: true },
@@ -117,7 +123,7 @@ function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
     },
     yAxis: {
       type: log ? 'log' : 'value',
-      ...(log ? { logBase: 10, min: 100 } : {}),
+      ...(log ? { logBase: 10, min: logMin } : {}),
       splitNumber: 5,
       splitLine: { lineStyle: { color: t.grid } },
       axisLabel: {

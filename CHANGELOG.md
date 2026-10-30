@@ -8,6 +8,12 @@ its release and commit at `GET /api/v1/status` (`data.build`).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-29
+
+The operator dashboard and the twilight.org design. The first release deployed with the tag-based
+procedure (runbook §13), on the canonical domain `explorer.twilight.org`. Backwards compatible: the public
+API only gains a path and a field.
+
 ### Added
 - `GET /api/v1/operators/{slotId}/history` — one row per UTC day for a slot: owed, paid and kept,
   owed and settled epoch counts, payout lines, miners paid and first-time miners, median settlement
@@ -20,7 +26,15 @@ its release and commit at `GET /api/v1/status` (`data.build`).
   tiles and a CSV export of the daily rows. It replaces the three-chart Trends panel, and loads on
   demand so the rest of the page does not carry the chart code.
 
+### Changed
+- **twilight.org design:** light theme by default (the dark theme is the same brand on midnight), the
+  brand colours and faces, a twilight.org-style header and band-glyph icons. Every text and status
+  colour pair, including link hover and the *attested* chip, passes WCAG AA in both themes (enforced
+  by a test).
+- ECharts 6.1 for the dashboard charts.
+
 ### Fixed
+Found in review of the dashboard before release:
 - Miners per day were counted against the day the **payout transaction** landed, while every other
   figure in the row was counted against the day the **epoch closed**. Operators settle some hundreds
   of blocks after a close, so payouts routinely cross midnight UTC and a day's miner count sat beside
@@ -34,6 +48,9 @@ its release and commit at `GET /api/v1/status` (`data.build`).
   idle days "the last 30 days" could reach back over several months.
 - The headline delta and the paid tile were labelled "today" from the newest row even when no epoch
   had closed today, dating stale figures to now.
+- The latency chart's log axis started at a fixed 100 blocks, clipping faster settlements; it now starts
+  from the data. The latest paid figure is labelled by epoch-close day, matching how it is grouped.
+- A failed history load shows an error state instead of hiding the dashboard.
 
 ## [1.0.0] — 2026-10-29
 
@@ -132,5 +149,6 @@ Milestones that led here: `explorer-phase-8-liveness-backend`, `explorer-phase-9
 `explorer-phase-10-web-explorer`, `explorer-phase-11-twilight-surfaces`,
 `explorer-phase-12-rewards-economics`, `explorer-phase-13`.
 
-[Unreleased]: https://github.com/twilight-project/twilight-core-explorer/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/twilight-project/twilight-core-explorer/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/twilight-project/twilight-core-explorer/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/twilight-project/twilight-core-explorer/releases/tag/v1.0.0

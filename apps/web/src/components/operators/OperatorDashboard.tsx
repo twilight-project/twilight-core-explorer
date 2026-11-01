@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { clsx } from 'clsx';
+import * as echarts from 'echarts/core';
 import type { ECharts } from 'echarts/core';
 import { EChart, tooltipBase, useChartTheme, type ChartTheme } from '@/components/charts/EChart';
 import { SourceChip } from '@/components/provenance/SourceChip';
@@ -82,7 +83,7 @@ function formatValue(m: MetricDef, v: number): string {
 
 // ---------- the big chart ----------
 
-function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
+export function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
   const raw = seriesFor(days, m.id).map(([, v]) => v);
   // Latency is log-scaled (one settlement stall is 400× the median — log keeps both legible). The
   // axis starts at the power of ten at or below the smallest positive value, so fast settlements
@@ -106,10 +107,11 @@ function mainOption(t: ChartTheme, days: HistoryDay[], m: MetricDef) {
         const d = days[p.dataIndex];
         if (!d) return '';
         const v = p.value === null || p.value === undefined ? '—' : formatValue(m, p.value);
+        const { encodeHTML } = echarts.format;
         return (
-          `<div style="color:${t.muted};margin-bottom:4px">${formatDay(d.day, true)} · epochs ${d.firstEpoch}–${d.lastEpoch}</div>` +
+          `<div style="color:${t.muted};margin-bottom:4px">${encodeHTML(formatDay(d.day, true))} · epochs ${encodeHTML(String(d.firstEpoch))}–${encodeHTML(String(d.lastEpoch))}</div>` +
           `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.primary};margin-right:6px"></span>` +
-          `${m.label}&nbsp;&nbsp;<b>${v}</b>`
+          `${encodeHTML(m.label)}&nbsp;&nbsp;<b>${encodeHTML(v)}</b>`
         );
       },
     },

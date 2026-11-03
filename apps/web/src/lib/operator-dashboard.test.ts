@@ -70,6 +70,21 @@ describe('operator dashboard data', () => {
     expect(totals(lastDays(DAYS, 1)).paid).toBe(0);
   });
 
+  it('all-time totals include undated epochs so they match the verdict (#109)', () => {
+    const undated = {
+      epochs: 2, settledEpochs: 1, entitlement: '300000000', paid: '250000000', kept: '50000000', payouts: 3,
+    };
+    const base = totals(DAYS);
+    const t = totals(DAYS, undated);
+    expect(t.epochs).toBe(base.epochs + 2);
+    expect(t.settledEpochs).toBe(base.settledEpochs + 1);
+    expect(t.paid).toBeCloseTo(base.paid + 250, 6);
+    expect(t.entitlement).toBeCloseTo(base.entitlement + 300, 6);
+    expect(t.kept).toBeCloseTo(base.kept + 50, 6);
+    expect(t.payouts).toBe(base.payouts + 3);
+    expect(t.miners).toBe(base.miners);
+  });
+
   it('payout share is paid over paid+kept, unsettled days have none', () => {
     expect(payoutSharePct(DAYS[0] as HistoryDay)).toBe(57.7);
     expect(payoutSharePct(DAYS[1] as HistoryDay)).toBe(100);

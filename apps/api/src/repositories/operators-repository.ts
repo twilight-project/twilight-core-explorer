@@ -289,8 +289,10 @@ export async function getNewestEpochSample(
 // block, with the §6.1–§6.4 definitions above (kept = released remainder, paid = payout lines,
 // latency = finalization height − close height). Feed columns are the operator's attested
 // per-epoch counts, averaged over the epochs that have a stored sample — never chain fact.
+// Owed epochs with no close time (no blockTime and no indexed close block) come back as one
+// row with a null day, after the dated rows, so a caller can report them instead of losing them.
 export interface OperatorHistoryDayRow {
-  day: Date;
+  day: Date | null;
   firstEpoch: bigint;
   lastEpoch: bigint;
   epochs: bigint;
@@ -375,9 +377,8 @@ export async function getOperatorHistoryDays(
            max(enrolled) AS "maxEnrolled",
            sum(admitted)::bigint AS admitted
     FROM joined
-    WHERE day IS NOT NULL
     GROUP BY day
-    ORDER BY day ASC
+    ORDER BY day ASC NULLS LAST
   `;
 }
 

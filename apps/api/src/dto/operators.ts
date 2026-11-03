@@ -321,6 +321,18 @@ export const OperatorHistoryResponse = Type.Object(
           }),
         }),
       ),
+      /**
+       * Owed epochs that have no close time yet (no blockTime and no indexed close block), so
+       * they belong to no day. Counted here so days + undated adds up to every owed epoch.
+       */
+      undated: Type.Object({
+        epochs: Type.Integer(),
+        settledEpochs: Type.Integer(),
+        entitlement: Type.String(),
+        paid: Type.String(),
+        kept: Type.String(),
+        payouts: Type.Integer(),
+      }),
       provenance: Type.Literal('chain'),
     }),
   },

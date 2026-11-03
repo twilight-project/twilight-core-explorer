@@ -8,6 +8,17 @@ its release and commit at `GET /api/v1/status` (`data.build`).
 
 ## [Unreleased]
 
+### Added
+- `undated` on `GET /api/v1/operators/{slotId}/history`: owed epochs that have no close time yet
+  (counts, entitlement, paid, kept, payouts), so `days` plus `undated` covers every owed epoch.
+  Backwards compatible.
+
+### Fixed
+- The operator history no longer drops owed epochs without a close time. They were left out of
+  the daily rows and the dashboard's all-time figures, so "Epochs settled X / Y" could disagree
+  with the verdict's `owedAll` / `settledAll`. The dashboard's all-time figures now include them
+  (#109).
+
 ## [1.1.0] — 2026-10-29
 
 The operator dashboard and the twilight.org design. The first release deployed with the tag-based

@@ -3579,6 +3579,14 @@ export interface paths {
                                         provenance: "attested";
                                     };
                                 }[];
+                                undated: {
+                                    epochs: number;
+                                    settledEpochs: number;
+                                    entitlement: string;
+                                    paid: string;
+                                    kept: string;
+                                    payouts: number;
+                                };
                                 /** @enum {string} */
                                 provenance: "chain";
                             };

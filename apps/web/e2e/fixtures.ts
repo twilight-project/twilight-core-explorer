@@ -191,6 +191,7 @@ const OBJECT_FIXTURES: Record<string, unknown> = {
           feed: { epochs: 0, avgEnrolled: null, maxEnrolled: null, admitted: null, provenance: 'attested' },
         },
       ],
+      undated: { epochs: 0, settledEpochs: 0, entitlement: '0', paid: '0', kept: '0', payouts: 0 },
     },
   },
   // Status view: shape includes the per-slot latency summaries alongside the page.

@@ -9368,6 +9368,7 @@
                         "slotId",
                         "denom",
                         "days",
+                        "undated",
                         "provenance"
                       ],
                       "properties": {
@@ -9499,6 +9500,37 @@
                                   }
                                 }
                               }
+                            }
+                          }
+                        },
+                        "undated": {
+                          "type": "object",
+                          "required": [
+                            "epochs",
+                            "settledEpochs",
+                            "entitlement",
+                            "paid",
+                            "kept",
+                            "payouts"
+                          ],
+                          "properties": {
+                            "epochs": {
+                              "type": "integer"
+                            },
+                            "settledEpochs": {
+                              "type": "integer"
+                            },
+                            "entitlement": {
+                              "type": "string"
+                            },
+                            "paid": {
+                              "type": "string"
+                            },
+                            "kept": {
+                              "type": "string"
+                            },
+                            "payouts": {
+                              "type": "integer"
                             }
                           }
                         },

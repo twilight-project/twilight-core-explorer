@@ -800,10 +800,50 @@ describe('operator history', () => {
     await app.close();
   });
 
+  it('#109: an owed epoch with no close time is reported as undated, not dropped', async () => {
+    const day1 = new Date('2026-06-26T05:00:00.000Z');
+    const app = await build({
+      blocks: [block(100, { time: day1 })],
+      epochs: [
+        epoch(61, { height: 100n, blockTime: day1 }),
+        // epoch 62 closed at a block that is not indexed, and blockTime is not written
+        epoch(62, { height: 150n, blockTime: null }),
+      ],
+      entitlements: [
+        entitlement(1, 3n, 61, { entitlementAmount: '300' }),
+        entitlement(2, 3n, 62, { entitlementAmount: '300' }),
+      ],
+      finalizations: [
+        settlementFinalization(3n, 61, 105, { releasedRemainder: '100' }),
+        settlementFinalization(3n, 62, 160, { releasedRemainder: '50' }),
+      ],
+      payouts: [
+        payout(1, 'twilight1aaa', 100, { slotId: 3n, epochNumber: 61n, amount: '200' }),
+        payout(2, 'twilight1bbb', 160, { slotId: 3n, epochNumber: 62n, amount: '250' }),
+      ],
+    });
+    const res = await app.inject({ url: '/api/v1/operators/3/history' });
+    assert.equal(res.statusCode, 200);
+    const d = res.json().data;
+    assert.deepEqual(d.days.map((x) => x.day), ['2026-06-26']);
+    assert.deepEqual(d.undated, {
+      epochs: 1, settledEpochs: 1, entitlement: '300', paid: '250', kept: '50', payouts: 1,
+    });
+    // days + undated covers every owed epoch, as the verdict's owedAll / settledAll do
+    const owed = d.days.reduce((n, x) => n + x.epochs, 0) + d.undated.epochs;
+    const settled = d.days.reduce((n, x) => n + x.settledEpochs, 0) + d.undated.settledEpochs;
+    assert.equal(owed, 2);
+    assert.equal(settled, 2);
+    await app.close();
+  });
+
   it('empty slot: no days', async () => {
     const app = await build({});
     const d = (await app.inject({ url: '/api/v1/operators/9/history' })).json().data;
     assert.deepEqual(d.days, []);
+    assert.deepEqual(d.undated, {
+      epochs: 0, settledEpochs: 0, entitlement: '0', paid: '0', kept: '0', payouts: 0,
+    });
     await app.close();
   });
 });

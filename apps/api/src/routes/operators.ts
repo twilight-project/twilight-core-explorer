@@ -472,10 +472,21 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const slotId = parseSlotId(request.params.slotId);
-      const [days, miners] = await Promise.all([
+      const [rows, miners] = await Promise.all([
         getOperatorHistoryDays(app.prisma, slotId),
         getOperatorMinersDays(app.prisma, slotId),
       ]);
+      // Epochs without a close time come back as one row with a null day (#109).
+      const days = rows.filter((r): r is typeof r & { day: Date } => r.day !== null);
+      const undatedRow = rows.find((r) => r.day === null);
+      const undated = {
+        epochs: undatedRow ? Number(undatedRow.epochs) : 0,
+        settledEpochs: undatedRow ? Number(undatedRow.settledEpochs) : 0,
+        entitlement: undatedRow?.entitlement ?? '0',
+        paid: undatedRow?.paid ?? '0',
+        kept: undatedRow?.kept ?? '0',
+        payouts: undatedRow ? Number(undatedRow.payouts) : 0,
+      };
       const dayKey = (d: Date) => d.toISOString().slice(0, 10);
       const minersByDay = new Map(miners.map((m) => [dayKey(m.day), m]));
       return {
@@ -506,6 +517,7 @@ export async function operatorsRoutes(fastify: FastifyInstance): Promise<void> {
               },
             };
           }),
+          undated,
           provenance: 'chain' as const,
         },
       };

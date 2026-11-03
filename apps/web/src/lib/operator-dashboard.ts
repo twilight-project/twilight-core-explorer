@@ -153,8 +153,14 @@ export interface HistoryTotals {
   miners: number;
 }
 
-/** Sums over the given days. Amounts are summed exactly in base units, then converted. */
-export function totals(days: HistoryDay[]): HistoryTotals {
+/** Owed epochs with no close time yet: in no day, but still part of the all-time figures. */
+export type HistoryUndated = OperatorHistoryResponse['data']['undated'];
+
+/**
+ * Sums over the given days, plus the undated epochs when given (all-time figures only; a
+ * window of days has no undated part). Amounts are summed exactly in base units, then converted.
+ */
+export function totals(days: HistoryDay[], undated?: HistoryUndated): HistoryTotals {
   let paid = 0n;
   let ent = 0n;
   let kept = 0n;
@@ -162,6 +168,14 @@ export function totals(days: HistoryDay[]): HistoryTotals {
   let settled = 0;
   let payouts = 0;
   let miners = 0;
+  if (undated) {
+    paid += BigInt(undated.paid);
+    ent += BigInt(undated.entitlement);
+    kept += BigInt(undated.kept);
+    epochs += undated.epochs;
+    settled += undated.settledEpochs;
+    payouts += undated.payouts;
+  }
   for (const d of days) {
     paid += BigInt(d.paid);
     ent += BigInt(d.entitlement);

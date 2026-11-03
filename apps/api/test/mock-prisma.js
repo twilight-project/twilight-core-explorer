@@ -617,8 +617,8 @@ export class MockPrisma {
         if (ent.slotId !== slotId || BigInt(ent.entitlementAmount) <= 0n) continue;
         const ep = this._epochs.find((e) => e.epochNumber === ent.epochNumber);
         const t = ep?.blockTime ?? this._blocks.find((b) => b.height === ep?.height)?.time;
-        if (!t) continue;
-        const day = dayOf(t);
+        // no close time: grouped under a null day, as SQL's GROUP BY does with NULL
+        const day = t ? dayOf(t) : null;
         const fin = this._finalizations
           .filter((f) => f.slotId === slotId && f.epochNumber === ent.epochNumber)
           .sort((a, b) => (a.height > b.height ? -1 : 1))[0];
@@ -627,7 +627,8 @@ export class MockPrisma {
           (x) => x.slotId === slotId && x.kind === 'epoch' && x.epochNumber === ent.epochNumber,
         );
         const counts = sample?.payloadJson?.counts ?? {};
-        const g = groups.get(day.getTime()) ?? {
+        const key = day === null ? 'undated' : day.getTime();
+        const g = groups.get(key) ?? {
           day, epochsList: [], settled: 0n, ent: 0n, paid: 0n, kept: 0n, payouts: 0n, lats: [],
           enrolled: [], admitted: [],
         };
@@ -644,10 +645,11 @@ export class MockPrisma {
         const plainInt = (v) => typeof v === 'number' && /^[0-9]{1,9}$/.test(String(v));
         if (plainInt(counts.enrolled)) g.enrolled.push(counts.enrolled);
         if (plainInt(counts.admitted)) g.admitted.push(counts.admitted);
-        groups.set(day.getTime(), g);
+        groups.set(key, g);
       }
       return [...groups.values()]
-        .sort((a, b) => a.day - b.day)
+        // ORDER BY day ASC NULLS LAST
+        .sort((a, b) => (a.day === null ? 1 : b.day === null ? -1 : a.day - b.day))
         .map((g) => {
           const lats = [...g.lats].sort((a, b) => a - b);
           const mid = lats.length ? lats[Math.floor((lats.length - 1) / 2)] : null;

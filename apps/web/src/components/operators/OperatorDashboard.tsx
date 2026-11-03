@@ -341,13 +341,22 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
   // A failed history request must be visible: this panel carries the chain figures (owed / paid /
   // kept / share), so it never silently disappears. No owed epochs yet is the only empty case.
   if (history.isError) return <ErrorState error={history.error} context="Operator history" />;
-  if (days.length === 0) return null;
 
-  const all = totals(days);
-  // The newest row the chain has, which is only "today" when an epoch closed today.
-  const latest = days[days.length - 1] as HistoryDay;
-  const latestIsToday = isToday(latest.day);
-  const latestPaid = utwltToTwlt(latest.paid) ?? 0;
+  // All-time figures include owed epochs with no close time yet, so they match the verdict (#109).
+  const undated = history.data?.data.undated;
+  const undatedEpochs = undated?.epochs ?? 0;
+  if (days.length === 0 && undatedEpochs === 0) return null;
+  const all = totals(days, undated);
+  const undatedPaid = undated ? utwltToTwlt(undated.paid) ?? 0 : 0;
+  const undatedNote =
+    undatedEpochs > 0
+      ? `${undatedEpochs} epoch${undatedEpochs === 1 ? '' : 's'} with no close time yet`
+      : null;
+  // The newest row the chain has, which is only "today" when an epoch closed today. Undefined
+  // when every owed epoch is still undated: the all-time figures stand, the dated charts do not.
+  const latest = days[days.length - 1] as HistoryDay | undefined;
+  const latestIsToday = latest ? isToday(latest.day) : false;
+  const latestPaid = latest ? utwltToTwlt(latest.paid) ?? 0 : 0;
   const last30 = totals(recent);
   const share30 = last30.paid + last30.kept > 0 ? (last30.paid / (last30.paid + last30.kept)) * 100 : null;
   const v = profile.data?.data.verdict ?? null;
@@ -361,7 +370,7 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
     { label: 'Owed to this slot', value: `${formatNumber(all.entitlement)} TWLT`, hint: 'Reward the chain allotted to this slot across every owed epoch.' },
     { label: 'Kept by operator', value: `${formatNumber(all.kept)} TWLT`, hint: 'Settlement remainder sent to the operator: integer-division residue and any budget not paid to miners (for example when no miner qualified).' },
     { label: 'Share to miners (30d)', value: share30 === null ? '—' : `${share30.toFixed(1)}%`, hint: 'Share of the last 30 days of settled rewards that reached miners.' },
-    { label: 'Epochs settled', value: `${formatNumber(all.settledEpochs)} / ${formatNumber(all.epochs)}`, hint: 'Owed epochs with a settlement on chain.' },
+    { label: 'Epochs settled', value: `${formatNumber(all.settledEpochs)} / ${formatNumber(all.epochs)}`, hint: `Owed epochs with a settlement on chain.${undatedEpochs > 0 ? ` Includes ${undatedEpochs} epoch${undatedEpochs === 1 ? '' : 's'} with no close time yet, which appear in no day of the history.` : ''}` },
     { label: 'Miners ever paid', value: p ? `${p.paidAll}` : formatNumber(all.miners), hint: `Distinct addresses paid by this slot.${p ? ` ${p.paid30} in the last 30 days.` : ''}` },
     {
       label: 'Miners enrolled now',
@@ -372,8 +381,12 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
     { label: 'Settlement time', value: v?.medianLatencyBlocks ? `${v.medianLatencyBlocks} blocks` : '—', hint: `Median blocks from epoch close to settlement.${v?.p90LatencyBlocks ? ` p90 ${v.p90LatencyBlocks}.` : ''}` },
   ];
 
-  const lastDay = formatDay(latest.day, true);
-  const latestDayShort = formatDay(latest.day);
+  const lastDay = latest ? formatDay(latest.day, true) : null;
+  const latestDayShort = latest ? formatDay(latest.day) : '';
+  // The headline total counts undated epochs; the "as of" day only covers dated ones.
+  const asOf = lastDay
+    ? `as of ${lastDay}${undatedNote ? `, plus ${undatedNote}` : ''}`
+    : `from ${undatedNote}`;
 
   return (
     <section aria-label="Operator dashboard" className="flex flex-col gap-2">
@@ -384,20 +397,27 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
             <span className="w-fit border-b border-dashed border-text-muted/60 text-[15px] text-text-secondary" title="Sum of every payout line this slot's settlements sent to miners.">
               Total paid to miners
             </span>
-            <span className="font-mono text-xs text-text-muted">as of {lastDay}</span>
+            <span className="font-mono text-xs text-text-muted">{asOf}</span>
             <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <span className="font-mono text-[34px] font-medium leading-none tracking-tight">
                 {formatNumber(all.paid)}
                 <span className="ml-1.5 text-base text-text-muted">TWLT</span>
               </span>
-              <span className="font-mono text-sm text-text-muted">
-                <span className={latestPaid > 0 ? 'text-accent-green' : 'text-text-secondary'}>
-                  +{formatNumber(latestPaid)}
-                </span>{' '}
-                {/* grouped by epoch-close day (like every row), not by the day the payout landed */}
-                {latestIsToday ? 'for epochs closed today' : `for epochs closed ${latestDayShort}`}
-              </span>
+              {latest ? (
+                <span className="font-mono text-sm text-text-muted">
+                  <span className={latestPaid > 0 ? 'text-accent-green' : 'text-text-secondary'}>
+                    +{formatNumber(latestPaid)}
+                  </span>{' '}
+                  {/* grouped by epoch-close day (like every row), not by the day the payout landed */}
+                  {latestIsToday ? 'for epochs closed today' : `for epochs closed ${latestDayShort}`}
+                </span>
+              ) : null}
             </div>
+            {undatedPaid > 0 ? (
+              <span className="font-mono text-xs text-text-muted">
+                includes {formatNumber(undatedPaid)} TWLT from {undatedNote}
+              </span>
+            ) : null}
           </div>
 
           <div className="flex flex-col">
@@ -418,159 +438,176 @@ export function OperatorDashboard({ slotId }: { slotId: string }) {
             ))}
           </div>
 
-          <div className="mt-auto">
-            <FileButton label="Download daily history as CSV" onClick={() => downloadCsv(`twilight-slot-${slotId}-history.csv`, historyCsv(days))}>
-              .csv
-            </FileButton>
-          </div>
-        </Card>
-
-        {/* Big chart */}
-        <Card className="flex flex-col gap-3 p-4">
-          <div role="radiogroup" aria-label="Chart metric" className="flex flex-wrap gap-1.5">
-            {METRICS.map((x) => (
-              <button
-                key={x.id}
-                type="button"
-                role="radio"
-                aria-checked={x.id === metricId}
-                onClick={() => setMetricId(x.id)}
-                className={clsx(
-                  'whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  x.id === metricId
-                    ? 'border-primary/70 bg-primary/10 text-text'
-                    : 'border-card-border text-text-muted hover:border-primary/40 hover:text-text',
-                )}
-              >
-                {x.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-text-muted">
-              <span>{m.caption}{m.id === 'latency' ? ' (log scale)' : ''}.</span>
-              <SourceChip kind={m.provenance} />
-            </span>
-            <span className="flex gap-1.5">
-              <FileButton
-                label={`Download ${m.label} as CSV`}
-                onClick={() =>
-                  downloadCsv(
-                    `twilight-slot-${slotId}-${m.id}.csv`,
-                    ['day,value', ...seriesFor(days, m.id).map(([d, val]) => `${d},${val ?? ''}`)].join('\n') + '\n',
-                  )
-                }
-              >
+          {latest ? (
+            <div className="mt-auto">
+              <FileButton label="Download daily history as CSV" onClick={() => downloadCsv(`twilight-slot-${slotId}-history.csv`, historyCsv(days))}>
                 .csv
               </FileButton>
-              <FileButton
-                label={`Download ${m.label} chart as PNG`}
-                onClick={() => {
-                  const url = chartRef.current?.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: t.card });
-                  if (url) download(`twilight-slot-${slotId}-${m.id}.png`, url);
-                }}
-              >
-                .png
-              </FileButton>
-            </span>
-          </div>
-          <EChart
-            option={main}
-            height={360}
-            label={`${m.label} per day for slot ${slotId}`}
-            onReady={(c) => {
-              chartRef.current = c;
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowTable((s) => !s)}
-            aria-expanded={showTable}
-            className="w-fit font-mono text-[11px] text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            {showTable ? 'Hide' : 'Show'} as table
-          </button>
-          {showTable ? (
-            <div className="max-h-64 overflow-auto rounded-lg border border-card-border">
-              <table className="w-full font-mono text-xs">
-                <thead className="sticky top-0 bg-card text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-normal">Day</th>
-                    <th className="px-3 py-2 text-left font-normal">Epochs</th>
-                    <th className="px-3 py-2 text-right font-normal">{m.label}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...days].reverse().map((d, i) => {
-                    const val = mainSeries[days.length - 1 - i]?.[1] ?? null;
-                    return (
-                      <tr key={d.day} className="border-t border-card-border">
-                        <td className="px-3 py-1.5">{formatDay(d.day, true)}</td>
-                        <td className="px-3 py-1.5 text-text-muted">{d.firstEpoch}–{d.lastEpoch}</td>
-                        <td className="px-3 py-1.5 text-right">{val === null ? '—' : formatValue(m, val)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           ) : null}
         </Card>
-      </div>
 
-      {/* Compact tiles */}
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <Tile title="Miners paid" value={last7Miners === null ? '—' : `${last7Miners}`} sub="distinct, last 7d">
-          <EChart option={minersTile} height={72} label="Miners paid per day, last 30 days" />
-        </Tile>
-        <Tile
-          title="Paid to miners"
-          value={`${formatNumber(latestPaid)}`}
-          sub={latestIsToday ? 'TWLT · epochs closed today' : `TWLT · epochs closed ${latestDayShort}`}
-        >
-          <EChart option={paidTile} height={72} label="TWLT paid to miners per day, last 30 days" />
-        </Tile>
-        <Tile title="Share to miners" value={share30 === null ? '—' : `${share30.toFixed(1)}%`} sub="30d">
-          <EChart option={shareTile} height={72} label="Share of settled rewards paid to miners per day, last 30 days" />
-        </Tile>
-      </div>
-
-      {/* Larger cards */}
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <Tile tall title="Total paid to miners" value={formatNumber(all.paid)} sub="TWLT all time">
-          <EChart option={paidTotalTile} height={180} label="TWLT paid to miners, cumulative" />
-        </Tile>
-        <Tile
-          tall
-          title="Top miners"
-          value={top[0] ? `${formatNumber(utwltToTwlt(top[0].totalReceived) ?? 0)} TWLT` : '—'}
-          sub="largest earner"
-        >
-          {top.length > 0 ? (
-            <>
-              <EChart option={topTile} height={150} label="TWLT received by the top miners of this slot" />
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-text-muted">
-                {top.slice(0, 3).map((x, i) => (
-                  <Link key={x.recipient} href={`/accounts/${x.recipient}`} className="hover:text-text">
-                    #{i + 1} {x.recipient.slice(0, 10)}…{x.recipient.slice(-4)}
-                  </Link>
-                ))}
+        {/* Big chart: per-day, so it needs at least one dated epoch */}
+        {latest ? (
+          <Card className="flex flex-col gap-3 p-4">
+            <div role="radiogroup" aria-label="Chart metric" className="flex flex-wrap gap-1.5">
+              {METRICS.map((x) => (
+                <button
+                  key={x.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={x.id === metricId}
+                  onClick={() => setMetricId(x.id)}
+                  className={clsx(
+                    'whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                    x.id === metricId
+                      ? 'border-primary/70 bg-primary/10 text-text'
+                      : 'border-card-border text-text-muted hover:border-primary/40 hover:text-text',
+                  )}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-text-muted">
+                <span>{m.caption}{m.id === 'latency' ? ' (log scale)' : ''}.</span>
+                <SourceChip kind={m.provenance} />
+              </span>
+              <span className="flex gap-1.5">
+                <FileButton
+                  label={`Download ${m.label} as CSV`}
+                  onClick={() =>
+                    downloadCsv(
+                      `twilight-slot-${slotId}-${m.id}.csv`,
+                      ['day,value', ...seriesFor(days, m.id).map(([d, val]) => `${d},${val ?? ''}`)].join('\n') + '\n',
+                    )
+                  }
+                >
+                  .csv
+                </FileButton>
+                <FileButton
+                  label={`Download ${m.label} chart as PNG`}
+                  onClick={() => {
+                    const url = chartRef.current?.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: t.card });
+                    if (url) download(`twilight-slot-${slotId}-${m.id}.png`, url);
+                  }}
+                >
+                  .png
+                </FileButton>
+              </span>
+            </div>
+            <EChart
+              option={main}
+              height={360}
+              label={`${m.label} per day for slot ${slotId}`}
+              onReady={(c) => {
+                chartRef.current = c;
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowTable((s) => !s)}
+              aria-expanded={showTable}
+              className="w-fit font-mono text-[11px] text-text-muted underline-offset-2 hover:text-text hover:underline"
+            >
+              {showTable ? 'Hide' : 'Show'} as table
+            </button>
+            {showTable ? (
+              <div className="max-h-64 overflow-auto rounded-lg border border-card-border">
+                <table className="w-full font-mono text-xs">
+                  <thead className="sticky top-0 bg-card text-text-muted">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-normal">Day</th>
+                      <th className="px-3 py-2 text-left font-normal">Epochs</th>
+                      <th className="px-3 py-2 text-right font-normal">{m.label}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...days].reverse().map((d, i) => {
+                      const val = mainSeries[days.length - 1 - i]?.[1] ?? null;
+                      return (
+                        <tr key={d.day} className="border-t border-card-border">
+                          <td className="px-3 py-1.5">{formatDay(d.day, true)}</td>
+                          <td className="px-3 py-1.5 text-text-muted">{d.firstEpoch}–{d.lastEpoch}</td>
+                          <td className="px-3 py-1.5 text-right">{val === null ? '—' : formatValue(m, val)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </>
-          ) : (
-            <p className="text-sm text-text-muted">No miner has been paid yet.</p>
-          )}
-        </Tile>
-        <Tile
-          tall
-          title="Enrolled per epoch"
-          value={latestEnrolled?.feed.avgEnrolled != null ? formatNumber(latestEnrolled.feed.avgEnrolled) : '—'}
-          sub={latestEnrolled ? `avg, ${formatDay(latestEnrolled.day)}` : undefined}
-          chip={<SourceChip kind="attested" />}
-        >
-          <EChart option={enrolledTile} height={180} label="Average miners enrolled per epoch, per day, as published by the auth server" />
-        </Tile>
+            ) : null}
+          </Card>
+        ) : (
+          <Card className="flex flex-col justify-center gap-2 p-5">
+            <span className="text-[15px] font-semibold">No dated history yet</span>
+            <p className="text-sm text-text-muted">
+              Every owed epoch of this slot is still waiting for an indexed close time, so there is no day
+              to chart yet. The figures on the left already count those epochs.
+            </p>
+          </Card>
+        )}
       </div>
+
+      {/* Per-day tiles, like the big chart, need a dated epoch */}
+      {latest ? (
+        <>
+          {/* Compact tiles */}
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <Tile title="Miners paid" value={last7Miners === null ? '—' : `${last7Miners}`} sub="distinct, last 7d">
+              <EChart option={minersTile} height={72} label="Miners paid per day, last 30 days" />
+            </Tile>
+            <Tile
+              title="Paid to miners"
+              value={`${formatNumber(latestPaid)}`}
+              sub={latestIsToday ? 'TWLT · epochs closed today' : `TWLT · epochs closed ${latestDayShort}`}
+            >
+              <EChart option={paidTile} height={72} label="TWLT paid to miners per day, last 30 days" />
+            </Tile>
+            <Tile title="Share to miners" value={share30 === null ? '—' : `${share30.toFixed(1)}%`} sub="30d">
+              <EChart option={shareTile} height={72} label="Share of settled rewards paid to miners per day, last 30 days" />
+            </Tile>
+          </div>
+
+          {/* Larger cards */}
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <Tile tall title="Total paid to miners" value={formatNumber(all.paid)} sub={undatedPaid > 0 ? `TWLT all time · chart counts dated epochs only, ${formatNumber(undatedPaid)} undated` : 'TWLT all time'}>
+              <EChart option={paidTotalTile} height={180} label="TWLT paid to miners, cumulative" />
+            </Tile>
+            <Tile
+              tall
+              title="Top miners"
+              value={top[0] ? `${formatNumber(utwltToTwlt(top[0].totalReceived) ?? 0)} TWLT` : '—'}
+              sub="largest earner"
+            >
+              {top.length > 0 ? (
+                <>
+                  <EChart option={topTile} height={150} label="TWLT received by the top miners of this slot" />
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-text-muted">
+                    {top.slice(0, 3).map((x, i) => (
+                      <Link key={x.recipient} href={`/accounts/${x.recipient}`} className="hover:text-text">
+                        #{i + 1} {x.recipient.slice(0, 10)}…{x.recipient.slice(-4)}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-text-muted">No miner has been paid yet.</p>
+              )}
+            </Tile>
+            <Tile
+              tall
+              title="Enrolled per epoch"
+              value={latestEnrolled?.feed.avgEnrolled != null ? formatNumber(latestEnrolled.feed.avgEnrolled) : '—'}
+              sub={latestEnrolled ? `avg, ${formatDay(latestEnrolled.day)}` : undefined}
+              chip={<SourceChip kind="attested" />}
+            >
+              <EChart option={enrolledTile} height={180} label="Average miners enrolled per epoch, per day, as published by the auth server" />
+            </Tile>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

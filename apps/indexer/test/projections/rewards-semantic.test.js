@@ -71,6 +71,34 @@ describe('Rewards semantic projection', () => {
     assert.equal(e.denom, 'utwlt'); // <- not emitted; native-denom default
   });
 
+  it('3b. epoch_finalized records the close block time as blockTime (#113)', async () => {
+    const p = new MockRewardsPrisma();
+    const closeTime = new Date('2026-10-30T12:00:00.000Z');
+    p.blocks.set('30', { height: 30n, time: closeTime });
+    p.events.push(evt(3n, 30n, null, null, 'epoch_finalized', [{ key: 'epoch', value: '3' }]));
+    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 30n });
+    assert.deepEqual(p.epochs.get('3').blockTime, closeTime);
+  });
+
+  it('3c. epoch_finalized without an indexed close block leaves blockTime null', async () => {
+    const p = new MockRewardsPrisma();
+    p.events.push(evt(3n, 30n, null, null, 'epoch_finalized', [{ key: 'epoch', value: '3' }]));
+    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 30n });
+    assert.equal(p.epochs.size, 1);
+    assert.equal(p.epochs.get('3').blockTime, null);
+  });
+
+  it('3d. re-projecting without the close block keeps an already recorded blockTime', async () => {
+    const p = new MockRewardsPrisma();
+    const closeTime = new Date('2026-10-30T12:00:00.000Z');
+    p.blocks.set('30', { height: 30n, time: closeTime });
+    p.events.push(evt(3n, 30n, null, null, 'epoch_finalized', [{ key: 'epoch', value: '3' }]));
+    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 30n });
+    p.blocks.delete('30');
+    await projectRewardsSemanticHeight({ prisma: p, chainId: CHAIN_ID, height: 30n });
+    assert.deepEqual(p.epochs.get('3').blockTime, closeTime);
+  });
+
   it('12. params_update_queued stores a queued params change', async () => {
     const p = new MockRewardsPrisma();
     p.transactions.push(successTx('PARAMS-130', 130n));
@@ -345,6 +373,11 @@ class MockRewardsPrisma {
     this.balanceSamples = [];
     this.failures = [];
     this.cursors = new Map();
+    this.blocks = new Map();
+
+    this.block = {
+      findUnique: async (args) => this.blocks.get(String(args.where.height)) ?? null,
+    };
 
     this.explorerTransaction = {
       findMany: async (args) => {

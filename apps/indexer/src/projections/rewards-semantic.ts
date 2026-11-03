@@ -46,6 +46,7 @@ export interface RewardsSemanticProjectionPrisma extends ProjectionCursorPrisma 
   explorerTransaction: { findMany(args: unknown): Promise<TransactionSource[]> };
   message: { findMany(args: unknown): Promise<MessageSource[]> };
   event: { findMany(args: unknown): Promise<EventSource[]> };
+  block: { findUnique(args: unknown): Promise<BlockTimeSource | null> };
   rewardEpochProjection: { upsert(args: unknown): Promise<unknown> };
   slotRewardProjection: {
     findMany(args: unknown): Promise<SlotRewardSource[]>;
@@ -85,6 +86,10 @@ interface EventSource {
   msgIndex: number | null;
   type: string;
   attributesJson: unknown;
+}
+
+interface BlockTimeSource {
+  time: Date | null;
 }
 
 interface SlotRewardSource {
@@ -246,9 +251,19 @@ async function projectEpochFinalized(
   const cumulativeEmitted = readString(attrs.cumulative_emitted) ?? null;
   const distributionMethod = readString(attrs.distribution_method) ?? null;
 
+  // The epoch closes at the height that emits epoch_finalized, so its close time is that
+  // block's time. When the block row is missing the column stays null (readers fall back to
+  // the Block join), and a re-projection never clears a close time already recorded.
+  const closeBlock = await tx.block.findUnique({
+    where: { height: event.height },
+    select: { time: true },
+  });
+  const blockTime = closeBlock?.time ?? null;
+
   const data = {
     epochNumber,
     height: event.height,
+    blockTime,
     totalReward,
     denom,
     activeSlotCount,
@@ -262,6 +277,7 @@ async function projectEpochFinalized(
     create: data,
     update: {
       height: event.height,
+      ...(blockTime !== null ? { blockTime } : {}),
       totalReward,
       denom,
       activeSlotCount,
